@@ -1,90 +1,128 @@
-# 📈 Analisis - Finance Dashboard
+# 📈 Anasys
 
-A powerful, self-hostable finance dashboard built with **Bun**, **Vue.js**, **ElysiaJS**, and **TimescaleDB**. Track your portfolio, watch market trends, and get real-time insights with a beautiful, responsive UI.
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Bun](https://img.shields.io/badge/Runtime-Bun_v1.0+-000000?logo=bun&logoColor=white)](https://bun.sh)
+[![Vue](https://img.shields.io/badge/Frontend-Vue_3-4FC08D?logo=vue.js&logoColor=white)](https://vuejs.org)
+[![TimescaleDB](https://img.shields.io/badge/Database-TimescaleDB-FDC500?logo=postgresql&logoColor=black)](https://www.timescale.com/)     
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
-## ✨ Features
+**Anasys** is a high-performance, self-hostable finance dashboard designed for the modern investor. Built on the bleeding edge **Bun** runtime, it leverages **TimescaleDB** for lightning-fast time-series data processing and **Vue 3** for a buttery smooth user experience.
 
-- **Real-time Market Data:** Live updates for Stocks, Crypto, and Forex.
-- **Portfolio Management:** Track holdings, average costs, and P&L.
-- **Interactive Charts:** High-performance candle & sparkline charts using TimescaleDB optimization.
-- **Watchlists:** Create and manage custom watchlists with "Hold-to-Delete" gestures.
-- **Secure Auth:** Google OAuth2 integration with secure session management.
-- **Modern UI:** Mobile-first, glassmorphism design using Framework7 & Vue 3.
+---
 
-## 🚀 Quick Start (Self-Hosting)
+## 🌟 Why Anasys?
 
-Prerequisites:
-- [Docker](https://www.docker.com/) & Docker Compose
-- [Bun](https://bun.sh/) (v1.0+)
+We built Anasys because existing self-hosted finance tools were either too slow, too ugly, or too hard to deploy. Anasys bridges the gap between professional-grade data analysis and consumer-friendly UX.
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/yourusername/analisis.git
-cd analisis
+- **🚀 Blazing Fast**: Powered by Bun and ElysiaJS, API responses are measured in microseconds.
+- **📊 Data Heavy**: Built on TimescaleDB to handle millions of market data points without breaking a sweat.
+- **🎨 Beautiful**: A "Glassmorphism" UI design that looks as premium as the assets you track.
+- **🔒 Privacy First**: Your data stays on your server. No third-party tracking.
+
+## ✨ Key Features
+
+| Feature | Description |
+| :--- | :--- |
+| **Real-time Feeds** | WebSocket-powered updates for Stocks, Crypto, and Forex markets. |
+| **Portfolio Tracker** | Unified view of your holdings, P/L, and cost basis calculations. |
+| **Advanced Charts** | Interactive candle, line, and sparkline charts optimized for heavy datasets. |
+| **Smart Watchlists** | "Hold-to-Delete" gestures and drag-and-drop organization. |
+| **Secure Auth** | Integrated Google OAuth2 with secure, stateless session management (JWT). |
+| **Mobile First** | Responsive design that feels native on iOS and Android. |
+
+## 🛠️ Technology Stack
+
+| Component | Technology | Description |
+| :--- | :--- | :--- |
+| **Runtime** | ![Bun](https://img.shields.io/badge/-Bun-black) | Ultra-fast JavaScript runtime & package manager. |
+| **Framework** | ![Elysia](https://img.shields.io/badge/-ElysiaJS-ff0050) | High-performance backend framework for Bun. |
+| **Frontend** | ![Vue](https://img.shields.io/badge/-Vue_3-4fc08d) | Progressive JavaScript framework. |
+| **UI Lib** | ![F7](https://img.shields.io/badge/-Framework7-ee350f) | Full-featured mobile HTML framework. |
+| **Database** | ![Timescale](https://img.shields.io/badge/-TimescaleDB-fdc500) | Time-series powerhouse based on PostgreSQL. |
+| **ORM** | ![Drizzle](https://img.shields.io/badge/-Drizzle-c5f74f) | Lightweight and type-safe TypeScript ORM. |
+
+## ⚡ Quick Start
+
+### Prerequisites
+- **Docker** & **Docker Compose**
+- **Bun** (v1.0 or higher)
+
+### Installation
+
+1. **Clone & Setup**
+   ```bash
+   git clone https://github.com/ihkaru/Anasys.git
+   cd Anasys
+   ```
+
+2. **Environment Configuration**
+   ```bash
+   cp .env.example .env
+   cp credential_analisis.example.json credential_analisis.json
+   ```
+   > *Note: You'll need a Google Cloud Client ID/Secret for the `credential_analisis.json` to enable OAuth.*
+
+3. **Start Infrastructure**
+   ```bash
+   docker-compose up -d postgres
+   ```
+
+4. **Install & Hydrate**
+   ```bash
+   bun install
+   bun run db:push
+   # (Optional) Seed initial data
+   bun run --filter @apps/backend seed
+   ```
+
+5. **Launch**
+   ```bash
+   bun run dev
+   ```
+   Visit the app at `http://localhost:5173`.
+
+## 📂 Architecture (Monorepo)
+
+Anasys uses a modern monorepo structure managed by Bun Workspaces for maximum code sharing and developer velocity.
+
+```
+Anasys/
+├── apps/
+│   ├── backend/    # ElysiaJS API Server
+│   └── frontend/   # Vue 3 + Vite Client
+├── packages/
+│   ├── db/         # Drizzle Schema & Shared DB Logic
+│   └── shared/     # Shared Types & Utilities
+├── docker-compose.yml
+└── package.json
 ```
 
-### 2. Configure Environment
-Create the `.env` file from the example:
-```bash
-cp .env.example .env
-```
-*Note: The default credentials work out-of-the-box for local development.*
+## 🗺️ Roadmap
 
-Create the Google Credentials file:
-```bash
-cp credential_analisis.example.json credential_analisis.json
-```
-*You will need a [Google Cloud Console](https://console.cloud.google.com/) project to get a Client ID/Secret for OAuth.*
-
-### 3. Start Database
-Spin up the TimescaleDB instance using Docker:
-```bash
-docker-compose up -d postgres
-```
-
-### 4. Install Dependencies & Setup DB
-Install packages and push the schema to the database:
-```bash
-bun install
-bun run db:push
-# (Optional) Seed initial popular tickers without massive download:
-bun run --filter @apps/backend seed
-```
-
-### 5. Run the App
-Start both the backend and frontend in development mode:
-```bash
-bun run dev
-```
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:3000
-- **Swagger Docs:** http://localhost:3000/swagger
-
-## 🛠 Tech Stack
-
-- **Runtime:** [Bun](https://bun.sh/) - Fast JavaScript runtime.
-- **Backend:** [ElysiaJS](https://elysiajs.com/) - Ergonomic web framework.
-- **Frontend:** [Vue 3](https://vuejs.org/) + [Framework7](https://framework7.io/) - Hybrid mobile/web apps.
-- **Database:** [TimescaleDB](https://www.timescale.com/) (PostgreSQL extension) - Time-series data power.
-- **ORM:** [Drizzle ORM](https://orm.drizzle.team/) - TypeScript ORM.
-
-## 📂 Project Structure
-
-This is a **monorepo** managed by Bun workspaces:
-
-- `apps/backend`: ElysiaJS API server.
-- `apps/frontend`: Vue 3 + Vite application.
-- `packages/db`: Shared Drizzle schema and database utilities.
-
-## 🛡 Security
-
-- **Credentials:** Never commit `.env` or `credential_analisis.json`. These are ignored by git.
-- **Auth:** Uses Google OAuth2 + JWT (Jose) for stateless, secure authentication.
+- [x] Basic Portfolio Tracking
+- [x] Real-time Market Data
+- [x] Google OAuth Integration
+- [ ] Multiple Portfolio Support
+- [ ] Email Alerts & Notifications
+- [ ] Public Status Pages
+- [ ] Docker Hub Built Images
 
 ## 🤝 Contributing
 
-Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
+We love contributions! Please read our [Contributing Guide](CONTRIBUTING.md) (coming soon) for details on our code of conduct and the process for submitting pull requests.
+
+1. Fork it!
+2. Create your feature branch: `git checkout -b my-new-feature`
+3. Commit your changes: `git commit -am 'Add some feature'`
+4. Push to the branch: `git push origin my-new-feature`
+5. Submit a pull request :D
 
 ## 📄 License
 
-[MIT](LICENSE)
+This project is licensed under the [MIT License](LICENSE) - see the LICENSE file for details.
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="https://github.com/ihkaru">ihkaru</a>
+</p>
