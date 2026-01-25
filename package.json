@@ -1,0 +1,22 @@
+{
+	"name": "finance-app-monorepo",
+	"version": "0.0.1",
+	"type": "module",
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"scripts": {
+		"dev": "bun --filter '*' dev",
+		"build": "bun --filter '*' build",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"db:push": "bun --filter @packages/db push",
+		"db:studio": "bun --filter @packages/db studio"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "latest",
+		"bun-types": "latest",
+		"typescript": "^5.0.0"
+	}
+}

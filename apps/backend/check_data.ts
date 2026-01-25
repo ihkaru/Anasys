@@ -1,0 +1,1 @@
+import { db } from './src/db'; import { marketData } from '@packages/db/src/schema'; import { count } from 'drizzle-orm'; const res = await db.select({ count: count() }).from(marketData); console.log('Market Data Count:', res[0].count); process.exit(0);

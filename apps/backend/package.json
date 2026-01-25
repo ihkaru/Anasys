@@ -1,0 +1,29 @@
+{
+	"name": "@apps/backend",
+	"version": "1.0.0",
+	"type": "module",
+	"scripts": {
+		"dev": "bun run --watch src/index.ts",
+		"seed": "bun run src/scripts/seed.ts",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@elysiajs/cookie": "latest",
+		"@elysiajs/cors": "latest",
+		"@elysiajs/eden": "latest",
+		"@elysiajs/jwt": "latest",
+		"@elysiajs/swagger": "latest",
+		"ccxt": "^4.5.34",
+		"csv-parse": "^6.1.0",
+		"drizzle-orm": "latest",
+		"elysia": "latest",
+		"google-auth-library": "latest",
+		"jose": "^6.1.3",
+		"postgres": "latest",
+		"yahoo-finance2": "^3.13.0"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.6",
+		"bun-types": "latest"
+	}
+}
