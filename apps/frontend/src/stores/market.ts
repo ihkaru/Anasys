@@ -68,6 +68,8 @@ export const useMarketStore = defineStore("market", () => {
         trending: []
     });
     
+    const quotes = ref<Map<string, MarketMover>>(new Map());
+    
     const selectedSymbol = useLocalStorage<string>("selected_symbol", "AAPL");
     const selectedStrategy = useLocalStorage<string>("selected_strategy", "SMA_CROSSOVER");
     
@@ -96,6 +98,28 @@ export const useMarketStore = defineStore("market", () => {
             }
         } catch (e) {
             logger.error("Failed to fetch movers", e);
+        }
+    }
+
+    async function fetchOverview(tickers: string[]) {
+        try {
+            logger.debug(`Fetching overview for ${tickers.map(t => t).join(',')}`);
+            if (tickers.length === 0) return;
+            const response = await api.post("/market/overview", { tickers });
+            if (response.data.success) {
+                 // We need a place to store general price updates. 
+                 // For now, let's update a prices map or reuse movers? 
+                 // Movers structure is specific (gainers, losers).
+                 // Use a new state: prices.
+                 // But for this step let's just return it or add to a 'quotes' map.
+                 // Let's add 'quotes' map to state.
+                 const newQuotes = response.data.data;
+                 newQuotes.forEach((q: any) => {
+                     quotes.value.set(q.ticker, q);
+                 });
+            }
+        } catch (e) {
+            logger.error("Failed to fetch overview", e);
         }
     }
 
@@ -307,10 +331,61 @@ export const useMarketStore = defineStore("market", () => {
         selectedStrategy.value = strategyId;
     }
 
+    // ===== NEW: Search, Trending, Recommendations =====
+    
+    async function searchSymbols(query: string, limit: number = 15) {
+        try {
+            logger.debug(`Searching symbols: ${query}`);
+            const response = await api.get("/market/search", { 
+                params: { q: query, limit: String(limit) } 
+            });
+            if (response.data.success) {
+                return response.data.data;
+            }
+            return [];
+        } catch (e) {
+            logger.error("Failed to search symbols", e);
+            return [];
+        }
+    }
+
+    async function fetchTrending(region: string = 'US', count: number = 10) {
+        try {
+            logger.debug(`Fetching trending symbols for ${region}`);
+            const response = await api.get("/market/trending", { 
+                params: { region, count: String(count) } 
+            });
+            if (response.data.success) {
+                // Update movers.trending with fresh data
+                movers.value.trending = response.data.data;
+                return response.data.data;
+            }
+            return [];
+        } catch (e) {
+            logger.error("Failed to fetch trending", e);
+            return [];
+        }
+    }
+
+    async function fetchRecommendations(ticker: string) {
+        try {
+            logger.debug(`Fetching recommendations for ${ticker}`);
+            const response = await api.get(`/market/recommendations/${ticker}`);
+            if (response.data.success) {
+                return response.data.data;
+            }
+            return [];
+        } catch (e) {
+            logger.error("Failed to fetch recommendations", e);
+            return [];
+        }
+    }
+
     return {
         // State
         symbols,
         movers,
+        quotes,
         selectedSymbol,
         selectedStrategy,
         loading,
@@ -327,6 +402,10 @@ export const useMarketStore = defineStore("market", () => {
         // Actions
         fetchSymbols,
         fetchMovers,
+        fetchOverview,
+        fetchTrending,
+        searchSymbols,
+        fetchRecommendations,
         syncSymbol,
         fetchHistory,
         runAnalysis,

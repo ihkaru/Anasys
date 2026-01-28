@@ -38,7 +38,7 @@ export const marketController = new Elysia({ prefix: "/market" })
             return { user: null };
         }
     })
-    // Market Overview - get latest data for major indices
+    // Market Overview (GET) - default indices
     .get("/overview", async () => {
         logger.debug("GET /overview");
         try {
@@ -48,6 +48,104 @@ export const marketController = new Elysia({ prefix: "/market" })
             return { success: true, data: overview };
         } catch (e) {
             logger.error("Failed to get market overview", e);
+            return { success: false, error: (e as Error).message };
+        }
+    })
+    // Market Overview (POST) - dynamic tickers (NEW!)
+    .post("/overview", async ({ body }) => {
+        logger.debug(`POST /overview for ${body.tickers?.length || 0} tickers`);
+        try {
+            const tickers = body.tickers || [];
+            if (tickers.length === 0) {
+                return { success: true, data: [] };
+            }
+            // Use real-time quotes service instead of DB-based overview
+            const quotes = await marketService.getQuotes(tickers);
+            return { success: true, data: quotes };
+        } catch (e) {
+            logger.error("Failed to get quotes", e);
+            return { success: false, error: (e as Error).message };
+        }
+    }, {
+        body: t.Object({
+            tickers: t.Array(t.String())
+        })
+    })
+    // Real-time quotes for single or multiple tickers
+    .get("/quotes", async ({ query }) => {
+        const tickers = query.tickers?.split(',').map(t => t.trim()).filter(Boolean) || [];
+        logger.debug(`GET /quotes for ${tickers.length} tickers`);
+        
+        if (tickers.length === 0) {
+            return { success: false, error: "No tickers provided" };
+        }
+        
+        try {
+            const quotes = await marketService.getQuotes(tickers);
+            return { success: true, data: quotes };
+        } catch (e) {
+            logger.error("Failed to get quotes", e);
+            return { success: false, error: (e as Error).message };
+        }
+    }, {
+        query: t.Object({
+            tickers: t.String() // Comma-separated list
+        })
+    })
+    // Search symbols
+    .get("/search", async ({ query }) => {
+        const q = query.q || '';
+        const limit = query.limit ? parseInt(query.limit) : 15;
+        
+        logger.debug(`GET /search q="${q}" limit=${limit}`);
+        
+        if (q.length < 1) {
+            return { success: false, error: "Query too short" };
+        }
+        
+        try {
+            const results = await marketService.searchSymbols(q, limit);
+            return { success: true, data: results };
+        } catch (e) {
+            logger.error("Failed to search symbols", e);
+            return { success: false, error: (e as Error).message };
+        }
+    }, {
+        query: t.Object({
+            q: t.String(),
+            limit: t.Optional(t.String())
+        })
+    })
+    // Trending symbols
+    .get("/trending", async ({ query }) => {
+        const region = query.region || 'US';
+        const count = query.count ? parseInt(query.count) : 10;
+        
+        logger.debug(`GET /trending region=${region} count=${count}`);
+        
+        try {
+            const trending = await marketService.getTrendingSymbols(region, count);
+            return { success: true, data: trending };
+        } catch (e) {
+            logger.error("Failed to get trending symbols", e);
+            return { success: false, error: (e as Error).message };
+        }
+    }, {
+        query: t.Object({
+            region: t.Optional(t.String()),
+            count: t.Optional(t.String())
+        })
+    })
+    // Recommendations for a symbol
+    .get("/recommendations/:ticker", async ({ params }) => {
+        const ticker = params.ticker.toUpperCase();
+        logger.debug(`GET /recommendations/${ticker}`);
+        
+        try {
+            const recommendations = await marketService.getRecommendations(ticker);
+            return { success: true, data: recommendations };
+        } catch (e) {
+            logger.error(`Failed to get recommendations for ${ticker}`, e);
             return { success: false, error: (e as Error).message };
         }
     })
@@ -143,3 +241,4 @@ export const marketController = new Elysia({ prefix: "/market" })
             enrich: t.Optional(t.String()) // 'true' to trigger enrichment
         })
     });
+

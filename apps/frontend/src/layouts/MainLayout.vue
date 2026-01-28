@@ -1,21 +1,20 @@
 <template>
   <f7-page style="height: 100vh;">
     <!-- Views/Tabs Wrapper -->
-
-    <f7-tabs swipeable style="height: 100%;">
-      <f7-tab id="tab-home" tab-active>
+    <f7-tabs animated style="height: 100%;">
+      <f7-tab id="tab-home" class="page-content" tab-active>
         <HomePage />
       </f7-tab>
-      <f7-tab id="tab-portfolio">
+      <f7-tab id="tab-portfolio" class="page-content">
         <PortfolioPage />
       </f7-tab>
-      <f7-tab id="tab-strategy">
+      <f7-tab id="tab-strategy" class="page-content">
         <StrategyPage />
       </f7-tab>
-      <f7-tab id="tab-explore">
+      <f7-tab id="tab-explore" class="page-content">
         <ExplorePage />
       </f7-tab>
-      <f7-tab id="tab-settings">
+      <f7-tab id="tab-settings" class="page-content">
         <SettingsPage />
       </f7-tab>
     </f7-tabs>
@@ -49,5 +48,33 @@ import StrategyPage from '../pages/strategy/StrategyPage.vue';
 <style scoped>
 .main-tabbar {
   --f7-toolbar-bg-color: var(--f7-bars-bg-color);
+}
+
+/* Tab content transition */
+:deep(.tab) {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+:deep(.tab.tab-active) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Active tab link indicator animation */
+:deep(.tab-link-active) {
+  transition: color 0.2s ease;
+}
+
+:deep(.tab-link-active .icon) {
+  transform: scale(1.05);
+  transition: transform 0.15s ease;
+}
+
+/* Subtle press effect on tab icon */
+:deep(.tabbar .link:active .icon) {
+  transform: scale(0.9);
+  transition: transform 0.1s ease;
 }
 </style>
