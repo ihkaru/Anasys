@@ -6,6 +6,7 @@ import { YahooFinanceProvider } from "./providers/yahoo-finance.provider";
 import { MarketDataRepository } from "./repositories/market-data.repository";
 import { SymbolRepository } from "./repositories/symbol.repository";
 import { CandleService } from "./services/candle.service";
+import { FinancialsService } from "./services/financials.service";
 import { MoversService } from "./services/movers.service";
 import { OverviewService } from "./services/overview.service";
 import { QuoteService } from "./services/quote.service";
@@ -28,6 +29,7 @@ const candleService = new CandleService(symbolService, syncService, marketDataRe
 const overviewService = new OverviewService(symbolRepo, marketDataRepo, logger);
 const moversService = new MoversService(marketDataRepo, symbolRepo, cacheService, logger, db);
 const quoteService = new QuoteService(symbolRepo, marketDataRepo, dataProvider, cacheService, logger);
+const financialsService = new FinancialsService(dataProvider);
 
 export class MarketService {
     
@@ -72,7 +74,7 @@ export class MarketService {
         return moversService.getTopMovers(limit);
     }
 
-    // ===== NEW: Delegate to QuoteService =====
+    // ===== Delegate to QuoteService =====
     
     /**
      * Get real-time quotes for multiple tickers
@@ -102,8 +104,33 @@ export class MarketService {
     async getRecommendations(ticker: string) {
         return quoteService.getRecommendations(ticker);
     }
+
+    // ===== Delegate to FinancialsService =====
+
+    /**
+     * Get financial metrics for a stock (PE, margins, etc)
+     * Data from: summaryDetail, financialData, defaultKeyStatistics
+     */
+    async getFinancials(ticker: string) {
+        return financialsService.getFinancials(ticker);
+    }
+
+    /**
+     * Get earnings data (history, calendar, trend)
+     * Data from: earnings, earningsHistory, calendarEvents
+     */
+    async getEarnings(ticker: string) {
+        return financialsService.getEarnings(ticker);
+    }
+
+    /**
+     * Get analyst ratings breakdown (buy/hold/sell)
+     * Data from: recommendationTrend
+     */
+    async getAnalystRatings(ticker: string) {
+        return financialsService.getAnalystRatings(ticker);
+    }
 }
 
 // Export singleton
 export const marketService = new MarketService();
-

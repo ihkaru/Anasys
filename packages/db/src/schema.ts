@@ -99,3 +99,114 @@ export const holdings = pgTable("holdings", {
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// =============================================
+// NEW: Cached Financial & Analyst Data Tables
+// =============================================
+
+/**
+ * Cached financial metrics from Yahoo quoteSummary
+ * Modules: summaryDetail, financialData, defaultKeyStatistics
+ */
+export const symbolFinancials = pgTable("symbol_financials", {
+    id: serial("id").primaryKey(),
+    symbolId: integer("symbol_id").references(() => symbols.id, { onDelete: 'cascade' }).notNull().unique(),
+    
+    // From summaryDetail
+    trailingPE: doublePrecision("trailing_pe"),
+    forwardPE: doublePrecision("forward_pe"),
+    priceToBook: doublePrecision("price_to_book"),
+    dividendYield: doublePrecision("dividend_yield"),
+    exDividendDate: timestamp("ex_dividend_date", { withTimezone: true }),
+    beta: doublePrecision("beta"),
+    fiftyTwoWeekHigh: doublePrecision("fifty_two_week_high"),
+    fiftyTwoWeekLow: doublePrecision("fifty_two_week_low"),
+    fiftyDayAverage: doublePrecision("fifty_day_average"),
+    twoHundredDayAverage: doublePrecision("two_hundred_day_average"),
+    averageVolume: doublePrecision("average_volume"),
+    
+    // From financialData
+    totalRevenue: doublePrecision("total_revenue"),
+    revenuePerShare: doublePrecision("revenue_per_share"),
+    grossProfit: doublePrecision("gross_profit"),
+    ebitda: doublePrecision("ebitda"),
+    netIncomeToCommon: doublePrecision("net_income_to_common"),
+    grossMargins: doublePrecision("gross_margins"),
+    operatingMargins: doublePrecision("operating_margins"),
+    profitMargins: doublePrecision("profit_margins"),
+    returnOnEquity: doublePrecision("return_on_equity"),
+    returnOnAssets: doublePrecision("return_on_assets"),
+    debtToEquity: doublePrecision("debt_to_equity"),
+    currentRatio: doublePrecision("current_ratio"),
+    quickRatio: doublePrecision("quick_ratio"),
+    freeCashflow: doublePrecision("free_cashflow"),
+    targetMeanPrice: doublePrecision("target_mean_price"),
+    targetHighPrice: doublePrecision("target_high_price"),
+    targetLowPrice: doublePrecision("target_low_price"),
+    recommendationMean: doublePrecision("recommendation_mean"), // 1=Strong Buy, 5=Strong Sell
+    recommendationKey: text("recommendation_key"), // "buy", "hold", "sell"
+    numberOfAnalystOpinions: integer("number_of_analyst_opinions"),
+    
+    // From defaultKeyStatistics
+    sharesOutstanding: doublePrecision("shares_outstanding"),
+    floatShares: doublePrecision("float_shares"),
+    sharesShort: doublePrecision("shares_short"),
+    shortRatio: doublePrecision("short_ratio"),
+    heldPercentInsiders: doublePrecision("held_percent_insiders"),
+    heldPercentInstitutions: doublePrecision("held_percent_institutions"),
+    bookValue: doublePrecision("book_value"),
+    enterpriseValue: doublePrecision("enterprise_value"),
+    trailingEps: doublePrecision("trailing_eps"),
+    forwardEps: doublePrecision("forward_eps"),
+    pegRatio: doublePrecision("peg_ratio"),
+    
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Cached earnings data from Yahoo quoteSummary
+ * Modules: earnings, earningsHistory, calendarEvents
+ */
+export const symbolEarnings = pgTable("symbol_earnings", {
+    id: serial("id").primaryKey(),
+    symbolId: integer("symbol_id").references(() => symbols.id, { onDelete: 'cascade' }).notNull().unique(),
+    
+    // Calendar events
+    nextEarningsDate: timestamp("next_earnings_date", { withTimezone: true }),
+    nextExDividendDate: timestamp("next_ex_dividend_date", { withTimezone: true }),
+    nextDividendDate: timestamp("next_dividend_date", { withTimezone: true }),
+    
+    // Recent quarterly earnings (JSON array of last 4 quarters)
+    // Format: [{ date: "2024Q1", epsActual: 1.52, epsEstimate: 1.48, surprise: 0.04 }, ...]
+    earningsHistory: text("earnings_history"), // JSON string
+    
+    // Revenue history (JSON array)
+    revenueHistory: text("revenue_history"), // JSON string
+    
+    // Earnings trend (future estimates)
+    earningsTrend: text("earnings_trend"), // JSON string
+    
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Cached analyst ratings breakdown
+ * Module: recommendationTrend
+ */
+export const analystRatings = pgTable("analyst_ratings", {
+    id: serial("id").primaryKey(),
+    symbolId: integer("symbol_id").references(() => symbols.id, { onDelete: 'cascade' }).notNull().unique(),
+    
+    // Current month breakdown
+    strongBuy: integer("strong_buy").default(0),
+    buy: integer("buy").default(0),
+    hold: integer("hold").default(0),
+    sell: integer("sell").default(0),
+    strongSell: integer("strong_sell").default(0),
+    
+    // Historical trend (JSON array of monthly ratings)
+    // Format: [{ period: "0m", strongBuy: 10, buy: 15, hold: 5, sell: 1, strongSell: 0 }, ...]
+    ratingsTrend: text("ratings_trend"), // JSON string
+    
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+

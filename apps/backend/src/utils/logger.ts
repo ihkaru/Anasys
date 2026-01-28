@@ -7,6 +7,9 @@ const LEVELS: Record<LogLevel, number> = {
     ERROR: 3
 };
 
+// Check if stdout is a real terminal (not piped to file)
+const isTTY = process.stdout.isTTY ?? false;
+
 export class Logger {
     private module: string;
     private minLevel: number;
@@ -57,17 +60,22 @@ export class Logger {
             });
         }
         
-        // Development: Colored output
         const metaStr = meta ? ` ${JSON.stringify(meta)}` : '';
-        const colors = {
-            DEBUG: '\x1b[90m', // Gray
-            INFO: '\x1b[32m',  // Green
-            WARN: '\x1b[33m',  // Yellow
-            ERROR: '\x1b[31m', // Red
-        };
-        const reset = '\x1b[0m';
         
-        return `${colors[level]}[${timestamp}] [${level.padEnd(5)}] [${this.module}] ${message}${metaStr}${reset}`;
+        // Development with TTY: Colored output
+        if (isTTY) {
+            const colors = {
+                DEBUG: '\x1b[90m', // Gray
+                INFO: '\x1b[32m',  // Green
+                WARN: '\x1b[33m',  // Yellow
+                ERROR: '\x1b[31m', // Red
+            };
+            const reset = '\x1b[0m';
+            return `${colors[level]}[${timestamp}] [${level.padEnd(5)}] [${this.module}] ${message}${metaStr}${reset}`;
+        }
+        
+        // Development without TTY (file output): No colors
+        return `[${timestamp}] [${level.padEnd(5)}] [${this.module}] ${message}${metaStr}`;
     }
 
     private output(level: LogLevel, msg: string, meta?: any) {

@@ -38,7 +38,9 @@ export class SyncService {
             
             this.logger.debug(`Fetching ${ticker} (${interval}) range: ${queryOptions.period1} -> ${queryOptions.period2 || 'now'}`);
 
+            const startFetch = Date.now();
             const result = await this.dataProvider.fetchChart(ticker, chartOptions);
+            this.logger.debug(`[SyncService] Yahoo API Fetch took ${Date.now() - startFetch}ms`);
 
             if (!result || !result.quotes || result.quotes.length === 0) {
                  this.logger.warn(`No data found for ${ticker}`);
@@ -49,7 +51,9 @@ export class SyncService {
 
             if (values.length === 0) return { count: 0, status: 'empty' };
 
+            const startUpsert = Date.now();
             await this.marketDataRepo.upsert(values);
+            this.logger.debug(`[SyncService] DB Upsert (${values.length} items) took ${Date.now() - startUpsert}ms`);
 
             this.logger.info(`Saved ${values.length} candles for ${ticker} (${interval})`);
             

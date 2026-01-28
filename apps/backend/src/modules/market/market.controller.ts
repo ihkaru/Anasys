@@ -224,10 +224,8 @@ export const marketController = new Elysia({ prefix: "/market" })
                 return { success: false, error: "Symbol not found" };
             }
             
-            // On-demand enrichment if requested and not yet enriched
-            const shouldEnrich = query.enrich === 'true' && !symbol.metadataUpdatedAt;
-            
-            if (shouldEnrich) {
+            // On-demand enrichment if requested (service handles stale check internally)
+            if (query.enrich === 'true') {
                 symbol = await marketService.enrichSymbol(ticker);
             }
             
@@ -240,5 +238,70 @@ export const marketController = new Elysia({ prefix: "/market" })
         query: t.Object({
             enrich: t.Optional(t.String()) // 'true' to trigger enrichment
         })
+    })
+
+    // Financial metrics for a symbol (PE, margins, EPS, etc)
+    .get("/financials/:ticker", async ({ params }) => {
+        const ticker = params.ticker.toUpperCase();
+        logger.debug(`GET /financials/${ticker}`);
+        
+        try {
+            const financials = await marketService.getFinancials(ticker);
+            if (!financials) {
+                return { success: false, error: "Symbol not found or no financial data available" };
+            }
+            return { success: true, data: financials };
+        } catch (e) {
+            logger.error(`GET /financials/${ticker} failed`, e);
+            return { success: false, error: (e as Error).message };
+        }
+    })
+    // Earnings data for a symbol (history, calendar, trend)
+    .get("/earnings/:ticker", async ({ params }) => {
+        const ticker = params.ticker.toUpperCase();
+        logger.debug(`GET /earnings/${ticker}`);
+        
+        try {
+            const earnings = await marketService.getEarnings(ticker);
+            if (!earnings) {
+                return { success: false, error: "Symbol not found or no earnings data available" };
+            }
+            return { success: true, data: earnings };
+        } catch (e) {
+            logger.error(`GET /earnings/${ticker} failed`, e);
+            return { success: false, error: (e as Error).message };
+        }
+    })
+    // Analyst ratings for a symbol (buy/hold/sell breakdown)
+    .get("/analyst/:ticker", async ({ params }) => {
+        const ticker = params.ticker.toUpperCase();
+        logger.debug(`GET /analyst/${ticker}`);
+        
+        try {
+            const ratings = await marketService.getAnalystRatings(ticker);
+            if (!ratings) {
+                return { success: false, error: "Symbol not found or no analyst data available" };
+            }
+            return { success: true, data: ratings };
+        } catch (e) {
+            logger.error(`GET /analyst/${ticker} failed`, e);
+            return { success: false, error: (e as Error).message };
+        }
+    })
+    // Single ticker quote (convenience endpoint)
+    .get("/quote/:ticker", async ({ params }) => {
+        const ticker = params.ticker.toUpperCase();
+        logger.debug(`GET /quote/${ticker}`);
+        
+        try {
+            const quotes = await marketService.getQuotes([ticker]);
+            if (!quotes || quotes.length === 0) {
+                return { success: false, error: "Quote not found" };
+            }
+            return { success: true, data: quotes[0] };
+        } catch (e) {
+            logger.error(`GET /quote/${ticker} failed`, e);
+            return { success: false, error: (e as Error).message };
+        }
     });
 

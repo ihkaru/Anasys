@@ -1,6 +1,6 @@
 import { useLocalStorage } from "@vueuse/core";
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import { api } from "../api/client";
 
 import { sqliteService } from "../services/sqlite";
@@ -77,7 +77,7 @@ export const useMarketStore = defineStore("market", () => {
     const syncing = ref(false);
     const analyzing = ref(false);
     
-    const ohlcvData = ref<OHLCV[]>([]);
+    const ohlcvData = shallowRef<OHLCV[]>([]);
     const signals = ref<Signal[]>([]);
     const lastAnalysisTicker = ref<string | null>(null);
     const selectedSymbolData = ref<Symbol | null>(null);
@@ -101,27 +101,25 @@ export const useMarketStore = defineStore("market", () => {
         }
     }
 
-    async function fetchOverview(tickers: string[]) {
+    async function fetchOverview(tickers: string[]): Promise<any[]> {
         try {
             logger.debug(`Fetching overview for ${tickers.map(t => t).join(',')}`);
-            if (tickers.length === 0) return;
+            if (tickers.length === 0) return [];
             const response = await api.post("/market/overview", { tickers });
             if (response.data.success) {
-                 // We need a place to store general price updates. 
-                 // For now, let's update a prices map or reuse movers? 
-                 // Movers structure is specific (gainers, losers).
-                 // Use a new state: prices.
-                 // But for this step let's just return it or add to a 'quotes' map.
-                 // Let's add 'quotes' map to state.
-                 const newQuotes = response.data.data;
+                 const newQuotes = response.data.data || [];
                  newQuotes.forEach((q: any) => {
                      quotes.value.set(q.ticker, q);
                  });
+                 return newQuotes;
             }
+            return [];
         } catch (e) {
             logger.error("Failed to fetch overview", e);
+            return [];
         }
     }
+
 
     // Actions
     async function fetchSymbols() {
@@ -142,20 +140,43 @@ export const useMarketStore = defineStore("market", () => {
     }
 
     async function fetchSymbolDetails(ticker: string) {
+        const startTime = Date.now();
         try {
             loading.value = true;
-            logger.debug(`Fetching details for ${ticker}`);
-            // Request enrichment (description, sector, etc) if missing
+            
+            // Check SQLite cache first (TTL 24 hours)
+            const cached = await sqliteService.getSymbolCache(ticker, 'symbol_details', 24 * 60);
+            if (cached) {
+                logger.debug(`[${ticker}] Symbol details from cache (${Date.now() - startTime}ms)`);
+                selectedSymbolData.value = cached;
+                loading.value = false;
+                
+                // Background refresh if needed (non-blocking)
+                api.get(`/market/symbols/${ticker}?enrich=true`).then(response => {
+                    if (response.data.success) {
+                        selectedSymbolData.value = response.data.data;
+                        sqliteService.saveSymbolCache(ticker, 'symbol_details', response.data.data);
+                    }
+                }).catch(() => {}); // Ignore background refresh errors
+                
+                return;
+            }
+            
+            logger.debug(`[${ticker}] Fetching symbol details from API...`);
             const response = await api.get(`/market/symbols/${ticker}?enrich=true`);
             if (response.data.success) {
                 selectedSymbolData.value = response.data.data;
+                // Save to cache
+                await sqliteService.saveSymbolCache(ticker, 'symbol_details', response.data.data);
+                logger.debug(`[${ticker}] Symbol details fetched & cached (${Date.now() - startTime}ms)`);
             }
         } catch (e) {
-            logger.error("Failed to fetch symbol details", e);
+            logger.error(`[${ticker}] Failed to fetch symbol details (${Date.now() - startTime}ms)`, e);
         } finally {
             loading.value = false;
         }
     }
+
 
     async function syncSymbol(ticker: string, type: 'STOCK' | 'CRYPTO' = 'STOCK') {
         try {
@@ -203,15 +224,39 @@ export const useMarketStore = defineStore("market", () => {
                      // Return cache immediately.
                      // If cache size < limit, FETCH API to backfill.
                      
-                     if (cachedData.length >= limit) {
-                         // We have enough history locally
-                         const newData = cachedData;
+                    if (cachedData.length >= limit) {
+                         const currentOldest = ohlcvData.value[0]?.timestamp || Infinity;
+                         const currentOldestTime = new Date(currentOldest).getTime();
+                         
+                         // Debug overlaps
+                         const firstNew = cachedData[0];
+                         const lastNew = cachedData[cachedData.length - 1];
+                         
+                         // Filter data to ensure we only prepend strictly older data
+                         const newData = cachedData.filter(d => new Date(d.timestamp).getTime() < currentOldestTime);
+                         
+                         if (newData.length === 0) {
+                             logger.debug(`[MarketStore] Cache overlap. Oldest: ${currentOldest}, New Range: ${firstNew?.timestamp} - ${lastNew?.timestamp}`);
+                             return [];
+                         }
+
+                         console.time('OHLCV_Append_Cache');
+                         console.log(`[MarketStore] Appending ${newData.length} candles from cache. Range: ${newData[0].timestamp} - ${newData[newData.length-1].timestamp} < ${currentOldest}`);
                          ohlcvData.value = [...newData, ...ohlcvData.value];
+                         console.timeEnd('OHLCV_Append_Cache');
                          return newData;
-                     }
-                 } else {
-                     // Initial Load: Show Cache immediately
-                     ohlcvData.value = cachedData;
+                    }
+
+                } else {
+                    // Initial Load: Show Cache immediately
+                    const current = ohlcvData.value;
+                    // If we already have data and this is strictly a replace (not append), careful.
+                    // But usually !before means initial load.
+                    
+                    console.time('OHLCV_Set_Cache');
+                    ohlcvData.value = cachedData;
+                    console.timeEnd('OHLCV_Set_Cache');
+                     console.log(`[MarketStore] Set ${cachedData.length} candles from cache`);
                      loading.value = false; // Don't show loading spinner if we have cache
                  }
             } else {
@@ -239,27 +284,51 @@ export const useMarketStore = defineStore("market", () => {
 
                         if (before) {
                             if (newData.length > 0) {
-                                ohlcvData.value = [...newData, ...ohlcvData.value];
+                                const currentOldest = ohlcvData.value[0]?.timestamp || Infinity;
+                                const uniqueData = newData.filter((d: any) => new Date(d.timestamp).getTime() < new Date(currentOldest).getTime());
+                                
+                                if (uniqueData.length === 0) {
+                                    return [];
+                                }
+                                ohlcvData.value = [...uniqueData, ...ohlcvData.value];
+                                return uniqueData;
                             }
                             return newData;
                         } else {
-                            // Replace data (Latest)
-                            // CHECK FOR DUPLICATES/NO-CHANGE
-                            // If length is same and last timestmap is same, skip update
+                            // Initial/Latest Fetch returned
                             const current = ohlcvData.value;
+                            
+                            // Check for identical data to avoid unnecessary reactivity
                             if (current.length > 0 && newData.length > 0 && 
                                 current.length === newData.length && 
                                 current[current.length-1].timestamp === newData[newData.length-1].timestamp &&
                                 current[0].timestamp === newData[0].timestamp) {
-                                logger.debug("Skipping update, data identical to cache");
                                 return newData;
                             }
 
+                            // Smart Merge: Preserve history if we have loaded older data while waiting for network
+                            if (current.length > 0 && newData.length > 0) {
+                                const newStartTs = new Date(newData[0].timestamp).getTime();
+                                // Keep timestamps strictly older than the new batch start
+                                const olderData = current.filter(d => new Date(d.timestamp).getTime() < newStartTs);
+                                
+                                if (olderData.length > 0) {
+                                    logger.debug(`[MarketStore] Merging network data. Preserving ${olderData.length} historical candles.`);
+                                    console.time('OHLCV_Merge_Network');
+                                    ohlcvData.value = [...olderData, ...newData];
+                                    console.timeEnd('OHLCV_Merge_Network');
+                                    return ohlcvData.value;
+                                }
+                            }
+
+                            console.time('OHLCV_Set_Network');
                             ohlcvData.value = newData;
+                            console.timeEnd('OHLCV_Set_Network');
                             logger.debug(`History loaded (Network): ${ohlcvData.value.length} candles`);
                             return newData;
                         }
                     } else {
+
                         throw new Error(response.data.error);
                     }
                 } catch (e) {
@@ -367,12 +436,117 @@ export const useMarketStore = defineStore("market", () => {
         }
     }
 
-    async function fetchRecommendations(ticker: string) {
+
+    /**
+     * Fetch financial metrics for a stock (PE, margins, etc)
+     */
+    async function fetchFinancials(ticker: string) {
         try {
-            logger.debug(`Fetching recommendations for ${ticker}`);
+            // Check SQLite Cache (TTL 24 hours for financials)
+            const cached = await sqliteService.getSymbolCache(ticker, 'financials', 24 * 60);
+            if (cached) {
+                logger.debug(`Loaded financials for ${ticker} from SQLite`);
+                return cached;
+            }
+
+            logger.debug(`Fetching financials for ${ticker} from API`);
+            const response = await api.get(`/market/financials/${ticker}`);
+            if (response.data.success) {
+                // Save to SQLite
+                await sqliteService.saveSymbolCache(ticker, 'financials', response.data.data);
+                return response.data.data;
+            }
+            return null;
+        } catch (e) {
+            logger.error(`Failed to fetch financials for ${ticker}`, e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch earnings data for a stock (history, calendar, trend)
+     */
+    async function fetchEarnings(ticker: string) {
+        try {
+             // Check SQLite Cache (TTL 24 hours for earnings)
+            const cached = await sqliteService.getSymbolCache(ticker, 'earnings', 24 * 60);
+            if (cached) return cached;
+
+            logger.debug(`Fetching earnings for ${ticker}`);
+            const response = await api.get(`/market/earnings/${ticker}`);
+            if (response.data.success) {
+                await sqliteService.saveSymbolCache(ticker, 'earnings', response.data.data);
+                return response.data.data;
+            }
+            return null;
+        } catch (e) {
+            logger.error(`Failed to fetch earnings for ${ticker}`, e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch analyst ratings for a stock (buy/hold/sell breakdown)
+     */
+    async function fetchAnalyst(ticker: string) {
+        try {
+             // Check SQLite Cache (TTL 7 days for analyst as it changes slowly)
+            const cached = await sqliteService.getSymbolCache(ticker, 'analyst', 7 * 24 * 60);
+            if (cached) return cached;
+
+            logger.debug(`Fetching analyst ratings for ${ticker}`);
+            const response = await api.get(`/market/analyst/${ticker}`);
+            if (response.data.success) {
+                await sqliteService.saveSymbolCache(ticker, 'analyst', response.data.data);
+                return response.data.data;
+            }
+            return null;
+        } catch (e) {
+            logger.error(`Failed to fetch analyst for ${ticker}`, e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch single real-time quote for a ticker
+     */
+    async function fetchQuote(ticker: string) {
+        try {
+             // Short Cache for Quote (5 mins) to allow quick switching
+            const cached = await sqliteService.getSymbolCache(ticker, 'quote', 5);
+            if (cached) return cached;
+
+            logger.debug(`Fetching quote for ${ticker}`);
+            const response = await api.get(`/market/quote/${ticker}`);
+            if (response.data.success) {
+                await sqliteService.saveSymbolCache(ticker, 'quote', response.data.data);
+                return response.data.data;
+            }
+            return null;
+        } catch (e) {
+            logger.error(`Failed to fetch quote for ${ticker}`, e);
+            return null;
+        }
+    }
+
+    async function fetchRecommendations(ticker: string) {
+        // Recommendations don't change often, cache for 1 day
+        try {
+            const cached = await sqliteService.getSymbolCache(ticker, 'recommendations', 24 * 60);
+            if (cached && Array.isArray(cached) && cached.length > 0) return cached;
+        } catch (e) {
+            // Ignore cache errors
+        }
+
+        try {
             const response = await api.get(`/market/recommendations/${ticker}`);
             if (response.data.success) {
-                return response.data.data;
+                const recs = response.data.data || [];
+                // Backend already returns full quote objects, just cache and return
+                if (recs.length > 0) {
+                    await sqliteService.saveSymbolCache(ticker, 'recommendations', recs);
+                }
+                return recs;
             }
             return [];
         } catch (e) {
@@ -380,6 +554,8 @@ export const useMarketStore = defineStore("market", () => {
             return [];
         }
     }
+
+
 
     return {
         // State
@@ -413,5 +589,12 @@ export const useMarketStore = defineStore("market", () => {
         fetchSymbolDetails,
         selectStrategy,
         selectedSymbolData,
+        
+        // NEW: Financial data actions
+        fetchFinancials,
+        fetchEarnings,
+        fetchAnalyst,
+        fetchQuote,
     };
 });
+

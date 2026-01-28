@@ -81,6 +81,14 @@ export class SQLiteService {
                 PRIMARY KEY (symbol, interval, timestamp)
             );
             CREATE INDEX IF NOT EXISTS idx_ohlcv_query ON ohlcv(symbol, interval, timestamp DESC);
+
+            CREATE TABLE IF NOT EXISTS symbol_cache (
+                symbol TEXT NOT NULL,
+                type TEXT NOT NULL,
+                data TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (symbol, type)
+            );
         `;
         await this.db.execute(schema);
     }
@@ -118,6 +126,9 @@ export class SQLiteService {
 
         const res = await this.db?.query(sql, params);
         if (res?.values) {
+            // DB returns DESC (Newest first) because of LIMIT
+            // But Chart needs ASC (Oldest first)
+            // So we map then reverse
             return res.values.map(v => ({
                 timestamp: new Date(v.timestamp).toISOString(),
                 open: v.open,
@@ -125,9 +136,49 @@ export class SQLiteService {
                 low: v.low,
                 close: v.close,
                 volume: v.volume
-            }));
+            })).reverse();
         }
         return [];
+    }
+
+    // Symbol Data Cache (Financials, Earnings, etc)
+    async saveSymbolCache(symbol: string, type: 'financials' | 'earnings' | 'analyst' | 'recommendations' | 'quote' | 'symbol_details', data: any) {
+        if(!this.db) await this.init();
+        // Don't save null/undefined data
+        if (data === null || data === undefined) {
+            this.logger.debug(`Skipping cache save for ${type}/${symbol}: data is null`);
+            return;
+        }
+        try {
+            const sql = `INSERT OR REPLACE INTO symbol_cache (symbol, type, data, updated_at) VALUES (?, ?, ?, ?)`;
+            const json = JSON.stringify(data);
+            const now = Date.now();
+            await this.db?.run(sql, [symbol, type, json, now]);
+            
+            if (!Capacitor.isNativePlatform()) {
+                 await sqliteConnection.saveToStore(this.dbName);
+            }
+        } catch (e) {
+            this.logger.error(`Failed to save cache ${type} for ${symbol}`, e);
+        }
+    }
+
+
+    async getSymbolCache(symbol: string, type: string, ttlMinutes: number = 60) {
+        if(!this.db) await this.init();
+        try {
+            // Check if data exists and is not expired
+            const cutoff = Date.now() - (ttlMinutes * 60 * 1000);
+            const sql = `SELECT data FROM symbol_cache WHERE symbol = ? AND type = ? AND updated_at > ?`;
+            const res = await this.db?.query(sql, [symbol, type, cutoff]);
+            
+            if(res?.values && res.values.length > 0) {
+                return JSON.parse(res.values[0].data);
+            }
+        } catch (e) {
+            this.logger.warn(`Failed to read cache ${type} for ${symbol}`, e);
+        }
+        return null; // Expired or not found
     }
 
     async clearDatabase() {
@@ -135,7 +186,7 @@ export class SQLiteService {
             if (!this.db) await this.init();
             
             // Drop Tables to clear data
-            await this.db?.execute("DROP TABLE IF EXISTS settings; DROP TABLE IF EXISTS ohlcv;");
+            await this.db?.execute("DROP TABLE IF EXISTS settings; DROP TABLE IF EXISTS ohlcv; DROP TABLE IF EXISTS symbol_cache;");
             
             // Save empty state to store for Web
             if (!Capacitor.isNativePlatform()) {
