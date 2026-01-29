@@ -80,8 +80,8 @@ export class MarketService {
      * Get real-time quotes for multiple tickers
      * Uses caching to avoid rate limiting
      */
-    async getQuotes(tickers: string[]) {
-        return quoteService.getQuotes(tickers);
+    async getQuotes(tickers: string[], period: string = '7d') {
+        return quoteService.getQuotes(tickers, period);
     }
 
     /**

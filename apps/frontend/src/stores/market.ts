@@ -101,11 +101,11 @@ export const useMarketStore = defineStore("market", () => {
         }
     }
 
-    async function fetchOverview(tickers: string[]): Promise<any[]> {
+    async function fetchOverview(tickers: string[], period?: string): Promise<any[]> {
         try {
-            logger.debug(`Fetching overview for ${tickers.map(t => t).join(',')}`);
+            logger.debug(`Fetching overview for ${tickers.map(t => t).join(',')} (period=${period})`);
             if (tickers.length === 0) return [];
-            const response = await api.post("/market/overview", { tickers });
+            const response = await api.post("/market/overview", { tickers, period });
             if (response.data.success) {
                  const newQuotes = response.data.data || [];
                  newQuotes.forEach((q: any) => {

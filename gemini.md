@@ -67,6 +67,58 @@
 - [ ] Add offline support with SQLite caching
 - [ ] Performance optimization (virtualized lists)
 
+## 🔄 Routine Maintenance Tasks
+
+### Automatic (Built-in Scheduler)
+These run automatically when the backend is running:
+
+| Task | Frequency | Description |
+|------|-----------|-------------|
+| Stale Symbol Sync | Every 1 hour | Syncs 15 oldest symbols with Yahoo Finance |
+
+### Manual Commands (Run via `bun run`)
+
+Run these commands from `apps/backend/`:
+
+| Command | Frequency | Description |
+|---------|-----------|-------------|
+| `bun run repair:vip` | **Daily** (recommended) | Repair gaps in VIP symbols (watchlist + holdings) |
+| `bun run repair:dry` | Before major changes | Analyze database without making changes |
+| `bun run repair` | **Weekly** | Full repair for all ~2000 symbols (~1 hour) |
+| `bun run audit` | Monthly | Detect and remove anomalous data globally |
+
+### Rate Limit Safe Operations
+All repair scripts use:
+- **1.5s minimum delay** between Yahoo API requests
+- **Exponential backoff** (2x, 4x, 8x) on rate limit errors
+- **3 retries** before failing
+- **VIP prioritization** (watchlist + holdings first)
+
+### Database Health Checks
+
+```bash
+# Check for anomalies and gaps (no changes)
+bun run repair:dry
+
+# Expected healthy output:
+# Anomalies Found: 0
+# Gaps Detected: 0 (or minimal)
+```
+
+### Recovery Procedures
+
+If you see many anomalies or gaps:
+```bash
+# 1. First, clean anomalies only
+bun run audit
+
+# 2. Then, repair VIP symbols first
+bun run repair:vip
+
+# 3. Finally, full repair (optional, takes ~1hr)
+bun run repair
+```
+
 ## Notes
 
 - `bun` command was not available in Windows shell, so structure was created manually to be run in WSL/Docker.

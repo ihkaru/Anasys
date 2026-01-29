@@ -5,7 +5,11 @@
 	"scripts": {
 		"dev": "bun run --watch src/index.ts",
 		"seed": "bun run src/scripts/seed.ts",
-		"test": "bun test"
+		"test": "bun test",
+		"repair": "bun run src/scripts/ultimate_repair.ts",
+		"repair:vip": "bun run src/scripts/ultimate_repair.ts --vip-only",
+		"repair:dry": "bun run src/scripts/ultimate_repair.ts --dry-run",
+		"audit": "bun run src/scripts/audit_global.ts"
 	},
 	"dependencies": {
 		"@elysiajs/cookie": "latest",

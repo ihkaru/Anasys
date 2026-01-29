@@ -30,17 +30,18 @@ export class QuoteService {
      * Get real-time quotes for multiple tickers
      * Uses cache to avoid hitting Yahoo too often
      */
-    async getQuotes(tickers: string[]): Promise<QuoteWithSparkline[]> {
+    async getQuotes(tickers: string[], period: string = '1d'): Promise<QuoteWithSparkline[]> {
         if (!tickers.length) return [];
 
-        this.logger.debug(`Getting quotes for ${tickers.length} tickers`);
+        this.logger.debug(`Getting quotes for ${tickers.length} tickers (period=${period})`);
         
         const results: QuoteWithSparkline[] = [];
         const tickersToFetch: string[] = [];
         
         // Check cache first
+        // Cache key must include period!
         for (const ticker of tickers) {
-            const cacheKey = `quote:${ticker}`;
+            const cacheKey = `quote:${ticker}:${period}`;
             const cached = this.cacheService.get<QuoteWithSparkline>(cacheKey);
             if (cached) {
                 results.push(cached);
@@ -68,10 +69,10 @@ export class QuoteService {
                 
                 // Enrich with symbol data and sparkline
                 for (const quote of quotes) {
-                    const enriched = await this.enrichQuote(quote);
+                    const enriched = await this.enrichQuote(quote, period);
                     if (enriched) {
                         // Cache it
-                        this.cacheService.set(`quote:${quote.ticker}`, enriched, this.QUOTE_CACHE_TTL);
+                        this.cacheService.set(`quote:${quote.ticker}:${period}`, enriched, this.QUOTE_CACHE_TTL);
                         results.push(enriched);
                     }
                 }
@@ -91,25 +92,71 @@ export class QuoteService {
     /**
      * Enrich quote with local DB data (type, sparkline, icon)
      */
-    private async enrichQuote(quote: QuoteResult): Promise<QuoteWithSparkline | null> {
+    private async enrichQuote(quote: QuoteResult, period: string): Promise<QuoteWithSparkline | null> {
         try {
             // Get symbol info from DB
             const symbol = await this.symbolRepo.findByTicker(quote.ticker);
             
+            // Determine interval and limit based on period
+            let interval = '1d';
+            let limit = 7;
+            
+            switch (period.toLowerCase()) {
+                case '24h':
+                    interval = '1h'; // Assuming we have 1h data
+                    limit = 24;
+                    break;
+                case '7d':
+                    interval = '1d';
+                    limit = 7;
+                    break;
+                case '30d':
+                    interval = '1d';
+                    limit = 30;
+                    break;
+                case '90d':
+                    interval = '1d';
+                    limit = 90;
+                    break;
+                default:
+                    interval = '1d';
+                    limit = 7;
+            }
+
             // Get sparkline from recent market data
             let sparkline: number[] = [];
+            let periodChange = quote.change;
+            let periodChangePercent = quote.changePercent;
+
             if (symbol) {
-                const recentCandles = await this.marketDataRepo.getRecentCandles(symbol.id, '1d', 7);
-                sparkline = recentCandles.map(c => Number(c.close));
+                const recentCandles = await this.marketDataRepo.getRecentCandles(symbol.id, interval, limit);
+                // Since getRecentCandles returns DESC, we need to reverse to show correct graph (left to right) if it is time based
+                // getRecentCandles returns: order by timestamp desc. So index 0 is latest.
+                // Sparkline usually expects [oldest, ..., newest].
+                sparkline = recentCandles.map(c => Number(c.close)).reverse();
+
+                // Calculate period-based return if we have history
+                if (sparkline.length > 0) {
+                    const startPrice = sparkline[0];
+                    if (startPrice > 0) {
+                        periodChange = quote.price - startPrice;
+                        periodChangePercent = ((quote.price - startPrice) / startPrice) * 100;
+                    }
+                }
             }
             
             // If no sparkline data, generate based on change direction
             if (sparkline.length < 2) {
                 sparkline = generateSparkline(quote.changePercent >= 0);
+                // If we simulated sparkline, we keep original daily change as fallback
+                periodChange = quote.change;
+                periodChangePercent = quote.changePercent;
             }
             
             return {
                 ...quote,
+                change: periodChange,
+                changePercent: periodChangePercent,
                 type: symbol?.type as 'STOCK' | 'CRYPTO' || (quote.ticker.includes('-USD') ? 'CRYPTO' : 'STOCK'),
                 sparkline,
                 iconUrl: symbol?.iconUrl || undefined,

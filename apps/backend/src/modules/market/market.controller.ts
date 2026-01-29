@@ -53,14 +53,14 @@ export const marketController = new Elysia({ prefix: "/market" })
     })
     // Market Overview (POST) - dynamic tickers (NEW!)
     .post("/overview", async ({ body }) => {
-        logger.debug(`POST /overview for ${body.tickers?.length || 0} tickers`);
+        logger.debug(`POST /overview for ${body.tickers?.length || 0} tickers (period=${body.period})`);
         try {
             const tickers = body.tickers || [];
             if (tickers.length === 0) {
                 return { success: true, data: [] };
             }
             // Use real-time quotes service instead of DB-based overview
-            const quotes = await marketService.getQuotes(tickers);
+            const quotes = await marketService.getQuotes(tickers, body.period || '7d');
             return { success: true, data: quotes };
         } catch (e) {
             logger.error("Failed to get quotes", e);
@@ -68,20 +68,21 @@ export const marketController = new Elysia({ prefix: "/market" })
         }
     }, {
         body: t.Object({
-            tickers: t.Array(t.String())
+            tickers: t.Array(t.String()),
+            period: t.Optional(t.String())
         })
     })
     // Real-time quotes for single or multiple tickers
     .get("/quotes", async ({ query }) => {
         const tickers = query.tickers?.split(',').map(t => t.trim()).filter(Boolean) || [];
-        logger.debug(`GET /quotes for ${tickers.length} tickers`);
+        logger.debug(`GET /quotes for ${tickers.length} tickers (period=${query.period})`);
         
         if (tickers.length === 0) {
             return { success: false, error: "No tickers provided" };
         }
         
         try {
-            const quotes = await marketService.getQuotes(tickers);
+            const quotes = await marketService.getQuotes(tickers, query.period || '7d');
             return { success: true, data: quotes };
         } catch (e) {
             logger.error("Failed to get quotes", e);
@@ -89,7 +90,8 @@ export const marketController = new Elysia({ prefix: "/market" })
         }
     }, {
         query: t.Object({
-            tickers: t.String() // Comma-separated list
+            tickers: t.String(), // Comma-separated list
+            period: t.Optional(t.String())
         })
     })
     // Search symbols

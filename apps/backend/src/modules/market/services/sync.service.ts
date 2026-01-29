@@ -1,5 +1,7 @@
 
+import { getDataValidator } from "../../../utils/data-validator";
 import { Logger } from "../../../utils/logger";
+import { getYahooRateLimiter } from "../../../utils/rate-limiter";
 import { IDataProvider } from "../providers/data-provider.interface";
 import { MarketDataRepository } from "../repositories/market-data.repository";
 import { SymbolService } from "./symbol.service";
@@ -7,9 +9,13 @@ import { SymbolService } from "./symbol.service";
 export interface SyncResult {
     count: number;
     status: 'success' | 'empty' | 'uptodate' | 'error';
+    rejected?: number;
 }
 
 export class SyncService {
+    private rateLimiter = getYahooRateLimiter();
+    private dataValidator = getDataValidator();
+
     constructor(
         private symbolService: SymbolService,
         private marketDataRepo: MarketDataRepository,
@@ -38,8 +44,12 @@ export class SyncService {
             
             this.logger.debug(`Fetching ${ticker} (${interval}) range: ${queryOptions.period1} -> ${queryOptions.period2 || 'now'}`);
 
+            // Use rate limiter with exponential backoff
             const startFetch = Date.now();
-            const result = await this.dataProvider.fetchChart(ticker, chartOptions);
+            const result = await this.rateLimiter.execute(
+                () => this.dataProvider.fetchChart(ticker, chartOptions),
+                `chart:${ticker}`
+            );
             this.logger.debug(`[SyncService] Yahoo API Fetch took ${Date.now() - startFetch}ms`);
 
             if (!result || !result.quotes || result.quotes.length === 0) {
@@ -47,37 +57,91 @@ export class SyncService {
                  return { count: 0, status: 'empty' };
             }
 
-            const values = this.validateAndCleanCandles(result.quotes, symbol.id, interval);
+            // Use enhanced validation
+            const isCrypto = type === 'CRYPTO';
+            const { values, rejected } = this.validateAndCleanCandlesEnhanced(
+                result.quotes, 
+                symbol.id, 
+                interval,
+                isCrypto,
+                ticker
+            );
 
-            if (values.length === 0) return { count: 0, status: 'empty' };
+            if (values.length === 0) {
+                this.logger.warn(`All ${result.quotes.length} candles rejected for ${ticker}`);
+                return { count: 0, status: 'empty', rejected };
+            }
 
             const startUpsert = Date.now();
             await this.marketDataRepo.upsert(values);
             this.logger.debug(`[SyncService] DB Upsert (${values.length} items) took ${Date.now() - startUpsert}ms`);
 
-            this.logger.info(`Saved ${values.length} candles for ${ticker} (${interval})`);
-            
-            // Re-fetch symbol service to avoid circular dependency if repositories were unified or different architecture, but here we can just update via repo or service if exposed.
-            // But we have symbolService here. However, SymbolService wraps repo.
-            // Let's assume we can add updateLastSynced to SymbolService or use repo directly if injected.
-            // For now, let's assume we don't have direct access to update method on symbolService unless added.
-            // But we injected symbolService. Let's assume we inject SymbolRepository into SyncService for this small update or add method to SymbolService.
-            // Adding method to symbolService is cleaner.
-            
-            // For now, skipping updateLastSynced explicit call as it requires extending SymbolService interface in this prompt flow.
-            // Ideally: await this.symbolService.updateLastSynced(symbol.id);
+            this.logger.info(`Saved ${values.length} candles for ${ticker} (${interval})` + 
+                (rejected > 0 ? ` [${rejected} rejected as anomalies]` : ''));
 
-            return { count: values.length, status: 'success' };
+            return { count: values.length, status: 'success', rejected };
 
         } catch (error: any) {
-             if (error?.code === 429 || error?.name === 'HTTPError' && error?.response?.status === 429) {
-                this.logger.warn(`Rate limited by Yahoo Finance for ${ticker}. Try again in a few minutes.`);
+            // Rate limiter already handles 429 with retries, but if all retries fail:
+            if (this.isRateLimitError(error)) {
+                this.logger.warn(`Rate limited by Yahoo Finance for ${ticker}. All retries exhausted.`);
                 throw new Error('Yahoo Finance rate limit exceeded. Please wait a few minutes before retrying.');
             }
             
             this.logger.error(`Failed to sync ${ticker}`, error);
             throw error;
         }
+    }
+
+    private isRateLimitError(error: any): boolean {
+        return (
+            error?.code === 429 ||
+            error?.status === 429 ||
+            error?.response?.status === 429 ||
+            error?.message?.includes('429') ||
+            error?.message?.toLowerCase().includes('rate limit')
+        );
+    }
+
+    private validateAndCleanCandlesEnhanced(
+        candles: any[], 
+        symbolId: number, 
+        interval: string,
+        isCrypto: boolean,
+        ticker: string
+    ): { values: any[]; rejected: number } {
+        let rejected = 0;
+
+        const values = candles
+            .map((candle: any) => ({
+                symbolId: symbolId,
+                timestamp: new Date(candle.date),
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+                volume: candle.volume,
+                interval: interval
+            }))
+            .filter((c: any) => {
+                // Basic null check
+                if (c.open === null || c.close === null || c.high === null || c.low === null) {
+                    rejected++;
+                    return false;
+                }
+
+                // Use comprehensive validator
+                const result = this.dataValidator.validateCandle(c, isCrypto);
+                if (!result.isValid) {
+                    this.logger.debug(`[${ticker}] Rejected candle at ${c.timestamp.toISOString()}: ${result.reason}`);
+                    rejected++;
+                    return false;
+                }
+
+                return true;
+            });
+
+        return { values, rejected };
     }
 
     private async determineQueryOptions(symbolId: number, interval: string, endDate?: Date): Promise<any> {
@@ -113,22 +177,5 @@ export class SyncService {
             }
         }
         return options;
-    }
-
-    private validateAndCleanCandles(candles: any[], symbolId: number, interval: string): any[] {
-        return candles.map((candle: any) => ({
-            symbolId: symbolId,
-            timestamp: new Date(candle.date),
-            open: candle.open,
-            high: candle.high,
-            low: candle.low,
-            close: candle.close,
-            volume: candle.volume,
-            interval: interval
-        })).filter((c: any) => 
-            c.open !== null && c.close !== null && 
-            c.open > 0 && c.close > 0 && 
-            c.high > 0 && c.low > 0
-        );
     }
 }

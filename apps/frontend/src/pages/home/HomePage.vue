@@ -24,6 +24,14 @@
     <WatchlistSelector :watchlists="watchlists" :selected-id="selectedWatchlistId" @select="selectWatchlist"
       @create="watchlistActions.showCreateDialog" />
 
+    <div class="sticky-controls">
+      <f7-segmented strong class="timeframe-selector">
+        <f7-button small :active="sparklinePeriod === '24h'" @click="changePeriod('24h')">24H</f7-button>
+        <f7-button small :active="sparklinePeriod === '7d'" @click="changePeriod('7d')">7D</f7-button>
+        <f7-button small :active="sparklinePeriod === '30d'" @click="changePeriod('30d')">30D</f7-button>
+      </f7-segmented>
+    </div>
+
     <WatchlistItemList :items="currentWatchlistItems" :loaded="loaded" :watchlist-id="selectedWatchlistId"
       @item-click="openAssetDetail" @item-remove="handleRemoveAsset" @item-hold="onItemHold"
       @add-asset="addAssetSheetOpen = true" />
@@ -60,6 +68,16 @@ const logger = createLogger('HomePage');
 const loaded = ref(false);
 const addAssetSheetOpen = ref(false);
 const selectedWatchlistId = ref<number | null>(null);
+const sparklinePeriod = ref('7d');
+
+function changePeriod(p: string) {
+  if (sparklinePeriod.value === p) return;
+  sparklinePeriod.value = p;
+  if (watchlistStore.currentWatchlist?.items.length) {
+    const tickers = watchlistStore.currentWatchlist.items.map(i => i.ticker);
+    marketStore.fetchOverview(tickers, sparklinePeriod.value);
+  }
+}
 
 const watchlists = computed(() => watchlistStore.watchlists);
 
@@ -104,7 +122,7 @@ watch(selectedWatchlistId, async (newId) => {
     // Fetch fresh prices for this watchlist
     if (watchlistStore.currentWatchlist?.items.length) {
       const tickers = watchlistStore.currentWatchlist.items.map(i => i.ticker);
-      marketStore.fetchOverview(tickers);
+      marketStore.fetchOverview(tickers, sparklinePeriod.value);
     }
   }
 });
@@ -115,7 +133,7 @@ watch(() => watchlistStore.currentWatchlist?.items, (newItems) => {
     const tickers = newItems.map(i => i.ticker);
     // optimization: filter out those we already have fresh quotes for? 
     // For now just fetch all to be safe and simple
-    marketStore.fetchOverview(tickers);
+    marketStore.fetchOverview(tickers, sparklinePeriod.value);
   }
 }, { deep: true });
 
@@ -181,7 +199,7 @@ onMounted(async () => {
   if (selectedWatchlistId.value && watchlistStore.currentWatchlist) {
     const tickers = watchlistStore.currentWatchlist.items.map(i => i.ticker);
     if (tickers.length) {
-      marketStore.fetchOverview(tickers);
+      marketStore.fetchOverview(tickers, sparklinePeriod.value);
     }
   }
 
@@ -194,5 +212,22 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.sticky-controls {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 8px 16px;
+  background-color: var(--f7-page-bg-color);
+  margin-left: -16px;
+  margin-right: -16px;
+  /* Add subtle shadow when scrolling */
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.timeframe-selector {
+  max-width: 400px;
+  margin: 0 auto;
 }
 </style>
