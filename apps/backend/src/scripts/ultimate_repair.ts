@@ -220,27 +220,72 @@ async function detectGaps(config: RepairConfig, vipIds: Set<number>): Promise<Ga
         ORDER BY gc.gap_count DESC
     `;
 
-    const results = await db.execute(gapQuery);
+    const staleQuery = sql`
+        SELECT 
+            s.id as symbol_id,
+            s.ticker,
+            s.type,
+            'stale' as reason
+        FROM symbols s
+        LEFT JOIN market_data m ON s.id = m.symbol_id AND m.interval = ${config.interval}
+        GROUP BY s.id
+        HAVING 
+            (s.type = 'STOCK' AND MAX(m.timestamp) < NOW() - INTERVAL '5 days')
+            OR
+            (s.type = 'CRYPTO' AND MAX(m.timestamp) < NOW() - INTERVAL '24 hours')
+            OR 
+            MAX(m.timestamp) IS NULL
+    `;
+
+    const [gapResults, staleResults] = await Promise.all([
+        db.execute(gapQuery),
+        db.execute(staleQuery)
+    ]);
     
-    return results.map((r: any) => {
-        const isVip = vipIds.has(r.symbol_id);
-        let priority = r.gap_count; // Base priority on gap count
+    // Merge results
+    const merged = new Map<number, GapInfo>();
+
+    // Process gaps
+    gapResults.forEach((r: any) => {
+        merged.set(r.symbol_id, {
+            symbolId: r.symbol_id,
+            ticker: r.ticker,
+            type: r.type,
+            gapCount: Number(r.gap_count),
+            isVip: vipIds.has(r.symbol_id),
+            priority: 0 // Calc later
+        });
+    });
+
+    // Process stale (treat as high priority gap)
+    staleResults.forEach((r: any) => {
+        if (!merged.has(r.symbol_id)) {
+            merged.set(r.symbol_id, {
+                symbolId: r.symbol_id,
+                ticker: r.ticker,
+                type: r.type,
+                gapCount: 100, // Arbitrary high number for stale
+                isVip: vipIds.has(r.symbol_id),
+                priority: 0
+            });
+        } else {
+            // Boost existing gap count
+            const existing = merged.get(r.symbol_id)!;
+            existing.gapCount += 100;
+        }
+    });
+
+    return Array.from(merged.values()).map(r => {
+        let priority = r.gapCount;
         
         // Boost priority
-        if (isVip) priority += 1000;
+        if (r.isVip) priority += 1000;
         if (['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'BTC-USD', 'ETH-USD'].includes(r.ticker)) {
             priority += 500;
         }
         if (r.ticker.includes('-USD')) priority += 100; // Crypto
         
-        return {
-            symbolId: r.symbol_id,
-            ticker: r.ticker,
-            type: r.type,
-            gapCount: Number(r.gap_count),
-            isVip,
-            priority
-        };
+        return { ...r, priority };
     }).sort((a, b) => b.priority - a.priority);
 }
 

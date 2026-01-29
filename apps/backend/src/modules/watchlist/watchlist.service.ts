@@ -160,7 +160,7 @@ export class WatchlistService {
     }
 
     // Add symbol to watchlist
-    async addSymbolToWatchlist(watchlistId: number, userId: number, ticker: string) {
+    async addSymbolToWatchlist(watchlistId: number, userId: number, ticker: string, type?: 'STOCK' | 'CRYPTO') {
         logger.info(`Adding ${ticker} to watchlist ${watchlistId}`);
         
         // Verify watchlist ownership
@@ -176,14 +176,24 @@ export class WatchlistService {
             throw new Error("Watchlist not found");
         }
         
-        // Find symbol
-        const [symbol] = await db.select()
+        // Find symbol in DB first
+        let [symbol] = await db.select()
             .from(symbols)
             .where(eq(symbols.ticker, ticker.toUpperCase()))
             .limit(1);
         
+        // If not found, auto-register from Yahoo Finance!
         if (!symbol) {
-            throw new Error("Symbol not found");
+            logger.info(`Symbol ${ticker} not in DB. Auto-registering...`);
+            
+            // Import dynamically to avoid circular dependency
+            const { marketService } = await import("../market/market.service");
+            
+            // Determine type: use provided type, or default based on ticker format
+            const symbolType = type ?? (ticker.includes('-') ? 'CRYPTO' : 'STOCK');
+            
+            symbol = await marketService.ensureSymbol(ticker.toUpperCase(), symbolType);
+            logger.info(`Symbol ${ticker} auto-registered with type ${symbolType}`);
         }
         
         // Add to watchlist (ignore if already exists)
@@ -195,7 +205,7 @@ export class WatchlistService {
             .onConflictDoNothing()
             .execute();
         
-        return { success: true };
+        return { success: true, symbol };
     }
 
     // Remove symbol from watchlist

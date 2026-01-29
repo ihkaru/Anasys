@@ -6,12 +6,13 @@
                 <div v-for="item in recommendations" :key="item.ticker" class="recommendation-card"
                     @click="$emit('click', item)">
                     <div class="rec-icon">
-                        <span class="rec-ticker-icon">{{ item.ticker.substring(0, 2) }}</span>
+                        <span class="rec-ticker-icon">{{ item.ticker?.substring(0, 2) || '??' }}</span>
                     </div>
                     <div class="rec-info">
-                        <span class="rec-ticker">{{ item.ticker }}</span>
-                        <span :class="['rec-change', item.changePercent >= 0 ? 'positive' : 'negative']">
-                            {{ item.changePercent >= 0 ? '+' : '' }}{{ item.changePercent.toFixed(2) }}%
+                        <span class="rec-ticker">{{ item.ticker || 'Unknown' }}</span>
+                        <!-- Gunakan v-if untuk memastikan changePercent ada, atau fallback ke 0 -->
+                        <span :class="['rec-change', (item.changePercent || 0) >= 0 ? 'positive' : 'negative']">
+                            {{ (item.changePercent || 0) >= 0 ? '+' : '' }}{{ (item.changePercent || 0).toFixed(2) }}%
                         </span>
                     </div>
                 </div>

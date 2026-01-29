@@ -1,5 +1,4 @@
 import { marketData, symbols } from "@packages/db/src/schema";
-import { sql } from "drizzle-orm";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { db } from "../../db";
@@ -53,38 +52,80 @@ export async function seed() {
         const files = await walkDir(US_DATA_DIR);
         console.log(`Found ${files.length} files to process.`);
 
-        // CONCURRENCY CONTROL
-        const CONCURRENCY = 50; 
+        // ========================================
+        // PHASE 1: Pre-create all symbols in batch
+        // ========================================
+        console.log(`\n🔧 Phase 1: Pre-creating symbols in batch...`);
+        const tickerSet = new Set<string>();
+        
+        for (const filePath of files) {
+            const filename = filePath.split('/').pop() || "";
+            const tickerRaw = filename.split('.')[0]; 
+            tickerSet.add(tickerRaw.toUpperCase());
+        }
+        
+        const allTickers = Array.from(tickerSet);
+        console.log(`   Found ${allTickers.length} unique tickers`);
+        
+        // Batch insert symbols (5000 at a time)
+        const SYMBOL_BATCH = 5000;
+        for (let i = 0; i < allTickers.length; i += SYMBOL_BATCH) {
+            const batch = allTickers.slice(i, i + SYMBOL_BATCH).map(ticker => ({
+                ticker,
+                name: ticker,
+                type: 'STOCK' as const,
+                isActive: true,
+                provider: 'metastock_import'
+            }));
+            await db.insert(symbols).values(batch).onConflictDoNothing().execute();
+        }
+        console.log(`   ✅ Symbols created/verified`);
+        
+        // Load symbol ID map
+        const symbolRows = await db.select({ id: symbols.id, ticker: symbols.ticker }).from(symbols);
+        const symbolMap = new Map<string, number>();
+        symbolRows.forEach(s => symbolMap.set(s.ticker, s.id));
+        console.log(`   📋 Loaded ${symbolMap.size} symbol IDs into memory`);
+
+        // ========================================
+        // PHASE 2: Process files with high concurrency
+        // ========================================
+        console.log(`\n📊 Phase 2: Processing market data...`);
+        
+        const CONCURRENCY = 100; // Increased from 50
         let processedCount = 0;
+        let totalRows = 0;
         const total = files.length;
+        const startTime = Date.now();
+        
+        // Accumulator for mega-batch insert
+        let dataBuffer: any[] = [];
+        const BUFFER_FLUSH_SIZE = 50000; // Flush every 50k rows
+        
+        const flushBuffer = async () => {
+            if (dataBuffer.length === 0) return;
+            const toInsert = dataBuffer;
+            dataBuffer = [];
+            
+            // Use bigger chunks
+            const CHUNK_SIZE = 5000;
+            for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
+                const chunk = toInsert.slice(i, i + CHUNK_SIZE);
+                await db.insert(marketData)
+                    .values(chunk)
+                    .onConflictDoNothing()
+                    .execute();
+            }
+            totalRows += toInsert.length;
+        };
         
         const processFile = async (filePath: string) => {
-             try {
+            try {
                 const filename = filePath.split('/').pop() || "";
-                const tickerRaw = filename.split('.')[0]; 
-                const ticker = tickerRaw.toUpperCase(); 
-                const type = 'STOCK';
-
-                // Symbol Upsert
-                let symbolId: number;
-                const [inserted] = await db.insert(symbols).values({
-                    ticker,
-                    name: ticker,
-                    type: type,
-                    isActive: true,
-                    provider: 'metastock_import'
-                }).onConflictDoUpdate({
-                    target: symbols.ticker,
-                    set: { isActive: true }
-                }).returning();
-
-                if (inserted) symbolId = inserted.id;
-                else {
-                    // Fallback fetch
-                     const [existing] = await db.select().from(symbols).where(sql`${symbols.ticker} = ${ticker}`).limit(1);
-                     if (!existing) return;
-                     symbolId = existing.id;
-                }
+                const ticker = filename.split('.')[0].toUpperCase(); 
+                const symbolId = symbolMap.get(ticker);
+                
+                if (!symbolId) return;
 
                 // Read Content
                 const content = await Bun.file(filePath).text();
@@ -97,7 +138,7 @@ export async function seed() {
                 const per = firstLine[1]; 
                 const interval = perToInterval(per);
 
-                const dataValues: any[] = [];
+                const fileData: any[] = [];
                 for (let i = 1; i < lines.length; i++) {
                     const row = lines[i].split(',');
                     if (row.length < 9) continue;
@@ -111,7 +152,7 @@ export async function seed() {
 
                     if (isNaN(open)) continue;
 
-                    dataValues.push({
+                    fileData.push({
                         symbolId,
                         timestamp: dateVal,
                         open,
@@ -123,23 +164,25 @@ export async function seed() {
                     });
                 }
 
-                if (dataValues.length > 0) {
-                     await db.transaction(async (tx) => {
-                         const CHUNK_SIZE = 2000;
-                         for (let i = 0; i < dataValues.length; i += CHUNK_SIZE) {
-                            const chunk = dataValues.slice(i, i + CHUNK_SIZE);
-                            await tx.insert(marketData)
-                                .values(chunk)
-                                .onConflictDoNothing()
-                                .execute();
-                         }
-                     });
+                // Add to buffer instead of immediate insert
+                dataBuffer.push(...fileData);
+                
+                // Flush if buffer is large enough
+                if (dataBuffer.length >= BUFFER_FLUSH_SIZE) {
+                    await flushBuffer();
                 }
-             } catch(e) {
-                 console.error(`Error processing ${filePath}:`, e);
-             }
-             processedCount++;
-             if (processedCount % 100 === 0) console.log(`[${new Date().toISOString()}] [${Math.round(processedCount/total*100)}%] Processed ${processedCount}/${total}`);
+                
+            } catch(e) {
+                // Silent error for individual files
+            }
+            
+            processedCount++;
+            if (processedCount % 500 === 0) {
+                const elapsed = (Date.now() - startTime) / 1000;
+                const rate = processedCount / elapsed;
+                const eta = Math.round((total - processedCount) / rate);
+                console.log(`[${Math.round(processedCount/total*100)}%] ${processedCount}/${total} files | ${totalRows.toLocaleString()} rows | ETA: ${eta}s`);
+            }
         };
 
         const queue = [...files];
@@ -151,7 +194,16 @@ export async function seed() {
         });
 
         await Promise.all(workers);
-        console.log(`🏁 US Data Import Complete. Processed ${processedCount} files.`);
+        
+        // Final flush
+        await flushBuffer();
+        
+        const totalTime = Math.round((Date.now() - startTime) / 1000);
+        console.log(`\n🏁 US Data Import Complete!`);
+        console.log(`   Files: ${processedCount}`);
+        console.log(`   Rows: ${totalRows.toLocaleString()}`);
+        console.log(`   Time: ${totalTime}s (${Math.round(processedCount/totalTime)} files/s)`);
+        
     } catch (e) {
         console.error(e);
         throw e;

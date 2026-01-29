@@ -1,6 +1,7 @@
 import { cookie } from "@elysiajs/cookie";
 import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
+import { getJwtSecret } from "../../config";
 import { Logger } from "../../utils/logger";
 import { holdingsService } from "./holdings.service";
 
@@ -9,7 +10,7 @@ const logger = new Logger('HoldingsController');
 export const holdingsController = new Elysia({ prefix: "/holdings" })
     .use(jwt({
         name: "jwt",
-        secret: process.env.JWT_SECRET || "secret_key_change_me"
+        secret: getJwtSecret()
     }))
     .use(cookie())
     .derive(async ({ jwt, cookie: { auth }, headers }) => {

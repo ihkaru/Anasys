@@ -8,8 +8,12 @@ import { holdingsController } from "./modules/holdings/holdings.controller";
 import { marketController } from "./modules/market/market.controller";
 import { watchlistController } from "./modules/watchlist/watchlist.controller";
 
+import { config, validateConfig } from "./config";
 import { apiRateLimiter } from "./middleware/rateLimiter";
 import { errorHandler, requestLogger, securityHeaders } from "./middleware/security";
+
+// Validate configuration at startup
+validateConfig();
 
 const app = new Elysia()
     // Global middleware
@@ -18,7 +22,7 @@ const app = new Elysia()
     .use(requestLogger)
     .use(
         cors({
-            origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+            origin: config.corsOrigin,
             credentials: true,
         }),
     )

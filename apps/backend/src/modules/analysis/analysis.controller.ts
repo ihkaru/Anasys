@@ -4,6 +4,7 @@ import { strategySMA, type OHLCV, type Signal } from "@packages/analysis/src";
 import { Elysia, t } from "elysia";
 import { marketService } from "../market/market.service";
 
+import { getJwtSecret } from "../../config";
 import { Logger } from "../../utils/logger";
 
 const logger = new Logger('AnalysisController');
@@ -11,7 +12,7 @@ const logger = new Logger('AnalysisController');
 export const analysisController = new Elysia({ prefix: "/analysis" })
     .use(jwt({ 
         name: "jwt", 
-        secret: process.env.JWT_SECRET || "secret_key_change_me" 
+        secret: getJwtSecret()
     }))
     .use(cookie())
     .derive(async ({ jwt, cookie: { auth }, headers, request }) => {

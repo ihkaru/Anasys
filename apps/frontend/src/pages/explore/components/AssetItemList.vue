@@ -12,11 +12,11 @@
 
             <template #after>
                 <div class="after-content">
-                    <div class="sparkline-wrapper" v-if="showSparkline">
+                    <div class="sparkline-wrapper" v-if="showSparkline && showPrice">
                         <SparklineChart :data="item.sparkline || []" :positive="isPositive(item)" :width="60"
                             :height="20" />
                     </div>
-                    <div class="price-col">
+                    <div class="price-col" v-if="showPrice">
                         <span class="price-text">{{ formatPrice(item.price) }}</span>
                         <span v-if="item.changePercent !== undefined"
                             :class="['change-badge', isPositive(item) ? 'positive' : 'negative']">
@@ -58,10 +58,12 @@ const props = withDefaults(defineProps<{
     items: AssetItem[];
     showSparkline?: boolean;
     showSubtitle?: boolean;
+    showPrice?: boolean;
     emptyMessage?: string;
 }>(), {
     showSparkline: true,
-    showSubtitle: false
+    showSubtitle: false,
+    showPrice: true
 });
 
 defineEmits<{

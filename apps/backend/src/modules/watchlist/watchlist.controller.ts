@@ -1,6 +1,7 @@
 import { cookie } from "@elysiajs/cookie";
 import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
+import { getJwtSecret } from "../../config";
 import { Logger } from "../../utils/logger";
 import { watchlistService } from "./watchlist.service";
 
@@ -9,7 +10,7 @@ const logger = new Logger('WatchlistController');
 export const watchlistController = new Elysia({ prefix: "/watchlists" })
     .use(jwt({
         name: "jwt",
-        secret: process.env.JWT_SECRET || "secret_key_change_me"
+        secret: getJwtSecret()
     }))
     .use(cookie())
     .derive(async ({ jwt, cookie: { auth }, headers }) => {
@@ -119,23 +120,25 @@ export const watchlistController = new Elysia({ prefix: "/watchlists" })
             return { success: false, error: (e as Error).message };
         }
     })
-    // ADD symbol to watchlist
+    // ADD symbol to watchlist (auto-registers new symbols from Yahoo Finance)
     .post("/:id/symbols", async ({ params, body, user }: any) => {
-        logger.info(`POST /watchlists/${params.id}/symbols - ${body.ticker}`);
+        logger.info(`POST /watchlists/${params.id}/symbols - ${body.ticker} (${body.type || 'auto'})`);
         try {
-            await watchlistService.addSymbolToWatchlist(
+            const result = await watchlistService.addSymbolToWatchlist(
                 parseInt(params.id),
                 user.id,
-                body.ticker
+                body.ticker,
+                body.type // Optional: 'STOCK' | 'CRYPTO'
             );
-            return { success: true };
+            return { success: true, symbol: result.symbol };
         } catch (e) {
             logger.error("Failed to add symbol", e);
             return { success: false, error: (e as Error).message };
         }
     }, {
         body: t.Object({
-            ticker: t.String()
+            ticker: t.String(),
+            type: t.Optional(t.Union([t.Literal('STOCK'), t.Literal('CRYPTO')]))
         })
     })
     // REMOVE symbol from watchlist

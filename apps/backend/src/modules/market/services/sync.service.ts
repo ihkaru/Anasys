@@ -111,24 +111,39 @@ export class SyncService {
         ticker: string
     ): { values: any[]; rejected: number } {
         let rejected = 0;
+        const seen = new Set<string>(); // Deduplicate by normalized timestamp
 
         const values = candles
-            .map((candle: any) => ({
-                symbolId: symbolId,
-                timestamp: new Date(candle.date),
-                open: candle.open,
-                high: candle.high,
-                low: candle.low,
-                close: candle.close,
-                volume: candle.volume,
-                interval: interval
-            }))
+            .map((candle: any) => {
+                // Normalize timestamp to interval boundary
+                const rawDate = new Date(candle.date);
+                const normalizedDate = this.normalizeTimestamp(rawDate, interval);
+                
+                return {
+                    symbolId: symbolId,
+                    timestamp: normalizedDate,
+                    open: candle.open,
+                    high: candle.high,
+                    low: candle.low,
+                    close: candle.close,
+                    volume: candle.volume,
+                    interval: interval
+                };
+            })
             .filter((c: any) => {
                 // Basic null check
                 if (c.open === null || c.close === null || c.high === null || c.low === null) {
                     rejected++;
                     return false;
                 }
+
+                // Deduplicate: only keep first occurrence of each normalized timestamp
+                const key = `${c.timestamp.getTime()}`;
+                if (seen.has(key)) {
+                    this.logger.debug(`[${ticker}] Skipping duplicate at ${c.timestamp.toISOString()}`);
+                    return false;
+                }
+                seen.add(key);
 
                 // Use comprehensive validator
                 const result = this.dataValidator.validateCandle(c, isCrypto);
@@ -142,6 +157,54 @@ export class SyncService {
             });
 
         return { values, rejected };
+    }
+
+    /**
+     * Normalize timestamp to interval boundary
+     * e.g., for 1h: 07:48 -> 07:00, for 1d: any time -> 00:00 UTC
+     */
+    private normalizeTimestamp(date: Date, interval: string): Date {
+        const normalized = new Date(date);
+        
+        switch (interval) {
+            case '1m':
+                normalized.setSeconds(0, 0);
+                break;
+            case '5m':
+                normalized.setMinutes(Math.floor(normalized.getMinutes() / 5) * 5, 0, 0);
+                break;
+            case '15m':
+                normalized.setMinutes(Math.floor(normalized.getMinutes() / 15) * 15, 0, 0);
+                break;
+            case '30m':
+                normalized.setMinutes(Math.floor(normalized.getMinutes() / 30) * 30, 0, 0);
+                break;
+            case '1h':
+                normalized.setMinutes(0, 0, 0);
+                break;
+            case '4h':
+                normalized.setHours(Math.floor(normalized.getHours() / 4) * 4, 0, 0, 0);
+                break;
+            case '1d':
+                normalized.setUTCHours(0, 0, 0, 0);
+                break;
+            case '1wk':
+                // Set to Monday 00:00 UTC
+                const day = normalized.getUTCDay();
+                const diff = normalized.getUTCDate() - day + (day === 0 ? -6 : 1);
+                normalized.setUTCDate(diff);
+                normalized.setUTCHours(0, 0, 0, 0);
+                break;
+            case '1mo':
+                normalized.setUTCDate(1);
+                normalized.setUTCHours(0, 0, 0, 0);
+                break;
+            default:
+                // Default: round to hour
+                normalized.setMinutes(0, 0, 0);
+        }
+        
+        return normalized;
     }
 
     private async determineQueryOptions(symbolId: number, interval: string, endDate?: Date): Promise<any> {

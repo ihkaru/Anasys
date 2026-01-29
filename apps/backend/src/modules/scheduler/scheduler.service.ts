@@ -1,5 +1,5 @@
-import { symbols } from "@packages/db/src/schema";
-import { asc, eq } from "drizzle-orm";
+import { holdings, symbols, watchlistItems } from "@packages/db/src/schema";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { Logger } from "../../utils/logger";
 import { marketService } from "../market/market.service";
@@ -7,68 +7,108 @@ import { marketService } from "../market/market.service";
 const logger = new Logger('SchedulerService');
 
 export class SchedulerService {
-    private intervalId: Timer | null = null;
-    private readonly INTERVAL_MS = 60 * 60 * 1000; // 1 Hour
+    private syncIntervalId: Timer | null = null;
+    private pruneIntervalId: Timer | null = null;
+    private readonly SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 Hour
+    private readonly PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 Hours
 
     start() {
-        logger.info('Scheduler started. Interval: 1h');
+        logger.info('Scheduler started. Sync: 1h (VIP only)');
         
-        // Run immediately on startup? Maybe not, to avoid slow startup.
-        // Let's run it after a short delay.
-        setTimeout(() => this.runJob(), 5000);
+        // Run sync after short delay
+        setTimeout(() => this.runSyncJob(), 5000);
+        
+        // Auto-prune disabled by user preference (keeping all historical data)
+        // setTimeout(() => this.runPruneJob(), 60 * 60 * 1000);
 
-        this.intervalId = setInterval(() => {
-            this.runJob();
-        }, this.INTERVAL_MS);
+        this.syncIntervalId = setInterval(() => this.runSyncJob(), this.SYNC_INTERVAL_MS);
+        // this.pruneIntervalId = setInterval(() => this.runPruneJob(), this.PRUNE_INTERVAL_MS);
     }
 
     stop() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-            logger.info('Scheduler stopped');
+        if (this.syncIntervalId) {
+            clearInterval(this.syncIntervalId);
+            this.syncIntervalId = null;
         }
+        if (this.pruneIntervalId) {
+            clearInterval(this.pruneIntervalId);
+            this.pruneIntervalId = null;
+        }
+        logger.info('Scheduler stopped');
     }
 
-    private async runJob() {
-        logger.info('Running scheduled market sync...');
+    /**
+     * VIP-Only Sync: Only sync symbols in Watchlist or Holdings
+     */
+    private async runSyncJob() {
+        logger.info('Running VIP-only market sync...');
         try {
-            // "Smart Rotation" - Pick 15 oldest updated symbols
-            const BATCH_SIZE = 15;
+            // Get VIP symbol IDs (Watchlist + Holdings)
+            const vipSymbolIds = await this.getVipSymbolIds();
             
-            const staleSymbols = await db.select().from(symbols)
-                .where(eq(symbols.isActive, true))
-                .orderBy(asc(symbols.lastSyncedAt)) // Nulls first (never synced) or oldest first
-                .limit(BATCH_SIZE);
-
-            if (staleSymbols.length === 0) {
-                logger.info('No active symbols to sync.');
+            if (vipSymbolIds.length === 0) {
+                logger.info('No VIP symbols to sync (empty watchlist/holdings).');
                 return;
             }
 
-            logger.info(`Syncing batch of ${staleSymbols.length} stale symbols (Oldest: ${staleSymbols[0].lastSyncedAt})`);
+            // Get symbols sorted by oldest sync
+            const vipSymbols = await db.select().from(symbols)
+                .where(inArray(symbols.id, vipSymbolIds))
+                .orderBy(asc(symbols.lastSyncedAt))
+                .limit(20); // Max 20 per hour to respect rate limits
 
-            for (const symbol of staleSymbols) {
+            logger.info(`Syncing ${vipSymbols.length} VIP symbols (of ${vipSymbolIds.length} total)`);
+
+            for (const symbol of vipSymbols) {
                 try {
-                    // Sync 1d and 1h
                     await marketService.syncSymbolData(symbol.ticker, symbol.type as 'STOCK' | 'CRYPTO', '1d');
                     await marketService.syncSymbolData(symbol.ticker, symbol.type as 'STOCK' | 'CRYPTO', '1h');
-                    
-                    // Respect Rate Limits: 1 request every 2-3 seconds is safe for batch of 15
-                    await new Promise(resolve => setTimeout(resolve, 3000)); 
-
+                    await new Promise(resolve => setTimeout(resolve, 3000)); // Rate limit
                 } catch (e: any) {
-                    logger.error(`Scheduled sync failed for ${symbol.ticker}: ${e.message}`);
-                    // If it fails, maybe touch lastSyncedAt so it doesn't get stuck in loop constantly failing?
-                    // Optional: bump it by 1 hour to retry later
+                    logger.error(`Sync failed for ${symbol.ticker}: ${e.message}`);
                     await db.update(symbols).set({ lastSyncedAt: new Date() }).where(eq(symbols.id, symbol.id));
                 }
             }
-            logger.info('Batch sync completed.');
+            logger.info('VIP sync completed.');
         } catch (e) {
-            logger.error('Critical error in scheduler job', e);
+            logger.error('Critical error in sync job', e);
         }
+    }
+
+    /**
+     * Prune old data for non-VIP symbols (retention: 90 days)
+     */
+    private async runPruneJob() {
+        logger.info('Running data pruning job...');
+        try {
+            const vipSymbolIds = await this.getVipSymbolIds();
+            
+            // Build exclusion clause
+            const exclusionClause = vipSymbolIds.length > 0
+                ? sql`symbol_id NOT IN (${sql.join(vipSymbolIds.map(id => sql`${id}`), sql`, `)})`
+                : sql`TRUE`; // If no VIP, prune everything old
+            
+            const result = await db.execute(sql`
+                DELETE FROM market_data
+                WHERE ${exclusionClause}
+                AND timestamp < NOW() - INTERVAL '90 days'
+            `);
+            
+            logger.info(`Pruning complete. Deleted old non-VIP data.`);
+        } catch (e) {
+            logger.error('Pruning job failed', e);
+        }
+    }
+
+    private async getVipSymbolIds(): Promise<number[]> {
+        const watchlistIds = (await db.select({ id: watchlistItems.symbolId }).from(watchlistItems))
+            .map(r => r.id);
+        const holdingIds = (await db.select({ id: holdings.symbolId }).from(holdings))
+            .map(r => r.id);
+        
+        return [...new Set([...watchlistIds, ...holdingIds])];
     }
 }
 
 export const schedulerService = new SchedulerService();
+

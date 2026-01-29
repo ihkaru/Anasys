@@ -3,13 +3,18 @@
 	"version": "1.0.0",
 	"type": "module",
 	"scripts": {
-		"dev": "bun run --watch src/index.ts",
+		"dev": "bun run --env-file=../../.env --watch src/index.ts",
 		"seed": "bun run src/scripts/seed.ts",
-		"test": "bun test",
+		"test": "bun test --env-file=../../.env",
+		"test:consistency": "bun test src/tests/data_consistency.check.ts",
 		"repair": "bun run src/scripts/ultimate_repair.ts",
 		"repair:vip": "bun run src/scripts/ultimate_repair.ts --vip-only",
 		"repair:dry": "bun run src/scripts/ultimate_repair.ts --dry-run",
-		"audit": "bun run src/scripts/audit_global.ts"
+		"audit": "bun run src/scripts/audit_global.ts",
+		"prune": "bun run src/scripts/prune_stale_data.ts",
+		"prune:dry": "bun run src/scripts/prune_stale_data.ts --dry-run",
+		"clean-slate": "bun run src/scripts/clean_slate.ts",
+		"clean-slate:keep-symbols": "bun run src/scripts/clean_slate.ts --keep-symbols"
 	},
 	"dependencies": {
 		"@elysiajs/cookie": "latest",

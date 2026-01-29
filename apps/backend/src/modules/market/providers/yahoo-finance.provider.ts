@@ -89,13 +89,16 @@ export class YahooFinanceProvider implements IDataProvider {
                 quotesCount: limit 
             });
             
-            return (result.quotes || []).map((q: any) => ({
-                ticker: q.symbol,
-                name: q.shortname || q.longname || q.symbol,
-                type: q.quoteType || 'EQUITY',
-                exchange: q.exchange || '',
-                score: q.score,
-            }));
+            // Filter out items without valid symbol (can happen with some Yahoo results)
+            return (result.quotes || [])
+                .filter((q: any) => q && q.symbol)
+                .map((q: any) => ({
+                    ticker: q.symbol,
+                    name: q.shortname || q.longname || q.symbol,
+                    type: q.quoteType || 'EQUITY',
+                    exchange: q.exchange || '',
+                    score: q.score,
+                }));
         } catch (e) {
             console.error('Search failed:', (e as Error).message);
             return [];

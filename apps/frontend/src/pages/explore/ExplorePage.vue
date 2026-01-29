@@ -41,7 +41,7 @@
         <p class="text-color-gray">Searching...</p>
       </div>
 
-      <AssetItemList v-else :items="searchResults" :show-subtitle="true" :show-sparkline="false"
+      <AssetItemList v-else :items="searchResults" :show-subtitle="true" :show-sparkline="false" :show-price="false"
         :empty-message="searchQuery.length < 2 ? 'Type at least 2 characters to search' : 'No assets found matching your search'"
         @click="openAsset" />
     </template>

@@ -160,28 +160,35 @@ async function loadInitialData(ticker: string) {
 }
 
 function loadBackgroundData(ticker: string) {
+    console.log(`[ChartPage] loadBackgroundData for ${ticker}`);
+    
     // 1. Quotes
     marketStore.fetchQuote(ticker).then(quote => {
+        console.log('[ChartPage] quote:', quote);
         if (quote) currentQuote.value = quote;
     });
 
     // 2. Recommendations
     marketStore.fetchRecommendations(ticker).then(recs => {
+        console.log('[ChartPage] recommendations:', recs);
         recommendations.value = recs || [];
     });
 
     // 3. Financials
     marketStore.fetchFinancials(ticker).then(data => {
+        console.log('[ChartPage] financials:', data);
         financials.value = data;
     });
 
     // 4. Analyst Ratings
     marketStore.fetchAnalyst(ticker).then(data => {
+        console.log('[ChartPage] analyst:', data);
         analystRatings.value = data;
     });
 
     // 5. Earnings
     marketStore.fetchEarnings(ticker).then(data => {
+        console.log('[ChartPage] earnings:', data);
         earnings.value = data;
     });
 }

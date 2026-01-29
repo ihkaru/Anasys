@@ -64,6 +64,9 @@ const getSafeHeaders = (headers: Headers) => {
 // Request logging middleware
 export const requestLogger = new Elysia({ name: "requestLogger" })
     .derive(async ({ request }) => {
+        // Generate or reuse Request ID
+        const requestId = request.headers.get('x-request-id') || crypto.randomUUID();
+        
         // Clone body for logging (only in dev, and only for mutation methods)
         const isDev = process.env.NODE_ENV !== 'production';
         let bodySnapshot: any = undefined;
@@ -80,13 +83,13 @@ export const requestLogger = new Elysia({ name: "requestLogger" })
             }
         }
         
-        return { _bodySnapshot: bodySnapshot };
+        return { requestId, _bodySnapshot: bodySnapshot };
     })
-    .onRequest(({ request }) => {
+    .onBeforeHandle(({ request, requestId }) => {
         const url = new URL(request.url);
         const isDev = process.env.NODE_ENV !== 'production';
         
-        const meta: Record<string, any> = {};
+        const meta: Record<string, any> = { requestId };
         if (url.search) meta.query = url.search;
         
         if (isDev) {
@@ -95,23 +98,28 @@ export const requestLogger = new Elysia({ name: "requestLogger" })
         
         logger.info(`→ ${request.method} ${url.pathname}`, meta);
     })
-    .onAfterHandle(({ request, _bodySnapshot }) => {
+    .onAfterHandle(({ request, requestId, _bodySnapshot }) => {
         const isDev = process.env.NODE_ENV !== 'production';
         if (isDev && _bodySnapshot) {
             const url = new URL(request.url);
-            logger.debug(`📦 ${request.method} ${url.pathname} BODY:`, { body: _bodySnapshot });
+            logger.debug(`📦 ${request.method} ${url.pathname} BODY:`, { requestId, body: _bodySnapshot });
         }
     })
-    .onAfterHandle(({ request, set }) => {
+    .onAfterHandle(({ request, set, requestId }) => {
         const url = new URL(request.url);
+        // Add Request-ID to response headers
+        set.headers['X-Request-ID'] = requestId;
+        
         logger.info(`← ${request.method} ${url.pathname}`, {
+            requestId,
             status: set.status || 200
         });
     })
-    .onError(({ request, error, set }) => {
+    .onError(({ request, error, set, requestId }) => {
         const url = new URL(request.url);
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`✗ ${request.method} ${url.pathname}`, {
+            requestId,
             status: set.status || 500,
             error: errorMessage
         });

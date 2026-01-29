@@ -3,6 +3,7 @@ import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
 import { marketService } from "./market.service";
 
+import { config, getJwtSecret } from "../../config";
 import { Logger } from "../../utils/logger";
 
 const logger = new Logger('MarketController');
@@ -10,7 +11,7 @@ const logger = new Logger('MarketController');
 export const marketController = new Elysia({ prefix: "/market" })
     .use(jwt({ 
         name: "jwt", 
-        secret: process.env.JWT_SECRET || "secret_key_change_me" 
+        secret: getJwtSecret()
     }))
     .use(cookie())
     .derive(async ({ jwt, cookie: { auth }, headers, request }) => {
@@ -38,12 +39,22 @@ export const marketController = new Elysia({ prefix: "/market" })
             return { user: null };
         }
     })
+    // Auth guard for ALL routes
+    .guard({
+        beforeHandle: ({ user, set }: any) => {
+            if (!user) {
+                logger.warn(`Unauthorized access attempt to market endpoint`);
+                set.status = 401;
+                return { success: false, error: "Unauthorized" };
+            }
+        }
+    })
     // Market Overview (GET) - default indices
     .get("/overview", async () => {
         logger.debug("GET /overview");
         try {
             // Fetch latest prices for key indices
-            const tickers = ['SPY', 'QQQ', 'BTC-USD'];
+            const tickers = config.defaults.overviewTickers;
             const overview = await marketService.getMarketOverview(tickers);
             return { success: true, data: overview };
         } catch (e) {
@@ -177,15 +188,6 @@ export const marketController = new Elysia({ prefix: "/market" })
             return { success: false, error: (e as Error).message };
         }
     }, {
-        beforeHandle: (context: any) => {
-            const { user, set, request } = context;
-            if (!user) {
-                logger.warn(`SYNC Unauthorized attempt. URL: ${request.url}`);
-                logger.debug("Missing user in context. Available keys:", Object.keys(context));
-                set.status = 401;
-                return { success: false, error: "Unauthorized" };
-            }
-        },
         body: t.Object({
             ticker: t.String(),
             type: t.Union([t.Literal('STOCK'), t.Literal('CRYPTO')]),

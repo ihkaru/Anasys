@@ -10,8 +10,11 @@
             <f7-block-title large>Add Asset to Watchlist</f7-block-title>
             <f7-searchbar :custom-search="true" placeholder="Search ticker or name..." @searchbar:search="onSearch"
                 :value="searchQuery" @input="onSearch(null, $event.target.value)"></f7-searchbar>
-            <f7-list media-list>
-                <f7-list-item v-for="asset in filteredAssets" :key="asset.ticker" :title="asset.ticker"
+            <div v-if="loading" class="text-align-center padding">
+                <f7-preloader />
+            </div>
+            <f7-list media-list v-else>
+                <f7-list-item v-for="asset in searchResults" :key="asset.ticker" :title="asset.ticker"
                     :subtitle="asset.name" :after="asset.type" @click="$emit('add', asset)">
                     <template #media>
                         <AssetLogo :ticker="asset.ticker" :type="asset.type" :website="asset.website"
@@ -24,9 +27,9 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue';
+import { useDebounceFn } from '@vueuse/core';
+import { ref, watch } from 'vue';
 import { useMarketStore } from '../../../stores/market';
-import { useAssetSearch } from '../composables/useAssetSearch';
 import AssetLogo from './AssetLogo.vue';
 
 interface Props {
@@ -42,16 +45,53 @@ const emit = defineEmits<{
 }>();
 
 const marketStore = useMarketStore();
-// Note: we need to pass a Ref to useAssetSearch. marketStore.symbols is a state but not a strict Ref in pinia unless storeToRefs is used or we define it as computed.
-// However, marketStore.symbols is reactive.
-import { storeToRefs } from 'pinia';
-const { symbols } = storeToRefs(marketStore);
+const searchQuery = ref('');
+const searchResults = ref<any[]>([]);
+const loading = ref(false);
 
-const { searchQuery, filteredAssets, onSearch, reset } = useAssetSearch(symbols);
+// Debounced search to backend
+const debouncedSearch = useDebounceFn(async (query: string) => {
+  if (!query || query.length < 2) {
+    searchResults.value = [];
+    loading.value = false;
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const results = await marketStore.searchSymbols(query, 20);
+    // Map to simple display format
+    searchResults.value = results.map((r: any) => ({
+      ticker: r.ticker,
+      name: r.name,
+      type: r.type === 'CRYPTOCURRENCY' ? 'CRYPTO' : 'STOCK',
+      iconUrl: undefined, // Search doesn't return icons usually
+      website: undefined
+    }));
+  } catch (e) {
+    console.error('Search failed', e);
+    searchResults.value = [];
+  } finally {
+    loading.value = false;
+  }
+}, 300);
+
+function onSearch(_: any, query: string) {
+    searchQuery.value = query;
+    if (query && query.length >= 2) {
+        loading.value = true;
+        debouncedSearch(query);
+    } else {
+        searchResults.value = [];
+    }
+}
 
 // Reset search when sheet opens
 watch(() => props.opened, (isOpen) => {
-    if (isOpen) reset();
+    if (isOpen) {
+        searchQuery.value = '';
+        searchResults.value = [];
+    }
 });
 
 </script>

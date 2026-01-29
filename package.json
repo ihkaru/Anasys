@@ -7,12 +7,22 @@
 		"packages/*"
 	],
 	"scripts": {
+		"setup": "bun run scripts/setup.ts",
 		"dev": "bun --filter '*' dev",
 		"build": "bun --filter '*' build",
+		"test": "bun --filter @apps/backend test",
+		"test:consistency": "bun --filter @apps/backend test src/tests/data_consistency.check.ts",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"db:push": "bun --filter @packages/db push",
-		"db:studio": "bun --filter @packages/db studio"
+		"db:studio": "bun --filter @packages/db studio",
+		"db:seed": "bun --filter @apps/backend seed",
+		"db:audit": "bun --filter @apps/backend audit",
+		"db:repair": "bun --filter @apps/backend repair",
+		"db:repair:vip": "bun --filter @apps/backend repair:vip",
+		"db:clean": "bun --filter @apps/backend clean-slate",
+		"db:prune": "bun --filter @apps/backend prune",
+		"db:prune:dry": "bun --filter @apps/backend prune:dry"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "latest",

@@ -14,9 +14,9 @@ export class CandleService {
 
     async getOHLCV(ticker: string, interval = '1d', limit = 100, before?: string) {
         // this.logger.debug(`[getOHLCV] Request: ${ticker} (${interval}) before=${before || 'now'}`);
-        
-        const symbol = await this.symbolService.getSymbolByTicker(ticker);
-        if (!symbol) throw new Error(`Symbol ${ticker} not found`);
+        // Auto-register symbol if not in DB (supports On-Demand Discovery from Yahoo search)
+        const type = ticker.includes('-') ? 'CRYPTO' : 'STOCK' as const;
+        const symbol = await this.symbolService.ensureSymbol(ticker, type);
         
         const beforeDate = before ? new Date(before) : undefined;
 
@@ -87,8 +87,9 @@ export class CandleService {
 
 
     async getDownsampledCandles(ticker: string, resolution: string = '1 day', limit = 1000) {
-        const symbol = await this.symbolService.getSymbolByTicker(ticker);
-        if (!symbol) throw new Error("Symbol not found");
+        // Auto-register symbol if not in DB
+        const type = ticker.includes('-') ? 'CRYPTO' : 'STOCK' as const;
+        const symbol = await this.symbolService.ensureSymbol(ticker, type);
         
         const result = await this.marketDataRepo.getDownsampled(symbol.id, resolution, limit);
         

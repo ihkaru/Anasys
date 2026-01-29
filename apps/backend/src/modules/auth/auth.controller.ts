@@ -3,6 +3,7 @@ import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
 import { authService } from "./auth.service";
 
+import { getJwtSecret } from "../../config";
 import { Logger } from "../../utils/logger";
 
 const logger = new Logger('AuthController');
@@ -11,7 +12,7 @@ export const authController = new Elysia({ prefix: "/auth" })
 	.use(
 		jwt({
 			name: "jwt",
-			secret: process.env.JWT_SECRET || "secret_key_change_me",
+			secret: getJwtSecret(),
 		}),
 	)
 	.use(cookie())

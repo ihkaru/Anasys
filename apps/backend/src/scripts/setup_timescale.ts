@@ -2,32 +2,53 @@
 import { sql } from "drizzle-orm";
 import { db } from "../db";
 
-async function main() {
-    console.log("⚙️ Setting up TimescaleDB...");
-    try {
-        // Enable Extension
-        console.log("Enable Extension...");
-        await db.execute(sql`CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;`);
+/**
+ * setup_timescale.ts
+ * 
+ * Configures TimescaleDB hypertables for time-series data.
+ * This should be run after schema migration.
+ */
+async function setupTimescale() {
+    console.log('⏳ Configuring TimescaleDB Hypertables...');
 
-        // Convert to Hypertable
-        // We need to check if it's already a hypertable to avoid errors
-        // or just use if_not_exists option (if available in create_hypertable, yes it is)
-        
-        console.log("Converting market_data to hypertable...");
-        // chunk_time_interval: 1 day (default is 7 days, but for 1m data maybe 1 day or 1 week is fine)
-        // Let's stick to default or explicit 1 week.
-        await db.execute(sql`SELECT create_hypertable('market_data', 'timestamp', if_not_exists => TRUE);`);
-        
-        console.log("✅ TimescaleDB setup complete.");
-        process.exit(0);
-    } catch (e: any) {
-        if (e.message.includes("already a hypertable")) {
-            console.log("✅ Already a hypertable.");
-            process.exit(0);
-        }
-        console.error("❌ Failed to setup TimescaleDB:", e);
+    try {
+        // 1. market_data (partition by timestamp, 1 day chunks by default)
+        // We use if_not_exists => TRUE to make it idempotent
+        await db.execute(sql`
+            SELECT create_hypertable(
+                'market_data', 
+                'timestamp', 
+                chunk_time_interval => INTERVAL '1 day',
+                if_not_exists => TRUE
+            );
+        `);
+        console.log('   ✅ Hypertable \'market_data\' configured');
+
+        // 2. Add compression policy (optional, but good for older data)
+        // Compress chunks older than 7 days
+        await db.execute(sql`
+            ALTER TABLE market_data SET (
+                timescaledb.compress,
+                timescaledb.compress_segmentby = 'symbol_id'
+            );
+        `).catch(() => {
+            // Ignore error if already enabled
+        });
+
+        await db.execute(sql`
+            SELECT add_compression_policy('market_data', INTERVAL '7 days', if_not_exists => TRUE);
+        `).catch((e) => {
+             // Ignore if policy already exists
+        });
+        console.log('   ✅ Compression policy enabled (7 days)');
+
+    } catch (error) {
+        console.error('❌ Failed to configure TimescaleDB:', error);
         process.exit(1);
     }
+
+    console.log('✨ TimescaleDB setup complete');
+    process.exit(0);
 }
 
-main();
+setupTimescale();
