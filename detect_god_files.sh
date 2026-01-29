@@ -39,6 +39,7 @@ find "$SEARCH_DIR" -type f \
     | grep -v ".nuxt" \
     | grep -v "coverage" \
     | grep -v ".bun" \
+    | grep -v "\.agent" \
     | while read -r file; do
         lines=$(wc -l < "$file" 2>/dev/null)
         if [ "$lines" -gt "$THRESHOLD" ]; then
