@@ -220,10 +220,8 @@ onMounted(async () => {
   z-index: 100;
   padding: 8px 16px;
   background-color: var(--f7-page-bg-color);
-  margin-left: -16px;
-  margin-right: -16px;
   /* Add subtle shadow when scrolling */
-  border-bottom: 1px solid rgba(0,0,0,0.05);
+  border-bottom: 1px solid var(--chart-border, rgba(0, 0, 0, 0.05));
 }
 
 .timeframe-selector {

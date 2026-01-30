@@ -1,6 +1,6 @@
 <template>
     <div class="interval-selector-wrapper">
-        <div class="interval-selector modern-glass">
+        <div class="interval-selector">
             <button v-for="interval in intervals" :key="interval" class="interval-btn"
                 :class="{ 'active': modelValue === interval }" @click="$emit('update:modelValue', interval)">
                 {{ interval }}
@@ -35,11 +35,11 @@ const intervals = computed(() =>
     z-index: 10;
 }
 
-.interval-selector.modern-glass {
-    background: rgba(43, 43, 67, 0.4);
+.interval-selector {
+    background: var(--card-bg, rgba(0, 0, 0, 0.05));
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--chart-border, rgba(0, 0, 0, 0.1));
     border-radius: 20px;
     padding: 4px;
     display: flex;
@@ -50,7 +50,7 @@ const intervals = computed(() =>
 .interval-btn {
     background: transparent;
     border: none;
-    color: #d1d4dc;
+    color: var(--muted-text, #6b7280);
     padding: 6px 16px;
     border-radius: 16px;
     font-size: 13px;
@@ -61,12 +61,12 @@ const intervals = computed(() =>
 }
 
 .interval-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: white;
+    background: var(--chart-border, rgba(0, 0, 0, 0.05));
+    color: var(--f7-text-color);
 }
 
 .interval-btn.active {
-    background: #2563eb;
+    background: var(--f7-theme-color, #2563eb);
     color: white;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }

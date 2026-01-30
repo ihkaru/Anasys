@@ -17,7 +17,7 @@
     display: flex;
     gap: 12px;
     font-size: 12px;
-    color: #d1d4dc;
+    color: var(--muted-text, #6b7280);
     z-index: 5;
 }
 
@@ -34,10 +34,10 @@
 }
 
 .legend-item.buy .dot {
-    background: #10b981;
+    background: var(--positive-color, #10b981);
 }
 
 .legend-item.sell .dot {
-    background: #ef4444;
+    background: var(--negative-color, #ef4444);
 }
 </style>

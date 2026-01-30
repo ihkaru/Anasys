@@ -56,10 +56,10 @@ const { buySignals, sellSignals, totalSignals, hasSignals } = useSignalMarkers(
 }
 
 .signal-stat .value.buy {
-    color: #10b981;
+    color: var(--positive-color, #10b981);
 }
 
 .signal-stat .value.sell {
-    color: #ef4444;
+    color: var(--negative-color, #ef4444);
 }
 </style>

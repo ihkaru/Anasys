@@ -27,8 +27,8 @@ const symbolService = new SymbolService(symbolRepo, dataProvider, logger);
 const syncService = new SyncService(symbolService, marketDataRepo, dataProvider, logger);
 const candleService = new CandleService(symbolService, syncService, marketDataRepo, logger);
 const overviewService = new OverviewService(symbolRepo, marketDataRepo, logger);
-const moversService = new MoversService(marketDataRepo, symbolRepo, cacheService, logger, db);
 const quoteService = new QuoteService(symbolRepo, marketDataRepo, dataProvider, cacheService, logger);
+const moversService = new MoversService(quoteService, cacheService, logger);
 const financialsService = new FinancialsService(dataProvider);
 
 export class MarketService {

@@ -114,6 +114,15 @@ export class SymbolService {
         // Skip if recently enriched and has data
         if (existing?.metadataUpdatedAt && !this.isStale(existing.metadataUpdatedAt)) {
             this.logger.debug(`[${ticker}] Already fresh, skipping (${Date.now() - startTime}ms)`);
+            
+            // Still check for logo in background just in case it's missing physically
+            import("./logo.service").then(({ logoService }) => {
+                if (existing?.id) {
+                    logoService.ensureLogo(existing.id, ticker, existing.type as 'STOCK' | 'CRYPTO')
+                        .catch(err => this.logger.error(`Failed to ensure logo for ${ticker} (fresh check)`, err));
+                }
+            });
+
             return existing;
         }
 
@@ -157,6 +166,15 @@ export class SymbolService {
             }
             
             await this.symbolRepo.updateByTicker(ticker, updates);
+
+            // Trigger Logo Download (Async, don't block response)
+            // Dynamic import to avoid cycles since logo.service might import db
+            import("./logo.service").then(({ logoService }) => {
+                if (existing?.id) {
+                    logoService.ensureLogo(existing.id, ticker, existing.type as 'STOCK' | 'CRYPTO')
+                        .catch(err => this.logger.error(`Failed to ensure logo for ${ticker}`, err));
+                }
+            });
             
             this.logger.info(`Enriched ${ticker}: ${updates.name || 'N/A'}`);
             return await this.symbolRepo.findByTicker(ticker);

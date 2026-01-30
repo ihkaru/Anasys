@@ -282,202 +282,234 @@ export class FinancialsService {
         const startTime = Date.now();
         console.log(`[Financials] Fetching ${ticker} from Yahoo...`);
         
-        const summary = await this.provider.fetchQuoteSummary(ticker, [
-            'summaryDetail',
-            'financialData',
-            'defaultKeyStatistics'
-        ]);
-        
-        console.log(`[Financials] ${ticker} Yahoo responded in ${Date.now() - startTime}ms`);
-        
-        const sd = summary?.summaryDetail || {};
-        const fd = summary?.financialData || {};
-        const ks = summary?.defaultKeyStatistics || {};
+        try {
+            const summary = await this.provider.fetchQuoteSummary(ticker, [
+                'summaryDetail',
+                'financialData',
+                'defaultKeyStatistics'
+            ]);
+            
+            console.log(`[Financials] ${ticker} Yahoo responded in ${Date.now() - startTime}ms`);
+            
+            const sd = summary?.summaryDetail || {};
+            const fd = summary?.financialData || {};
+            const ks = summary?.defaultKeyStatistics || {};
 
-        
-        const data: any = {
-            symbolId,
             
-            // summaryDetail
-            trailingPE: this.extractValue(sd.trailingPE),
-            forwardPE: this.extractValue(sd.forwardPE),
-            priceToBook: this.extractValue(sd.priceToBook),
-            dividendYield: this.extractValue(sd.dividendYield),
-            exDividendDate: sd.exDividendDate ? new Date(sd.exDividendDate) : null,
-            beta: this.extractValue(sd.beta),
-            fiftyTwoWeekHigh: this.extractValue(sd.fiftyTwoWeekHigh),
-            fiftyTwoWeekLow: this.extractValue(sd.fiftyTwoWeekLow),
-            fiftyDayAverage: this.extractValue(sd.fiftyDayAverage),
-            twoHundredDayAverage: this.extractValue(sd.twoHundredDayAverage),
-            averageVolume: this.extractValue(sd.averageVolume),
+            const data: any = {
+                symbolId,
+                
+                // summaryDetail
+                trailingPE: this.extractValue(sd.trailingPE),
+                forwardPE: this.extractValue(sd.forwardPE),
+                priceToBook: this.extractValue(sd.priceToBook),
+                dividendYield: this.extractValue(sd.dividendYield),
+                exDividendDate: sd.exDividendDate ? new Date(sd.exDividendDate) : null,
+                beta: this.extractValue(sd.beta),
+                fiftyTwoWeekHigh: this.extractValue(sd.fiftyTwoWeekHigh),
+                fiftyTwoWeekLow: this.extractValue(sd.fiftyTwoWeekLow),
+                fiftyDayAverage: this.extractValue(sd.fiftyDayAverage),
+                twoHundredDayAverage: this.extractValue(sd.twoHundredDayAverage),
+                averageVolume: this.extractValue(sd.averageVolume),
+                
+                // financialData
+                totalRevenue: this.extractValue(fd.totalRevenue),
+                revenuePerShare: this.extractValue(fd.revenuePerShare),
+                grossProfit: this.extractValue(fd.grossProfits),
+                ebitda: this.extractValue(fd.ebitda),
+                netIncomeToCommon: this.extractValue(fd.netIncomeToCommon),
+                grossMargins: this.extractValue(fd.grossMargins),
+                operatingMargins: this.extractValue(fd.operatingMargins),
+                profitMargins: this.extractValue(fd.profitMargins),
+                returnOnEquity: this.extractValue(fd.returnOnEquity),
+                returnOnAssets: this.extractValue(fd.returnOnAssets),
+                debtToEquity: this.extractValue(fd.debtToEquity),
+                currentRatio: this.extractValue(fd.currentRatio),
+                quickRatio: this.extractValue(fd.quickRatio),
+                freeCashflow: this.extractValue(fd.freeCashflow),
+                targetMeanPrice: this.extractValue(fd.targetMeanPrice),
+                targetHighPrice: this.extractValue(fd.targetHighPrice),
+                targetLowPrice: this.extractValue(fd.targetLowPrice),
+                recommendationMean: this.extractValue(fd.recommendationMean),
+                recommendationKey: fd.recommendationKey,
+                numberOfAnalystOpinions: this.extractValue(fd.numberOfAnalystOpinions),
+                
+                // defaultKeyStatistics
+                sharesOutstanding: this.extractValue(ks.sharesOutstanding),
+                floatShares: this.extractValue(ks.floatShares),
+                sharesShort: this.extractValue(ks.sharesShort),
+                shortRatio: this.extractValue(ks.shortRatio),
+                heldPercentInsiders: this.extractValue(ks.heldPercentInsiders),
+                heldPercentInstitutions: this.extractValue(ks.heldPercentInstitutions),
+                bookValue: this.extractValue(ks.bookValue),
+                enterpriseValue: this.extractValue(ks.enterpriseValue),
+                trailingEps: this.extractValue(ks.trailingEps),
+                forwardEps: this.extractValue(ks.forwardEps),
+                pegRatio: this.extractValue(ks.pegRatio),
+                
+                updatedAt: new Date(),
+            };
             
-            // financialData
-            totalRevenue: this.extractValue(fd.totalRevenue),
-            revenuePerShare: this.extractValue(fd.revenuePerShare),
-            grossProfit: this.extractValue(fd.grossProfits),
-            ebitda: this.extractValue(fd.ebitda),
-            netIncomeToCommon: this.extractValue(fd.netIncomeToCommon),
-            grossMargins: this.extractValue(fd.grossMargins),
-            operatingMargins: this.extractValue(fd.operatingMargins),
-            profitMargins: this.extractValue(fd.profitMargins),
-            returnOnEquity: this.extractValue(fd.returnOnEquity),
-            returnOnAssets: this.extractValue(fd.returnOnAssets),
-            debtToEquity: this.extractValue(fd.debtToEquity),
-            currentRatio: this.extractValue(fd.currentRatio),
-            quickRatio: this.extractValue(fd.quickRatio),
-            freeCashflow: this.extractValue(fd.freeCashflow),
-            targetMeanPrice: this.extractValue(fd.targetMeanPrice),
-            targetHighPrice: this.extractValue(fd.targetHighPrice),
-            targetLowPrice: this.extractValue(fd.targetLowPrice),
-            recommendationMean: this.extractValue(fd.recommendationMean),
-            recommendationKey: fd.recommendationKey,
-            numberOfAnalystOpinions: this.extractValue(fd.numberOfAnalystOpinions),
+            // Upsert to database
+            await db.insert(symbolFinancials)
+                .values(data)
+                .onConflictDoUpdate({
+                    target: symbolFinancials.symbolId,
+                    set: { ...data, symbolId: undefined }
+                });
             
-            // defaultKeyStatistics
-            sharesOutstanding: this.extractValue(ks.sharesOutstanding),
-            floatShares: this.extractValue(ks.floatShares),
-            sharesShort: this.extractValue(ks.sharesShort),
-            shortRatio: this.extractValue(ks.shortRatio),
-            heldPercentInsiders: this.extractValue(ks.heldPercentInsiders),
-            heldPercentInstitutions: this.extractValue(ks.heldPercentInstitutions),
-            bookValue: this.extractValue(ks.bookValue),
-            enterpriseValue: this.extractValue(ks.enterpriseValue),
-            trailingEps: this.extractValue(ks.trailingEps),
-            forwardEps: this.extractValue(ks.forwardEps),
-            pegRatio: this.extractValue(ks.pegRatio),
-            
-            updatedAt: new Date(),
-        };
-        
-        // Upsert to database
-        await db.insert(symbolFinancials)
-            .values(data)
-            .onConflictDoUpdate({
-                target: symbolFinancials.symbolId,
-                set: { ...data, symbolId: undefined }
-            });
-        
-        return this.mapDbFinancials(data);
+            return this.mapDbFinancials(data);
+        } catch (e) {
+            console.warn(`[Financials] Missing data for ${ticker}, skipping store.`);
+            // Return empty structure
+            return {
+                updatedAt: new Date().toISOString()
+            };
+        }
     }
 
     private async fetchAndStoreEarnings(symbolId: number, ticker: string): Promise<EarningsData> {
-        const summary = await this.provider.fetchQuoteSummary(ticker, [
-            'earnings',
-            'earningsHistory',
-            'earningsTrend',
-            'calendarEvents'
-        ]);
-        
-        const earnings = summary?.earnings || {};
-        const history = summary?.earningsHistory?.history || [];
-        const trend = summary?.earningsTrend?.trend || [];
-        const calendar = summary?.calendarEvents || {};
-        
-        // Parse earnings history
-        const earningsHistory: EarningsQuarter[] = history.map((h: any) => ({
-            date: h.quarter ? `${h.quarter}` : new Date(h.period).toISOString(),
-            epsActual: this.extractValue(h.epsActual),
-            epsEstimate: this.extractValue(h.epsEstimate),
-            epsDifference: this.extractValue(h.epsDifference),
-            surprisePercent: this.extractValue(h.surprisePercent),
-        }));
-        
-        // Parse quarterly earnings from earnings module
-        const financialChart = earnings?.financialsChart?.quarterly || [];
-        const revenueHistory: RevenueQuarter[] = financialChart.map((q: any) => ({
-            date: q.date,
-            revenue: this.extractValue(q.revenue),
-            earnings: this.extractValue(q.earnings),
-        }));
-        
-        // Parse earnings trend
-        const earningsTrend: EarningsTrendItem[] = trend.map((t: any) => ({
-            period: t.period,
-            endDate: t.endDate,
-            growth: this.extractValue(t.growth),
-            earningsEstimate: this.extractValue(t.earningsEstimate?.avg),
-            revenueEstimate: this.extractValue(t.revenueEstimate?.avg),
-        }));
-        
-        const data: any = {
-            symbolId,
-            nextEarningsDate: calendar.earnings?.earningsDate?.[0] ? 
-                new Date(calendar.earnings.earningsDate[0]) : null,
-            nextExDividendDate: calendar.exDividendDate ? 
-                new Date(calendar.exDividendDate) : null,
-            nextDividendDate: calendar.dividendDate ? 
-                new Date(calendar.dividendDate) : null,
-            earningsHistory: JSON.stringify(earningsHistory),
-            revenueHistory: JSON.stringify(revenueHistory),
-            earningsTrend: JSON.stringify(earningsTrend),
-            updatedAt: new Date(),
-        };
-        
-        await db.insert(symbolEarnings)
-            .values(data)
-            .onConflictDoUpdate({
-                target: symbolEarnings.symbolId,
-                set: { ...data, symbolId: undefined }
-            });
-        
-        return {
-            nextEarningsDate: data.nextEarningsDate?.toISOString(),
-            nextExDividendDate: data.nextExDividendDate?.toISOString(),
-            nextDividendDate: data.nextDividendDate?.toISOString(),
-            earningsHistory,
-            revenueHistory,
-            earningsTrend,
-            updatedAt: data.updatedAt.toISOString(),
-        };
+        try {
+            const summary = await this.provider.fetchQuoteSummary(ticker, [
+                'earnings',
+                'earningsHistory',
+                'earningsTrend',
+                'calendarEvents'
+            ]);
+            
+            const earnings = summary?.earnings || {};
+            const history = summary?.earningsHistory?.history || [];
+            const trend = summary?.earningsTrend?.trend || [];
+            const calendar = summary?.calendarEvents || {};
+            
+            // Parse earnings history
+            const earningsHistory: EarningsQuarter[] = history.map((h: any) => ({
+                date: h.quarter ? `${h.quarter}` : new Date(h.period).toISOString(),
+                epsActual: this.extractValue(h.epsActual),
+                epsEstimate: this.extractValue(h.epsEstimate),
+                epsDifference: this.extractValue(h.epsDifference),
+                surprisePercent: this.extractValue(h.surprisePercent),
+            }));
+            
+            // Parse quarterly earnings from earnings module
+            const financialChart = earnings?.financialsChart?.quarterly || [];
+            const revenueHistory: RevenueQuarter[] = financialChart.map((q: any) => ({
+                date: q.date,
+                revenue: this.extractValue(q.revenue),
+                earnings: this.extractValue(q.earnings),
+            }));
+            
+            // Parse earnings trend
+            const earningsTrend: EarningsTrendItem[] = trend.map((t: any) => ({
+                period: t.period,
+                endDate: t.endDate,
+                growth: this.extractValue(t.growth),
+                earningsEstimate: this.extractValue(t.earningsEstimate?.avg),
+                revenueEstimate: this.extractValue(t.revenueEstimate?.avg),
+            }));
+            
+            const data: any = {
+                symbolId,
+                nextEarningsDate: calendar.earnings?.earningsDate?.[0] ? 
+                    new Date(calendar.earnings.earningsDate[0]) : null,
+                nextExDividendDate: calendar.exDividendDate ? 
+                    new Date(calendar.exDividendDate) : null,
+                nextDividendDate: calendar.dividendDate ? 
+                    new Date(calendar.dividendDate) : null,
+                earningsHistory: JSON.stringify(earningsHistory),
+                revenueHistory: JSON.stringify(revenueHistory),
+                earningsTrend: JSON.stringify(earningsTrend),
+                updatedAt: new Date(),
+            };
+            
+            await db.insert(symbolEarnings)
+                .values(data)
+                .onConflictDoUpdate({
+                    target: symbolEarnings.symbolId,
+                    set: { ...data, symbolId: undefined }
+                });
+            
+            return {
+                nextEarningsDate: data.nextEarningsDate?.toISOString(),
+                nextExDividendDate: data.nextExDividendDate?.toISOString(),
+                nextDividendDate: data.nextDividendDate?.toISOString(),
+                earningsHistory,
+                revenueHistory,
+                earningsTrend,
+                updatedAt: data.updatedAt.toISOString(),
+            };
+        } catch (e) {
+            console.warn(`[Earnings] Missing data for ${ticker}`);
+            return {
+                earningsHistory: [],
+                revenueHistory: [],
+                earningsTrend: [],
+                updatedAt: new Date().toISOString()
+            };
+        }
     }
 
     private async fetchAndStoreAnalystRatings(symbolId: number, ticker: string): Promise<AnalystData> {
-        const summary = await this.provider.fetchQuoteSummary(ticker, [
-            'recommendationTrend'
-        ]);
-        
-        const trend = summary?.recommendationTrend?.trend || [];
-        
-        // Current month is usually index 0
-        const current = trend[0] || {};
-        
-        const ratingsTrend: AnalystTrendItem[] = trend.map((t: any) => ({
-            period: t.period || '0m',
-            strongBuy: t.strongBuy || 0,
-            buy: t.buy || 0,
-            hold: t.hold || 0,
-            sell: t.sell || 0,
-            strongSell: t.strongSell || 0,
-        }));
-        
-        const data: any = {
-            symbolId,
-            strongBuy: current.strongBuy || 0,
-            buy: current.buy || 0,
-            hold: current.hold || 0,
-            sell: current.sell || 0,
-            strongSell: current.strongSell || 0,
-            ratingsTrend: JSON.stringify(ratingsTrend),
-            updatedAt: new Date(),
-        };
-        
-        await db.insert(analystRatings)
-            .values(data)
-            .onConflictDoUpdate({
-                target: analystRatings.symbolId,
-                set: { ...data, symbolId: undefined }
-            });
-        
-        return {
-            strongBuy: data.strongBuy,
-            buy: data.buy,
-            hold: data.hold,
-            sell: data.sell,
-            strongSell: data.strongSell,
-            total: data.strongBuy + data.buy + data.hold + data.sell + data.strongSell,
-            ratingsTrend,
-            updatedAt: data.updatedAt.toISOString(),
-        };
+        try {
+            const summary = await this.provider.fetchQuoteSummary(ticker, [
+                'recommendationTrend'
+            ]);
+            
+            const trend = summary?.recommendationTrend?.trend || [];
+            
+            // Current month is usually index 0
+            const current = trend[0] || {};
+            
+            const ratingsTrend: AnalystTrendItem[] = trend.map((t: any) => ({
+                period: t.period || '0m',
+                strongBuy: t.strongBuy || 0,
+                buy: t.buy || 0,
+                hold: t.hold || 0,
+                sell: t.sell || 0,
+                strongSell: t.strongSell || 0,
+            }));
+            
+            const data: any = {
+                symbolId,
+                strongBuy: current.strongBuy || 0,
+                buy: current.buy || 0,
+                hold: current.hold || 0,
+                sell: current.sell || 0,
+                strongSell: current.strongSell || 0,
+                ratingsTrend: JSON.stringify(ratingsTrend),
+                updatedAt: new Date(),
+            };
+            
+            await db.insert(analystRatings)
+                .values(data)
+                .onConflictDoUpdate({
+                    target: analystRatings.symbolId,
+                    set: { ...data, symbolId: undefined }
+                });
+            
+            return {
+                strongBuy: data.strongBuy,
+                buy: data.buy,
+                hold: data.hold,
+                sell: data.sell,
+                strongSell: data.strongSell,
+                total: data.strongBuy + data.buy + data.hold + data.sell + data.strongSell,
+                ratingsTrend,
+                updatedAt: data.updatedAt.toISOString(),
+            };
+        } catch (e) {
+            console.warn(`[Analyst] Missing data for ${ticker}`);
+            return {
+                strongBuy: 0,
+                buy: 0,
+                hold: 0,
+                sell: 0,
+                strongSell: 0,
+                total: 0,
+                ratingsTrend: [],
+                updatedAt: new Date().toISOString()
+            };
+        }
     }
 
     private extractValue(val: any): number | null {

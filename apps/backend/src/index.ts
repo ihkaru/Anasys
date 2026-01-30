@@ -39,8 +39,30 @@ const app = new Elysia()
     // Health check (no rate limit, no auth)
     .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
     
+    // Serve static files (logos)
+    .get("/public/*", async ({ params, set }) => {
+        const filePath = params['*'];
+        
+        // Use import.meta.dir to get absolute path to src/ directory
+        // Then go up one level to apps/backend root, then into public/
+        // This works regardless of where the app is launched from (CWD safe)
+        const projectRoot = import.meta.dir.replace('/src', '');
+        const absPath = `${projectRoot}/public/${filePath}`;
+        
+        const staticFile = Bun.file(absPath);
+        
+        const exists = await staticFile.exists();
+        if (!exists) {
+            console.log(`[Static] 404 Not Found: ${filePath} (cwd: ${process.cwd()})`);
+            set.status = 404;
+            return "File not found";
+        }
+        
+        return staticFile;
+    })
+    
     // Auth routes with stricter rate limiting
-    .group("/api", (api) => 
+    .group("/api", (api) =>  
         api
             .use(apiRateLimiter)
             .use(authController)

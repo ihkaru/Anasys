@@ -1,6 +1,7 @@
 <template>
     <div class="asset-icon-wrapper" :class="[size]">
-        <img v-if="!hasError && logoUrl" :src="logoUrl" :alt="ticker" class="asset-logo" @error="onLogoError" />
+        <img v-if="!hasError && logoUrl" :src="logoUrl" :alt="ticker" class="asset-logo" @error="onLogoError"
+            @load="onLogoLoad" />
         <div v-else class="asset-icon" :class="[size]" :style="{ backgroundColor: getColorForTicker(ticker) }">
             {{ ticker.substring(0, 2) }}
         </div>
@@ -33,29 +34,31 @@ watch(() => props.ticker, () => {
 });
 
 const logoUrl = computed(() => {
+    // Priority 1: Use cached icon from backend if available
     if (props.iconUrl) return props.iconUrl;
 
-    // Crypto
-    if (props.type === 'CRYPTO' || props.ticker.includes('-USD')) {
-        const baseSymbol = props.ticker.split('-')[0].toLowerCase();
-        return `https://assets.coincap.io/assets/icons/${baseSymbol}@2x.png`;
+    // Stocks/ETFs - use symbol endpoint
+    const url = props.type === 'CRYPTO' || props.ticker.includes('-USD')
+        ? `https://api.elbstream.com/logos/crypto/${props.ticker.split('-')[0].toUpperCase()}`
+        : `https://api.elbstream.com/logos/symbol/${props.ticker}`;
+
+    // If backend provided iconUrl, favor it (it likely points to local /public/logos/...)
+    // Note: iconUrl from DB might be relative path like '/public/logos/...'
+    if (props.iconUrl) {
+        console.log(`[AssetLogo:${props.ticker}] Using DB URL:`, props.iconUrl);
+        return props.iconUrl;
     }
 
-    // Stocks
-    if (props.website) {
-        try {
-            const url = new URL(props.website);
-            const domain = url.hostname.replace('www.', '');
-            return `https://logo.clearbit.com/${domain}`;
-        } catch {
-            return null;
-        }
-    }
-
-    return null;
+    console.log(`[AssetLogo:${props.ticker}] Using External URL:`, url);
+    return url;
 });
 
-function onLogoError() {
+function onLogoLoad() {
+    console.log(`[AssetLogo:${props.ticker}] ✅ Image loaded successfully:`, logoUrl.value);
+}
+
+function onLogoError(e: Event) {
+    console.error(`[AssetLogo:${props.ticker}] ❌ Image load failed:`, logoUrl.value, e);
     hasError.value = true;
 }
 </script>
@@ -64,6 +67,7 @@ function onLogoError() {
 .asset-icon-wrapper {
     position: relative;
     display: inline-block;
+    flex-shrink: 0;
 }
 
 .asset-icon-wrapper.medium {
@@ -84,15 +88,16 @@ function onLogoError() {
 .asset-logo {
     width: 100%;
     height: 100%;
-    border-radius: 12px;
+    border-radius: 50%;
     object-fit: cover;
-    background: var(--f7-page-bg-color);
+    background: transparent;
+    border: none;
 }
 
 .asset-icon {
     width: 100%;
     height: 100%;
-    border-radius: 12px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;

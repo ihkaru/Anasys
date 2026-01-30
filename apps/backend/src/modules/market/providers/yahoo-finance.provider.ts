@@ -135,6 +135,54 @@ export class YahooFinanceProvider implements IDataProvider {
         }
     }
 
+    /**
+     * Get Daily Gainers (Global) - Using Screener
+     */
+    async fetchDailyGainers(count = 10): Promise<QuoteResult[]> {
+        try {
+            // Use 'screener' module as dailyGainers is deprecated
+            // Predefined screener ID for day gainers is 'day_gainers'
+            const result = await this.client.screener({ scrIds: 'day_gainers', count, region: 'US', lang: 'en-US' });
+            return this.mapQuotes(result.quotes || []);
+        } catch (e) {
+            console.error('Daily Gainers fetch failed:', (e as Error).message);
+            return [];
+        }
+    }
+
+    /**
+     * Get Daily Losers (Global) - Using Screener
+     */
+    async fetchDailyLosers(count = 10): Promise<QuoteResult[]> {
+        try {
+            // Use 'screener' module as dailyLosers is deprecated
+            // Predefined screener ID for day losers is 'day_losers'
+            const result = await this.client.screener({ scrIds: 'day_losers', count, region: 'US', lang: 'en-US' });
+            return this.mapQuotes(result.quotes || []);
+        } catch (e) {
+            console.error('Daily Losers fetch failed:', (e as Error).message);
+            return [];
+        }
+    }
+
+    private mapQuotes(quotes: any[]): QuoteResult[] {
+        return quotes
+            .filter((q: any) => q && q.symbol)
+            .map((quote: any) => ({
+                ticker: quote.symbol,
+                name: quote.shortName || quote.longName || quote.symbol,
+                price: quote.regularMarketPrice || 0,
+                previousClose: quote.regularMarketPreviousClose || 0,
+                change: quote.regularMarketChange || 0,
+                changePercent: quote.regularMarketChangePercent || 0,
+                volume: quote.regularMarketVolume || 0,
+                marketCap: quote.marketCap,
+                high52Week: quote.fiftyTwoWeekHigh,
+                low52Week: quote.fiftyTwoWeekLow,
+                updatedAt: new Date(),
+            }));
+    }
+
     getName(): string {
         return 'yahoo-finance';
     }

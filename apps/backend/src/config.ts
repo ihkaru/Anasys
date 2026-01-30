@@ -22,7 +22,15 @@ let _jwtSecret: string | null = null;
 
 export function getJwtSecret(): string {
     if (_jwtSecret === null) {
-        _jwtSecret = getRequiredEnv('JWT_SECRET');
+        const secret = process.env['JWT_SECRET'];
+        if (secret) {
+            _jwtSecret = secret;
+        } else if (getOptionalEnv('NODE_ENV', 'development') !== 'production') {
+            console.warn('⚠️  JWT_SECRET is missing, using fallback (dev_secret_key_123) for development.');
+            _jwtSecret = 'dev_secret_key_123';
+        } else {
+            _jwtSecret = getRequiredEnv('JWT_SECRET'); // This will throw
+        }
     }
     return _jwtSecret;
 }

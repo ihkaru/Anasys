@@ -49,7 +49,6 @@
 </template>
 
 <script setup lang="ts">
-import { f7 } from 'framework7-vue';
 import { nextTick, onMounted, ref, watch } from 'vue';
 import { useMarketStore } from '../../stores/market';
 import AssetDetailsCard from './components/AssetDetailsCard.vue';
@@ -161,7 +160,7 @@ async function loadInitialData(ticker: string) {
 
 function loadBackgroundData(ticker: string) {
     console.log(`[ChartPage] loadBackgroundData for ${ticker}`);
-    
+
     // 1. Quotes
     marketStore.fetchQuote(ticker).then(quote => {
         console.log('[ChartPage] quote:', quote);
@@ -194,9 +193,9 @@ function loadBackgroundData(ticker: string) {
 }
 
 function openRecommendation(item: any) {
-    // Navigate to the recommended asset
-    marketStore.selectSymbol(item.ticker);
-    f7.views.main.router.navigate('/chart/', { props: { ticker: item.ticker } });
+    console.log('[ChartPage] Opening recommendation:', item.ticker);
+    // Navigate to the recommended asset by reloading data
+    loadInitialData(item.ticker);
 }
 
 onMounted(async () => {
@@ -215,7 +214,7 @@ watch(() => props.ticker, async (newTicker) => {
 
 <style scoped>
 .chart-page {
-    background: #0f0f23;
+    background: var(--chart-bg, var(--f7-page-bg-color));
 }
 
 .details-loading {
@@ -246,10 +245,10 @@ watch(() => props.ticker, async (newTicker) => {
 }
 
 .change.up {
-    color: #10b981;
+    color: var(--positive-color, #10b981);
 }
 
 .change.down {
-    color: #ef4444;
+    color: var(--negative-color, #ef4444);
 }
 </style>

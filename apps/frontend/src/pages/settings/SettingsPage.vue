@@ -19,12 +19,10 @@
     <!-- Preferences -->
     <f7-block-title>Preferences</f7-block-title>
     <f7-list inset>
-      <f7-list-item title="Dark Mode" :after="isDarkMode ? 'On' : 'Off'">
+      <f7-list-item title="Appearance" :after="themeStore.themeLabel" link="#" @click="showThemePicker">
         <template #media>
-          <f7-icon ios="f7:moon_fill" md="material:dark_mode" color="purple"></f7-icon>
-        </template>
-        <template #after>
-          <f7-toggle :checked="isDarkMode" @toggle:change="toggleDarkMode"></f7-toggle>
+          <f7-icon :ios="themeStore.themeIcon.ios" :md="themeStore.themeIcon.md"
+            :color="themeStore.isDark ? 'purple' : 'orange'"></f7-icon>
         </template>
       </f7-list-item>
       <f7-list-item title="Default Currency" :after="currency" link="#" @click="showCurrencyPicker">
@@ -95,23 +93,12 @@
     <!-- Account Actions -->
     <f7-block-title>Account</f7-block-title>
     <f7-list inset>
-      <f7-list-item 
-        v-if="auth.user" 
-        title="Sign Out" 
-        link="#" 
-        @click="handleLogout"
-        class="text-color-red"
-      >
+      <f7-list-item v-if="auth.user" title="Sign Out" link="#" @click="handleLogout" class="text-color-red">
         <template #media>
           <f7-icon ios="f7:square_arrow_right" md="material:logout" color="red"></f7-icon>
         </template>
       </f7-list-item>
-      <f7-list-item 
-        v-else 
-        title="Sign In" 
-        link="#" 
-        @click="handleLogin"
-      >
+      <f7-list-item v-else title="Sign In" link="#" @click="handleLogin">
         <template #media>
           <f7-icon ios="f7:square_arrow_left" md="material:login" color="primary"></f7-icon>
         </template>
@@ -132,21 +119,48 @@ import { ref } from 'vue';
 import { api } from "../../api/client";
 import { sqliteService } from "../../services/sqlite";
 import { useAuthStore } from "../../stores/auth";
+import { useThemeStore } from "../../stores/theme";
 import { createLogger } from '../../utils/logger';
 
 const auth = useAuthStore();
+const themeStore = useThemeStore();
 const logger = createLogger('SettingsPage');
 
 const appVersion = ref('1.0.0');
-const isDarkMode = ref(false);
 const currency = ref('USD');
 const notifications = ref(true);
 const defaultInterval = ref('1h');
 
-function toggleDarkMode(value: boolean) {
-  isDarkMode.value = value;
-  document.documentElement.classList.toggle('dark', value);
-  f7.toast.show({ text: `Dark mode ${value ? 'enabled' : 'disabled'}`, closeTimeout: 1500 });
+function showThemePicker() {
+  f7.dialog.create({
+    title: 'Appearance',
+    text: 'Choose your preferred theme',
+    buttons: [
+      {
+        text: '☀️ Light',
+        onClick: () => {
+          themeStore.setMode('light');
+          f7.toast.show({ text: 'Light mode enabled', closeTimeout: 1500 });
+        }
+      },
+      {
+        text: '🌙 Dark',
+        onClick: () => {
+          themeStore.setMode('dark');
+          f7.toast.show({ text: 'Dark mode enabled', closeTimeout: 1500 });
+        }
+      },
+      {
+        text: '🖥️ System',
+        onClick: () => {
+          themeStore.setMode('system');
+          f7.toast.show({ text: 'Following system preference', closeTimeout: 1500 });
+        }
+      },
+      { text: 'Cancel', color: 'gray' },
+    ],
+    verticalButtons: true,
+  }).open();
 }
 
 function toggleNotifications(value: boolean) {

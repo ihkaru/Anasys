@@ -1,4 +1,86 @@
 /* Global Styles */
 :root {
-	--f7-theme-color: #2196f3;
+    color-scheme: light; /* Default to light unless overridden */
+    --f7-theme-color: #2196f3;
+    
+    /* Light mode colors */
+    --chart-bg: #ffffff;
+    --chart-text: #333333;
+    --chart-border: #e0e0e0;
+    --card-bg: rgba(0, 0, 0, 0.03);
+    --positive-color: #10b981;
+    --negative-color: #ef4444;
+    --muted-text: #6b7280;
+    --surface-bg: #f5f5f7;
+}
+
+/* Dark Mode - explicit class */
+.dark,
+.theme-dark,
+html.dark {
+    color-scheme: dark; /* Tells browser to use dark scrollbars/controls */
+    --chart-bg: #0f0f23;
+    --chart-text: #ffffff;
+    --chart-border: #2a2a4a;
+    --card-bg: rgba(255, 255, 255, 0.05);
+    --positive-color: #10b981;
+    --negative-color: #ef4444;
+    --muted-text: #9ca3af;
+    --surface-bg: #1a1a2e;
+}
+
+/* Auto dark mode based on system preference */
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+        --chart-bg: #0f0f23;
+        --chart-text: #ffffff;
+        --chart-border: #2a2a4a;
+        --card-bg: rgba(255, 255, 255, 0.05);
+        --muted-text: #9ca3af;
+        --surface-bg: #1a1a2e;
+    }
+}
+
+/* Global utility classes */
+.text-positive { color: var(--positive-color) !important; }
+.text-negative { color: var(--negative-color) !important; }
+.text-muted { color: var(--muted-text) !important; }
+.bg-card { background: var(--card-bg) !important; }
+.bg-surface { background: var(--surface-bg) !important; }
+
+/* Ensure smooth transitions */
+* {
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Safe area for notched devices */
+.safe-areas {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Prevent horizontal scrollbar globally */
+html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
+/* Hide scrollbars but keep scroll functionality */
+/* Works on Chrome, Safari, newer Edge */
+.page-content::-webkit-scrollbar,
+.tab::-webkit-scrollbar,
+.panel::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
+/* Works on Firefox */
+.page-content,
+.tab,
+.panel {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE and Edge */
+    overflow-x: hidden;
 }

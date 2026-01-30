@@ -62,10 +62,10 @@ onMounted(() => {
 }
 
 .market-value.positive {
-    color: #10b981;
+    color: var(--positive-color, #10b981);
 }
 
 .market-value.negative {
-    color: #ef4444;
+    color: var(--negative-color, #ef4444);
 }
 </style>

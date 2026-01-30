@@ -120,7 +120,7 @@ function getRatingClass(key: string) {
 }
 
 .stat-card {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--card-bg, rgba(0, 0, 0, 0.05));
     border-radius: 12px;
     padding: 12px;
     display: flex;
@@ -133,14 +133,14 @@ function getRatingClass(key: string) {
 
 .label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--muted-text, #6b7280);
     margin-bottom: 4px;
 }
 
 .value {
     font-size: 16px;
     font-weight: 600;
-    color: #fff;
+    color: var(--f7-text-color);
 }
 
 .range-bar-container {
@@ -152,23 +152,22 @@ function getRatingClass(key: string) {
 
 .range-val {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--muted-text, #6b7280);
 }
 
 .range-bar {
     flex: 1;
     height: 4px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--chart-border, rgba(0, 0, 0, 0.1));
     border-radius: 2px;
     position: relative;
 }
 
 .range-fill {
     height: 100%;
-    background: linear-gradient(90deg, #ef4444 0%, #eab308 50%, #10b981 100%);
+    background: linear-gradient(90deg, var(--negative-color) 0%, #eab308 50%, var(--positive-color) 100%);
     border-radius: 2px;
     width: 0%;
-    /* Dynamic */
 }
 
 .current-marker {
@@ -176,13 +175,13 @@ function getRatingClass(key: string) {
     top: -4px;
     width: 2px;
     height: 12px;
-    background: #fff;
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    background: var(--f7-text-color);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.3);
 }
 
 /* Analyst Block */
 .analyst-block {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--card-bg, rgba(0, 0, 0, 0.05));
     border-radius: 12px;
     padding: 16px;
 }
@@ -198,22 +197,23 @@ function getRatingClass(key: string) {
     font-weight: 700;
     padding: 2px 8px;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--chart-border, rgba(0, 0, 0, 0.1));
+    color: var(--f7-text-color);
 }
 
 .rating-badge.positive {
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.1);
+    color: var(--positive-color, #10b981);
+    background: rgba(16, 185, 129, 0.15);
 }
 
 .rating-badge.negative {
-    color: #ef4444;
-    background: rgba(239, 68, 68, 0.1);
+    color: var(--negative-color, #ef4444);
+    background: rgba(239, 68, 68, 0.15);
 }
 
 .rating-badge.neutral {
     color: #f59e0b;
-    background: rgba(245, 158, 11, 0.1);
+    background: rgba(245, 158, 11, 0.15);
 }
 
 .rating-bar {
@@ -225,7 +225,7 @@ function getRatingClass(key: string) {
 }
 
 .segment.buy {
-    background: #10b981;
+    background: var(--positive-color, #10b981);
 }
 
 .segment.hold {
@@ -233,14 +233,14 @@ function getRatingClass(key: string) {
 }
 
 .segment.sell {
-    background: #ef4444;
+    background: var(--negative-color, #ef4444);
 }
 
 .rating-labels {
     display: flex;
     justify-content: space-between;
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--muted-text, #6b7280);
     margin-bottom: 12px;
 }
 
@@ -248,7 +248,7 @@ function getRatingClass(key: string) {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--chart-border, rgba(0, 0, 0, 0.1));
     padding-top: 12px;
 }
 </style>

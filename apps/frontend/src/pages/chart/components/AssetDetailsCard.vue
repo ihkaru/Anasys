@@ -8,7 +8,8 @@
                         {{ asset.ticker }} · {{ asset.type }}
                     </span>
                 </div>
-                <img v-if="asset.iconUrl" :src="asset.iconUrl" class="asset-logo-large" @error="onLogoError" />
+                <AssetLogo v-if="asset" :ticker="asset.ticker" :icon-url="asset.iconUrl" :type="asset.type" size="large"
+                    class="asset-logo-large" />
             </div>
         </f7-card-header>
 
@@ -39,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import AssetLogo from '../../home/components/AssetLogo.vue';
 
 interface AssetDetails {
     name?: string;
@@ -54,19 +56,14 @@ interface AssetDetails {
 const props = defineProps<{
     asset: AssetDetails | null;
 }>();
-
-function onLogoError(event: Event) {
-    const img = event.target as HTMLImageElement;
-    img.style.display = 'none';
-}
 </script>
 
 <style scoped>
 .asset-details-card {
-    background: #1a1a2e;
+    background: var(--card-bg, rgba(0, 0, 0, 0.05));
     border-radius: 16px;
     margin: 16px 8px;
-    color: white;
+    color: var(--f7-text-color);
 }
 
 .header-row {
@@ -80,20 +77,21 @@ function onLogoError(event: Event) {
     margin: 0;
     font-size: 20px;
     font-weight: 700;
+    color: var(--f7-text-color);
 }
 
 .asset-ticker {
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--muted-text, #6b7280);
     font-size: 14px;
     font-weight: 500;
 }
 
 .asset-logo-large {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    margin-left: 12px;
 }
+
+
 
 .stats-grid {
     display: grid;
@@ -110,7 +108,7 @@ function onLogoError(event: Event) {
 
 .stat-item .label {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--muted-text, #6b7280);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -118,18 +116,20 @@ function onLogoError(event: Event) {
 .stat-item .value {
     font-size: 15px;
     font-weight: 600;
+    color: var(--f7-text-color);
 }
 
 .description-block {
     margin-bottom: 24px;
     padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--chart-border, rgba(0, 0, 0, 0.1));
 }
 
 .description-text {
     font-size: 14px;
     line-height: 1.6;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--f7-text-color);
+    opacity: 0.85;
     display: -webkit-box;
     -webkit-line-clamp: 6;
     line-clamp: 6;

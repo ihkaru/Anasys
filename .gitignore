@@ -35,3 +35,7 @@ Thumbs.db
 .agent/
 .vscode/
 .idea/
+
+# Static Assets (Generated)
+apps/backend/public/logos/*
+!apps/backend/public/logos/.gitkeep

@@ -11,13 +11,33 @@ export interface ChartTheme {
 }
 
 export const DARK_THEME: ChartTheme = {
-  background: '#1a1a2e',
+  background: '#0f0f23',
   textColor: '#d1d4dc',
   gridColor: '#2B2B43',
   borderColor: '#2B2B43',
   upColor: '#10b981',
   downColor: '#ef4444',
 };
+
+export const LIGHT_THEME: ChartTheme = {
+  background: '#ffffff',
+  textColor: '#333333',
+  gridColor: '#e0e0e0',
+  borderColor: '#e0e0e0',
+  upColor: '#10b981',
+  downColor: '#ef4444',
+};
+
+/**
+ * Get the appropriate chart theme based on system preference
+ */
+export function getSystemChartTheme(): ChartTheme {
+  if (typeof window !== 'undefined') {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return prefersDark ? DARK_THEME : LIGHT_THEME;
+  }
+  return DARK_THEME; // Default fallback
+}
 
 export function getChartOptions(theme: ChartTheme, width: number, height: number, isFullscreen: boolean) {
   return {

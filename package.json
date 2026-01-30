@@ -9,6 +9,7 @@
 	"scripts": {
 		"setup": "bun run scripts/setup.ts",
 		"dev": "bun --filter '*' dev",
+		"restart": "fuser -k 3000/tcp 5173/tcp || true && echo 'Stopped.' && sleep 1 && bun run dev",
 		"build": "bun --filter '*' build",
 		"test": "bun --filter @apps/backend test",
 		"test:consistency": "bun --filter @apps/backend test src/tests/data_consistency.check.ts",

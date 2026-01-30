@@ -92,12 +92,12 @@ const longPress = useLongPress((item) => {
 }
 
 .change-badge.positive {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--positive-color, #10b981);
 }
 
 .change-badge.negative {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--negative-color, #ef4444);
 }
 </style>

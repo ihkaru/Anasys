@@ -6,7 +6,7 @@ export const sqliteConnection = new SQLiteConnection(CapacitorSQLite);
 
 export class SQLiteService {
     db: SQLiteDBConnection | null = null;
-    dbName = 'finance_db_v2'; // Bump version to force fresh DB
+    dbName = 'finance_db_v3'; // Bump version to force fresh DB
     private logger = createLogger('SQLite');
 
     constructor() {

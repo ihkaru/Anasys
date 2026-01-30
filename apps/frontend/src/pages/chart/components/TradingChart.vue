@@ -84,7 +84,7 @@ defineExpose({
     position: relative;
     width: 100%;
     height: 350px;
-    background: #1a1a2e;
+    background: var(--surface-bg, #f5f5f7);
     border-radius: 12px;
     margin: 8px 0;
     overflow: hidden;

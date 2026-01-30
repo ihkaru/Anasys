@@ -229,6 +229,50 @@ export class QuoteService {
     }
 
     /**
+     * Get Daily Gainers
+     */
+    async getDailyGainers(count: number = 10): Promise<QuoteWithSparkline[]> {
+        const cacheKey = `gainers:${count}`;
+        const cached = this.cacheService.get<QuoteWithSparkline[]>(cacheKey);
+        if (cached) return cached;
+
+        this.logger.debug(`Fetching daily gainers (count=${count})`);
+        const result = await this.dataProvider.fetchDailyGainers(count);
+        
+        if (result.length === 0) return [];
+        
+        const tickers = result.map(q => q.ticker);
+        const quotes = await this.getQuotes(tickers, '1d');
+        
+        if (quotes.length > 0) {
+            this.cacheService.set(cacheKey, quotes, this.TRENDING_CACHE_TTL);
+        }
+        return quotes;
+    }
+
+    /**
+     * Get Daily Losers
+     */
+    async getDailyLosers(count: number = 10): Promise<QuoteWithSparkline[]> {
+        const cacheKey = `losers:${count}`;
+        const cached = this.cacheService.get<QuoteWithSparkline[]>(cacheKey);
+        if (cached) return cached;
+
+        this.logger.debug(`Fetching daily losers (count=${count})`);
+        const result = await this.dataProvider.fetchDailyLosers(count);
+        
+        if (result.length === 0) return [];
+        
+        const tickers = result.map(q => q.ticker);
+        const quotes = await this.getQuotes(tickers, '1d');
+        
+        if (quotes.length > 0) {
+            this.cacheService.set(cacheKey, quotes, this.TRENDING_CACHE_TTL);
+        }
+        return quotes;
+    }
+
+    /**
      * Get recommendations for a symbol
      */
     async getRecommendations(ticker: string): Promise<QuoteWithSparkline[]> {
