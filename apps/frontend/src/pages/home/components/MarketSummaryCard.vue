@@ -4,7 +4,7 @@
             <div v-for="item in marketOverview" :key="item.ticker" class="market-item">
                 <span class="market-label">{{ item.name || item.ticker }}</span>
                 <span :class="['market-value', (item.changePercent ?? 0) >= 0 ? 'positive' : 'negative']">
-                    {{ formatChangePercent(item.changePercent ?? 0) }}
+                    {{ formatPercent(item.changePercent ?? 0) }}
                 </span>
             </div>
 
@@ -23,12 +23,13 @@
 
 <script setup lang="ts">
 import { onMounted } from "vue";
+import { formatPercent } from "../../../utils/formatters";
 import { useMarketData } from "../composables/useMarketData";
 
 const { marketOverview, loading, fetchMarketOverview } = useMarketData();
 
 onMounted(() => {
-	fetchMarketOverview();
+    fetchMarketOverview();
 });
 </script>
 
