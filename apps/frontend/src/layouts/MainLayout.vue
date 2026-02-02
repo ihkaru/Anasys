@@ -38,7 +38,11 @@
 </template>
 
 <script setup lang="ts">
-
+import ExplorePage from "../pages/explore/ExplorePage.vue";
+import HomePage from "../pages/home/HomePage.vue";
+import PortfolioPage from "../pages/portfolio/PortfolioPage.vue";
+import SettingsPage from "../pages/settings/SettingsPage.vue";
+import StrategyPage from "../pages/strategy/StrategyPage.vue";
 </script>
 
 <style scoped>

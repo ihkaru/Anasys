@@ -78,6 +78,9 @@ import { f7 } from "framework7-vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { useMarketStore } from "../../stores/market";
 import { createLogger } from "../../utils/logger";
+import AssetItemList from "./components/AssetItemList.vue";
+import CategoryChips from "./components/CategoryChips.vue";
+import TrendingSection from "./components/TrendingSection.vue";
 import { useExploreFilters } from "./composables/useExploreFilters";
 
 const logger = createLogger("ExplorePage");

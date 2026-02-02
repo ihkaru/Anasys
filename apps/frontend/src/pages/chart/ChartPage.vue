@@ -82,7 +82,13 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useMarketStore } from "../../stores/market";
 import { getExtendedHoursInfo } from "../../utils/formatters";
-import type TradingChart from "./components/TradingChart.vue";
+import AssetDetailsCard from "./components/AssetDetailsCard.vue";
+import EarningsSection from "./components/EarningsSection.vue";
+import FinancialsSection from "./components/FinancialsSection.vue";
+import RecommendationsSection from "./components/RecommendationsSection.vue";
+import SignalSummaryCard from "./components/SignalSummaryCard.vue";
+import TimeframeSelector from "./components/TimeframeSelector.vue";
+import TradingChart from "./components/TradingChart.vue";
 
 const props = defineProps<{
 	ticker?: string;

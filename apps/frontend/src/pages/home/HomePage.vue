@@ -48,6 +48,11 @@ import { useAuthStore } from "../../stores/auth";
 import { useMarketStore } from "../../stores/market";
 import { useWatchlistStore } from "../../stores/watchlist";
 import { createLogger } from "../../utils/logger";
+import AddAssetSheet from "./components/AddAssetSheet.vue";
+import MarketSummaryCard from "./components/MarketSummaryCard.vue";
+import UserGreeting from "./components/UserGreeting.vue";
+import WatchlistItemList from "./components/WatchlistItemList.vue";
+import WatchlistSelector from "./components/WatchlistSelector.vue";
 
 // Composables & Utils
 import { useWatchlistActions } from "./composables/useWatchlistActions";

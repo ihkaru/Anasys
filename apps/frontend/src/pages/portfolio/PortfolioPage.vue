@@ -27,6 +27,10 @@ import { type Holding, useHoldingsStore } from "../../stores/holdings";
 import { useMarketStore } from "../../stores/market";
 import { createLogger } from "../../utils/logger";
 import type { HoldingFormData } from "./components/AddHoldingSheet.vue";
+import AddHoldingSheet from "./components/AddHoldingSheet.vue";
+import AllocationChart from "./components/AllocationChart.vue";
+import HoldingsList from "./components/HoldingsList.vue";
+import PortfolioSummaryCard from "./components/PortfolioSummaryCard.vue";
 
 const logger = createLogger("PortfolioPage");
 const holdingsStore = useHoldingsStore();
