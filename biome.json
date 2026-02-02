@@ -1,0 +1,62 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.3.12/schema.json",
+	"overrides": [
+		{
+			"includes": ["**/*.vue"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noUnusedVariables": "off",
+						"noUnusedImports": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["apps/backend/src/scripts/**/*.ts", "apps/backend/src/tests/**/*.ts", "apps/backend/test/**/*.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"useIterableCallbackReturn": "off",
+						"noAssignInExpressions": "off"
+					},
+					"correctness": {
+						"noUnusedVariables": "off",
+						"noUnusedFunctionParameters": "off"
+					}
+				}
+			}
+		}
+	],
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"style": {
+				"noNonNullAssertion": "off"
+			},
+			"suspicious": {
+				"noExplicitAny": "off"
+			}
+		}
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"lineWidth": 120
+	},
+	"files": {
+		"includes": [
+			"**",
+			"!**/dist",
+			"!**/node_modules",
+			"!**/.output",
+			"!**/.nuxt",
+			"!**/coverage",
+			"!**/public",
+			"!**/*.d.ts",
+			"!**/.agent"
+		]
+	}
+}

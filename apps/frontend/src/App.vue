@@ -20,13 +20,13 @@ import { useAuthStore } from "./stores/auth";
 import { useThemeStore } from "./stores/theme";
 import { createLogger } from "./utils/logger";
 
-const logger = createLogger('App');
+const logger = createLogger("App");
 
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const initialized = ref(false);
 
-const f7params = ref({
+const _f7params = ref({
 	name: "Finance App",
 	theme: "auto",
 	darkMode: false, // Disable auto dark mode detection by F7, we handle it manually
@@ -37,7 +37,7 @@ const f7params = ref({
 themeStore.init();
 
 onMounted(async () => {
-	logger.info('App Mounted, Initializing services...');
+	logger.info("App Mounted, Initializing services...");
 	// Initialize SQLite
 	try {
 		await sqliteService.init();
@@ -54,6 +54,6 @@ onMounted(async () => {
 
 	// App Initialized!
 	initialized.value = true;
-	logger.info('App Initialization Complete');
+	logger.info("App Initialization Complete");
 });
 </script>

@@ -47,59 +47,56 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import SparklineChart from '../../../components/SparklineChart.vue';
-import { getExtendedHoursInfo } from '../../../utils/formatters';
-import { useLongPress } from '../composables/useLongPress';
-import { formatChangePercent, formatPrice } from '../utils/assetFormatters';
-import AssetLogo from './AssetLogo.vue';
+import { computed } from "vue";
+import { getExtendedHoursInfo } from "../../../utils/formatters";
+import { useLongPress } from "../composables/useLongPress";
 
 interface Props {
-    item: any; // Using any for now matching original structure, ideally strictly typed
+	item: any; // Using any for now matching original structure, ideally strictly typed
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-    (e: 'click', item: any): void;
-    (e: 'remove', ticker: string): void;
-    (e: 'hold', item: any): void;
+	(e: "click", item: any): void;
+	(e: "remove", ticker: string): void;
+	(e: "hold", item: any): void;
 }>();
 
-const longPress = useLongPress((item) => {
-    emit('hold', item);
+const _longPress = useLongPress((item) => {
+	emit("hold", item);
 });
 
 // Compute extended hours info
 const extendedHours = computed(() => getExtendedHoursInfo(props.item));
 
 // Determine Primary Display (Extended takes priority if available)
-const primaryDisplay = computed(() => {
-    if (extendedHours.value) {
-        return {
-            price: extendedHours.value.price,
-            changePercent: extendedHours.value.changePercent,
-            label: extendedHours.value.label, // 'Pre' or 'After'
-            isExtended: true
-        };
-    }
-    return {
-        price: props.item.price ?? 0,
-        changePercent: props.item.changePercent ?? 0,
-        label: 'Reg',
-        isExtended: false
-    };
+const _primaryDisplay = computed(() => {
+	if (extendedHours.value) {
+		return {
+			price: extendedHours.value.price,
+			changePercent: extendedHours.value.changePercent,
+			label: extendedHours.value.label, // 'Pre' or 'After'
+			isExtended: true,
+		};
+	}
+	return {
+		price: props.item.price ?? 0,
+		changePercent: props.item.changePercent ?? 0,
+		label: "Reg",
+		isExtended: false,
+	};
 });
 
 // Determine Secondary Display (Regular Close if Extended is active)
-const secondaryDisplay = computed(() => {
-    if (extendedHours.value) {
-        return {
-            price: props.item.price ?? 0,
-            changePercent: props.item.changePercent ?? 0
-        };
-    }
-    return null;
+const _secondaryDisplay = computed(() => {
+	if (extendedHours.value) {
+		return {
+			price: props.item.price ?? 0,
+			changePercent: props.item.changePercent ?? 0,
+		};
+	}
+	return null;
 });
 </script>
 

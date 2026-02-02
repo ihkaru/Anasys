@@ -56,73 +56,76 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref } from "vue";
 
 const props = defineProps<{
-    earnings: any;
+	earnings: any;
 }>();
 
-const viewMode = ref<'eps' | 'revenue'>('eps');
+const _viewMode = ref<"eps" | "revenue">("eps");
 
-const hasData = computed(() => {
-    return props.earnings && (props.earnings.earningsHistory?.length || props.earnings.revenueHistory?.length);
+const _hasData = computed(() => {
+	return props.earnings && (props.earnings.earningsHistory?.length || props.earnings.revenueHistory?.length);
 });
 
-const sortedHistory = computed(() => {
-    if (!props.earnings?.earningsHistory) return [];
-    return [...props.earnings.earningsHistory].reverse().slice(0, 4);
+const _sortedHistory = computed(() => {
+	if (!props.earnings?.earningsHistory) return [];
+	return [...props.earnings.earningsHistory].reverse().slice(0, 4);
 });
 
-const sortedRevenue = computed(() => {
-    if (!props.earnings?.revenueHistory) return [];
-    return [...props.earnings.revenueHistory].reverse().slice(0, 4);
+const _sortedRevenue = computed(() => {
+	if (!props.earnings?.revenueHistory) return [];
+	return [...props.earnings.revenueHistory].reverse().slice(0, 4);
 });
 
-function formatDate(dateStr: string) {
-    if (!dateStr) return '-';
-    try {
-        const d = new Date(dateStr);
-        return d.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
-    } catch (e) {
-        return dateStr;
-    }
+function _formatDate(dateStr: string) {
+	if (!dateStr) return "-";
+	try {
+		const d = new Date(dateStr);
+		return d.toLocaleDateString("en-US", {
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		});
+	} catch (_e) {
+		return dateStr;
+	}
 }
 
-function formatPeriod(dateStr: string) {
-    if (!dateStr) return '-';
+function _formatPeriod(dateStr: string) {
+	if (!dateStr) return "-";
 
-    if (/^\d[Qq]\d{4}$/.test(dateStr)) {
-        return dateStr.toUpperCase().replace(/(\d{4})/, " '$1").replace(" '20", " '");
-    }
+	if (/^\d[Qq]\d{4}$/.test(dateStr)) {
+		return dateStr
+			.toUpperCase()
+			.replace(/(\d{4})/, " '$1")
+			.replace(" '20", " '");
+	}
 
-    try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return dateStr;
+	try {
+		const date = new Date(dateStr);
+		if (Number.isNaN(date.getTime())) return dateStr;
 
-        const month = date.getMonth();
-        const q = Math.floor(month / 3) + 1;
-        const yearShort = date.getFullYear().toString().substring(2);
-        return `Q${q} '${yearShort}`;
-    } catch (e) {
-        return dateStr;
-    }
+		const month = date.getMonth();
+		const q = Math.floor(month / 3) + 1;
+		const yearShort = date.getFullYear().toString().substring(2);
+		return `Q${q} '${yearShort}`;
+	} catch (_e) {
+		return dateStr;
+	}
 }
 
-function formatLargeNumber(num: number) {
-    if (!num) return '-';
-    if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    return num.toLocaleString();
+function _formatLargeNumber(num: number) {
+	if (!num) return "-";
+	if (num >= 1e12) return `${(num / 1e12).toFixed(2)}T`;
+	if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
+	if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
+	return num.toLocaleString();
 }
 
-function getBeatClass(item: any) {
-    if (item.epsActual === undefined || item.epsEstimate === undefined) return '';
-    return item.epsActual >= item.epsEstimate ? 'beat' : 'miss';
+function _getBeatClass(item: any) {
+	if (item.epsActual === undefined || item.epsEstimate === undefined) return "";
+	return item.epsActual >= item.epsEstimate ? "beat" : "miss";
 }
 </script>
 

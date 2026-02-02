@@ -23,11 +23,14 @@
 		"db:repair:vip": "bun --filter @apps/backend repair:vip",
 		"db:clean": "bun --filter @apps/backend clean-slate",
 		"db:prune": "bun --filter @apps/backend prune",
-		"db:prune:dry": "bun --filter @apps/backend prune:dry"
+		"db:prune:dry": "bun --filter @apps/backend prune:dry",
+		"prepare": "husky"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "latest",
 		"bun-types": "latest",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.2.7",
 		"typescript": "^5.0.0"
 	}
 }

@@ -1,12 +1,11 @@
 import { cookie } from "@elysiajs/cookie";
 import { jwt } from "@elysiajs/jwt";
 import { Elysia, t } from "elysia";
-import { authService } from "./auth.service";
-
 import { getJwtSecret } from "../../config";
 import { Logger } from "../../utils/logger";
+import { authService } from "./auth.service";
 
-const logger = new Logger('AuthController');
+const logger = new Logger("AuthController");
 
 export const authController = new Elysia({ prefix: "/auth" })
 	.use(
@@ -20,29 +19,29 @@ export const authController = new Elysia({ prefix: "/auth" })
 		let token: string | undefined = auth?.value as string | undefined; // Safe access
 
 		// Try getting token from Authorization Header (Bearer)
-		if (!token && headers['authorization']) {
-			const authHeader = headers['authorization'];
-			if (authHeader.startsWith('Bearer ')) {
+		if (!token && headers.authorization) {
+			const authHeader = headers.authorization;
+			if (authHeader.startsWith("Bearer ")) {
 				token = authHeader.substring(7);
 			}
 		}
 
 		if (!token) {
-            logger.debug("/me - No token received");
+			logger.debug("/me - No token received");
 			set.status = 401;
 			return { success: false, error: "No token provided" };
 		}
-		
+
 		const profile = await jwt.verify(token);
 		if (!profile) {
-            logger.warn("/me - Invalid token received");
+			logger.warn("/me - Invalid token received");
 			set.status = 401;
 			return { success: false, error: "Invalid token" };
 		}
 
 		const user = await authService.getUserById(profile.id as number);
 		if (!user) {
-            logger.warn(`/me - User ID ${profile.id} not found locally`);
+			logger.warn(`/me - User ID ${profile.id} not found locally`);
 			set.status = 401;
 			return { success: false, error: "User not found" };
 		}
@@ -53,11 +52,11 @@ export const authController = new Elysia({ prefix: "/auth" })
 				id: user.id,
 				name: user.name,
 				email: user.email,
-			}
+			},
 		};
 	})
 	.post("/logout", ({ cookie: { auth }, set }) => {
-        logger.info("Logout request");
+		logger.info("Logout request");
 		auth?.remove();
 		set.status = 200;
 		return { success: true, message: "Logged out successfully" };
@@ -78,11 +77,11 @@ export const authController = new Elysia({ prefix: "/auth" })
 					httpOnly: true,
 					maxAge: 7 * 86400,
 					path: "/",
-					sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'none', 
-					secure: process.env.NODE_ENV === 'production', 
+					sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
+					secure: process.env.NODE_ENV === "production",
 				});
-                
-                logger.info(`Google Login Success: ${user.email}`);
+
+				logger.info(`Google Login Success: ${user.email}`);
 
 				set.status = 200;
 				return {
@@ -95,11 +94,11 @@ export const authController = new Elysia({ prefix: "/auth" })
 					token, // Return token for non-browser clients (Mobile)
 				};
 			} catch (error) {
-                logger.error("Google Login Failed", error);
+				logger.error("Google Login Failed", error);
 				set.status = 400;
 				return {
 					success: false,
-					error: error instanceof Error ? error.message : "Login failed"
+					error: error instanceof Error ? error.message : "Login failed",
 				};
 			}
 		},

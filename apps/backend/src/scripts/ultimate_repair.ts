@@ -1,16 +1,16 @@
 /**
  * Ultimate Smart Repair Script
- * 
+ *
  * This is the most comprehensive repair solution that:
  * 1. Detects and removes ALL anomalous data from the database
  * 2. Detects gaps in time series data
  * 3. Prioritizes VIP symbols (watchlist + holdings)
  * 4. Uses intelligent rate limiting with exponential backoff
  * 5. Provides detailed progress and statistics
- * 
+ *
  * Usage:
  *   npx tsx src/scripts/ultimate_repair.ts [--dry-run] [--vip-only] [--interval=1h]
- * 
+ *
  * Options:
  *   --dry-run     Only analyze, don't delete or sync
  *   --vip-only    Only process watchlist and holding symbols
@@ -28,22 +28,22 @@ import { getYahooRateLimiter } from "../utils/rate-limiter";
 // ============================================================================
 
 interface RepairConfig {
-    dryRun: boolean;
-    vipOnly: boolean;
-    interval: string;
-    lookbackDays: number;
-    batchSize: number;
+	dryRun: boolean;
+	vipOnly: boolean;
+	interval: string;
+	lookbackDays: number;
+	batchSize: number;
 }
 
 function parseArgs(): RepairConfig {
-    const args = process.argv.slice(2);
-    return {
-        dryRun: args.includes('--dry-run'),
-        vipOnly: args.includes('--vip-only'),
-        interval: args.find(a => a.startsWith('--interval='))?.split('=')[1] || '1h',
-        lookbackDays: 7,
-        batchSize: 50
-    };
+	const args = process.argv.slice(2);
+	return {
+		dryRun: args.includes("--dry-run"),
+		vipOnly: args.includes("--vip-only"),
+		interval: args.find((a) => a.startsWith("--interval="))?.split("=")[1] || "1h",
+		lookbackDays: 7,
+		batchSize: 50,
+	};
 }
 
 // ============================================================================
@@ -51,22 +51,22 @@ function parseArgs(): RepairConfig {
 // ============================================================================
 
 interface AnomalyRecord {
-    symbolId: number;
-    ticker: string;
-    type: string;
-    timestamp: Date;
-    interval: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    reason: string;
+	symbolId: number;
+	ticker: string;
+	type: string;
+	timestamp: Date;
+	interval: string;
+	open: number;
+	high: number;
+	low: number;
+	close: number;
+	reason: string;
 }
 
 async function detectAnomalies(config: RepairConfig): Promise<AnomalyRecord[]> {
-    console.log('\n🔍 Phase 1: Detecting Anomalies...');
-    
-    const query = sql`
+	console.log("\n🔍 Phase 1: Detecting Anomalies...");
+
+	const query = sql`
         SELECT 
             m.symbol_id, 
             m.timestamp, 
@@ -106,73 +106,78 @@ async function detectAnomalies(config: RepairConfig): Promise<AnomalyRecord[]> {
         LIMIT 1000
     `;
 
-    const results = await db.execute(query);
-    
-    return results.map((r: any) => ({
-        symbolId: r.symbol_id,
-        ticker: r.ticker,
-        type: r.type,
-        timestamp: new Date(r.timestamp),
-        interval: r.interval,
-        open: Number(r.open),
-        high: Number(r.high),
-        low: Number(r.low),
-        close: Number(r.close),
-        reason: r.reason
-    }));
+	const results = await db.execute(query);
+
+	return results.map((r: any) => ({
+		symbolId: r.symbol_id,
+		ticker: r.ticker,
+		type: r.type,
+		timestamp: new Date(r.timestamp),
+		interval: r.interval,
+		open: Number(r.open),
+		high: Number(r.high),
+		low: Number(r.low),
+		close: Number(r.close),
+		reason: r.reason,
+	}));
 }
 
 async function cleanupAnomalies(anomalies: AnomalyRecord[], config: RepairConfig): Promise<number> {
-    if (anomalies.length === 0) {
-        console.log('   ✅ No anomalies found!');
-        return 0;
-    }
+	if (anomalies.length === 0) {
+		console.log("   ✅ No anomalies found!");
+		return 0;
+	}
 
-    console.log(`   ⚠️  Found ${anomalies.length} anomalies`);
-    
-    // Show top offenders
-    const grouped = new Map<string, number>();
-    for (const a of anomalies) {
-        const key = a.ticker;
-        grouped.set(key, (grouped.get(key) || 0) + 1);
-    }
-    
-    const sorted = [...grouped.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-    console.log('   Top offenders:');
-    for (const [ticker, count] of sorted) {
-        console.log(`      ${ticker}: ${count} anomalies`);
-    }
+	console.log(`   ⚠️  Found ${anomalies.length} anomalies`);
 
-    if (config.dryRun) {
-        console.log('   [DRY RUN] Would delete these anomalies');
-        return 0;
-    }
+	// Show top offenders
+	const grouped = new Map<string, number>();
+	for (const a of anomalies) {
+		const key = a.ticker;
+		grouped.set(key, (grouped.get(key) || 0) + 1);
+	}
 
-    // Batch delete
-    console.log(`   Deleting in batches of ${config.batchSize}...`);
-    let deleted = 0;
+	const sorted = [...grouped.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+	console.log("   Top offenders:");
+	for (const [ticker, count] of sorted) {
+		console.log(`      ${ticker}: ${count} anomalies`);
+	}
 
-    for (let i = 0; i < anomalies.length; i += config.batchSize) {
-        const batch = anomalies.slice(i, i + config.batchSize);
-        
-        await Promise.all(batch.map(a => 
-            db.delete(marketData)
-                .where(and(
-                    eq(marketData.symbolId, a.symbolId),
-                    eq(marketData.timestamp, a.timestamp),
-                    eq(marketData.interval, a.interval)
-                ))
-        ));
-        
-        deleted += batch.length;
-        process.stdout.write(`\r   Progress: ${deleted}/${anomalies.length} deleted`);
-        
-        // Small delay between batches
-        await sleep(100);
-    }
-    
-    console.log('\n   ✅ Anomalies cleaned!');
-    return deleted;
+	if (config.dryRun) {
+		console.log("   [DRY RUN] Would delete these anomalies");
+		return 0;
+	}
+
+	// Batch delete
+	console.log(`   Deleting in batches of ${config.batchSize}...`);
+	let deleted = 0;
+
+	for (let i = 0; i < anomalies.length; i += config.batchSize) {
+		const batch = anomalies.slice(i, i + config.batchSize);
+
+		await Promise.all(
+			batch.map((a) =>
+				db
+					.delete(marketData)
+					.where(
+						and(
+							eq(marketData.symbolId, a.symbolId),
+							eq(marketData.timestamp, a.timestamp),
+							eq(marketData.interval, a.interval),
+						),
+					),
+			),
+		);
+
+		deleted += batch.length;
+		process.stdout.write(`\r   Progress: ${deleted}/${anomalies.length} deleted`);
+
+		// Small delay between batches
+		await sleep(100);
+	}
+
+	console.log("\n   ✅ Anomalies cleaned!");
+	return deleted;
 }
 
 // ============================================================================
@@ -180,18 +185,18 @@ async function cleanupAnomalies(anomalies: AnomalyRecord[], config: RepairConfig
 // ============================================================================
 
 interface GapInfo {
-    symbolId: number;
-    ticker: string;
-    type: string;
-    gapCount: number;
-    isVip: boolean;
-    priority: number;
+	symbolId: number;
+	ticker: string;
+	type: string;
+	gapCount: number;
+	isVip: boolean;
+	priority: number;
 }
 
 async function detectGaps(config: RepairConfig, vipIds: Set<number>): Promise<GapInfo[]> {
-    console.log('\n🔍 Phase 2: Detecting Data Gaps...');
-    
-    const gapQuery = sql`
+	console.log("\n🔍 Phase 2: Detecting Data Gaps...");
+
+	const gapQuery = sql`
         WITH candle_gaps AS (
             SELECT 
                 symbol_id,
@@ -207,7 +212,7 @@ async function detectGaps(config: RepairConfig, vipIds: Set<number>): Promise<Ga
                 COUNT(*) as gap_count
             FROM candle_gaps 
             WHERE next_ts IS NOT NULL 
-              AND next_ts - timestamp > INTERVAL '${sql.raw(config.interval === '1h' ? '1 hour' : '1 day')}' * 1.2
+              AND next_ts - timestamp > INTERVAL '${sql.raw(config.interval === "1h" ? "1 hour" : "1 day")}' * 1.2
             GROUP BY symbol_id
         )
         SELECT 
@@ -220,7 +225,7 @@ async function detectGaps(config: RepairConfig, vipIds: Set<number>): Promise<Ga
         ORDER BY gc.gap_count DESC
     `;
 
-    const staleQuery = sql`
+	const staleQuery = sql`
         SELECT 
             s.id as symbol_id,
             s.ticker,
@@ -237,56 +242,55 @@ async function detectGaps(config: RepairConfig, vipIds: Set<number>): Promise<Ga
             MAX(m.timestamp) IS NULL
     `;
 
-    const [gapResults, staleResults] = await Promise.all([
-        db.execute(gapQuery),
-        db.execute(staleQuery)
-    ]);
-    
-    // Merge results
-    const merged = new Map<number, GapInfo>();
+	const [gapResults, staleResults] = await Promise.all([db.execute(gapQuery), db.execute(staleQuery)]);
 
-    // Process gaps
-    gapResults.forEach((r: any) => {
-        merged.set(r.symbol_id, {
-            symbolId: r.symbol_id,
-            ticker: r.ticker,
-            type: r.type,
-            gapCount: Number(r.gap_count),
-            isVip: vipIds.has(r.symbol_id),
-            priority: 0 // Calc later
-        });
-    });
+	// Merge results
+	const merged = new Map<number, GapInfo>();
 
-    // Process stale (treat as high priority gap)
-    staleResults.forEach((r: any) => {
-        if (!merged.has(r.symbol_id)) {
-            merged.set(r.symbol_id, {
-                symbolId: r.symbol_id,
-                ticker: r.ticker,
-                type: r.type,
-                gapCount: 100, // Arbitrary high number for stale
-                isVip: vipIds.has(r.symbol_id),
-                priority: 0
-            });
-        } else {
-            // Boost existing gap count
-            const existing = merged.get(r.symbol_id)!;
-            existing.gapCount += 100;
-        }
-    });
+	// Process gaps
+	gapResults.forEach((r: any) => {
+		merged.set(r.symbol_id, {
+			symbolId: r.symbol_id,
+			ticker: r.ticker,
+			type: r.type,
+			gapCount: Number(r.gap_count),
+			isVip: vipIds.has(r.symbol_id),
+			priority: 0, // Calc later
+		});
+	});
 
-    return Array.from(merged.values()).map(r => {
-        let priority = r.gapCount;
-        
-        // Boost priority
-        if (r.isVip) priority += 1000;
-        if (['SPY', 'QQQ', 'AAPL', 'MSFT', 'NVDA', 'BTC-USD', 'ETH-USD'].includes(r.ticker)) {
-            priority += 500;
-        }
-        if (r.ticker.includes('-USD')) priority += 100; // Crypto
-        
-        return { ...r, priority };
-    }).sort((a, b) => b.priority - a.priority);
+	// Process stale (treat as high priority gap)
+	staleResults.forEach((r: any) => {
+		if (!merged.has(r.symbol_id)) {
+			merged.set(r.symbol_id, {
+				symbolId: r.symbol_id,
+				ticker: r.ticker,
+				type: r.type,
+				gapCount: 100, // Arbitrary high number for stale
+				isVip: vipIds.has(r.symbol_id),
+				priority: 0,
+			});
+		} else {
+			// Boost existing gap count
+			const existing = merged.get(r.symbol_id)!;
+			existing.gapCount += 100;
+		}
+	});
+
+	return Array.from(merged.values())
+		.map((r) => {
+			let priority = r.gapCount;
+
+			// Boost priority
+			if (r.isVip) priority += 1000;
+			if (["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "BTC-USD", "ETH-USD"].includes(r.ticker)) {
+				priority += 500;
+			}
+			if (r.ticker.includes("-USD")) priority += 100; // Crypto
+
+			return { ...r, priority };
+		})
+		.sort((a, b) => b.priority - a.priority);
 }
 
 // ============================================================================
@@ -294,12 +298,10 @@ async function detectGaps(config: RepairConfig, vipIds: Set<number>): Promise<Ga
 // ============================================================================
 
 async function getVipSymbolIds(): Promise<Set<number>> {
-    const watchlistIds = (await db.select({ id: watchlistItems.symbolId }).from(watchlistItems))
-        .map(r => r.id);
-    const holdingIds = (await db.select({ id: holdings.symbolId }).from(holdings))
-        .map(r => r.id);
-    
-    return new Set([...watchlistIds, ...holdingIds]);
+	const watchlistIds = (await db.select({ id: watchlistItems.symbolId }).from(watchlistItems)).map((r) => r.id);
+	const holdingIds = (await db.select({ id: holdings.symbolId }).from(holdings)).map((r) => r.id);
+
+	return new Set([...watchlistIds, ...holdingIds]);
 }
 
 // ============================================================================
@@ -307,75 +309,71 @@ async function getVipSymbolIds(): Promise<Set<number>> {
 // ============================================================================
 
 async function repairSymbols(gaps: GapInfo[], config: RepairConfig): Promise<{ success: number; failed: number }> {
-    console.log('\n🔧 Phase 3: Repairing Data Gaps...');
-    
-    if (gaps.length === 0) {
-        console.log('   ✅ No gaps to repair!');
-        return { success: 0, failed: 0 };
-    }
+	console.log("\n🔧 Phase 3: Repairing Data Gaps...");
 
-    // Filter by VIP if requested
-    let queue = config.vipOnly ? gaps.filter(g => g.isVip) : gaps;
-    
-    if (queue.length === 0) {
-        console.log('   ✅ No VIP gaps to repair!');
-        return { success: 0, failed: 0 };
-    }
+	if (gaps.length === 0) {
+		console.log("   ✅ No gaps to repair!");
+		return { success: 0, failed: 0 };
+	}
 
-    console.log(`   📋 Repair queue: ${queue.length} symbols`);
-    console.log('   Top 5:');
-    queue.slice(0, 5).forEach((g, i) => {
-        const vipBadge = g.isVip ? '👑' : '  ';
-        console.log(`      ${i + 1}. ${vipBadge} [${g.ticker}] ${g.gapCount} gaps`);
-    });
+	// Filter by VIP if requested
+	const queue = config.vipOnly ? gaps.filter((g) => g.isVip) : gaps;
 
-    if (config.dryRun) {
-        console.log('   [DRY RUN] Would repair these symbols');
-        return { success: 0, failed: 0 };
-    }
+	if (queue.length === 0) {
+		console.log("   ✅ No VIP gaps to repair!");
+		return { success: 0, failed: 0 };
+	}
 
-    // Import market service dynamically
-    const { marketService } = await import("../modules/market/market.service");
-    const rateLimiter = getYahooRateLimiter();
-    const validator = getDataValidator();
+	console.log(`   📋 Repair queue: ${queue.length} symbols`);
+	console.log("   Top 5:");
+	queue.slice(0, 5).forEach((g, i) => {
+		const vipBadge = g.isVip ? "👑" : "  ";
+		console.log(`      ${i + 1}. ${vipBadge} [${g.ticker}] ${g.gapCount} gaps`);
+	});
 
-    let success = 0;
-    let failed = 0;
-    const startTime = Date.now();
+	if (config.dryRun) {
+		console.log("   [DRY RUN] Would repair these symbols");
+		return { success: 0, failed: 0 };
+	}
 
-    for (let i = 0; i < queue.length; i++) {
-        const item = queue[i];
-        const vipBadge = item.isVip ? '👑' : '  ';
-        process.stdout.write(`   [${i + 1}/${queue.length}] ${vipBadge} ${item.ticker}... `);
+	// Import market service dynamically
+	const { marketService } = await import("../modules/market/market.service");
+	const rateLimiter = getYahooRateLimiter();
+	const _validator = getDataValidator();
 
-        try {
-            await rateLimiter.execute(async () => {
-                await marketService.syncSymbolData(
-                    item.ticker,
-                    item.type as 'STOCK' | 'CRYPTO',
-                    config.interval
-                );
-            }, `sync:${item.ticker}`);
-            
-            process.stdout.write('✅\n');
-            success++;
-        } catch (e) {
-            const msg = (e as Error).message;
-            process.stdout.write(`❌ ${msg.slice(0, 50)}\n`);
-            failed++;
-        }
+	let success = 0;
+	let failed = 0;
+	const startTime = Date.now();
 
-        // Progress bar update
-        const elapsed = Date.now() - startTime;
-        const avgTime = elapsed / (i + 1);
-        const remaining = avgTime * (queue.length - i - 1);
-        
-        if ((i + 1) % 10 === 0) {
-            console.log(`   ⏱️  ETA: ${formatDuration(remaining)}`);
-        }
-    }
+	for (let i = 0; i < queue.length; i++) {
+		const item = queue[i];
+		const vipBadge = item.isVip ? "👑" : "  ";
+		process.stdout.write(`   [${i + 1}/${queue.length}] ${vipBadge} ${item.ticker}... `);
 
-    return { success, failed };
+		try {
+			await rateLimiter.execute(async () => {
+				await marketService.syncSymbolData(item.ticker, item.type as "STOCK" | "CRYPTO", config.interval);
+			}, `sync:${item.ticker}`);
+
+			process.stdout.write("✅\n");
+			success++;
+		} catch (e) {
+			const msg = (e as Error).message;
+			process.stdout.write(`❌ ${msg.slice(0, 50)}\n`);
+			failed++;
+		}
+
+		// Progress bar update
+		const elapsed = Date.now() - startTime;
+		const avgTime = elapsed / (i + 1);
+		const remaining = avgTime * (queue.length - i - 1);
+
+		if ((i + 1) % 10 === 0) {
+			console.log(`   ⏱️  ETA: ${formatDuration(remaining)}`);
+		}
+	}
+
+	return { success, failed };
 }
 
 // ============================================================================
@@ -383,17 +381,17 @@ async function repairSymbols(gaps: GapInfo[], config: RepairConfig): Promise<{ s
 // ============================================================================
 
 function sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function formatDuration(ms: number): string {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    
-    if (hours > 0) return `${hours}h ${minutes % 60}m`;
-    if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
-    return `${seconds}s`;
+	const seconds = Math.floor(ms / 1000);
+	const minutes = Math.floor(seconds / 60);
+	const hours = Math.floor(minutes / 60);
+
+	if (hours > 0) return `${hours}h ${minutes % 60}m`;
+	if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+	return `${seconds}s`;
 }
 
 // ============================================================================
@@ -401,61 +399,60 @@ function formatDuration(ms: number): string {
 // ============================================================================
 
 async function main() {
-    const config = parseArgs();
-    
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('               🛠️  ULTIMATE SMART REPAIR                   ');
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log(`   Mode:       ${config.dryRun ? 'DRY RUN (no changes)' : 'LIVE'}`);
-    console.log(`   Scope:      ${config.vipOnly ? 'VIP Only' : 'All Symbols'}`);
-    console.log(`   Interval:   ${config.interval}`);
-    console.log(`   Lookback:   ${config.lookbackDays} days`);
-    console.log('═══════════════════════════════════════════════════════════');
+	const config = parseArgs();
 
-    const overallStart = Date.now();
+	console.log("═══════════════════════════════════════════════════════════");
+	console.log("               🛠️  ULTIMATE SMART REPAIR                   ");
+	console.log("═══════════════════════════════════════════════════════════");
+	console.log(`   Mode:       ${config.dryRun ? "DRY RUN (no changes)" : "LIVE"}`);
+	console.log(`   Scope:      ${config.vipOnly ? "VIP Only" : "All Symbols"}`);
+	console.log(`   Interval:   ${config.interval}`);
+	console.log(`   Lookback:   ${config.lookbackDays} days`);
+	console.log("═══════════════════════════════════════════════════════════");
 
-    try {
-        // Get VIP IDs first
-        const vipIds = await getVipSymbolIds();
-        console.log(`\n📋 Found ${vipIds.size} VIP symbols (watchlist + holdings)`);
+	const overallStart = Date.now();
 
-        // Phase 1: Detect and clean anomalies
-        const anomalies = await detectAnomalies(config);
-        const deletedCount = await cleanupAnomalies(anomalies, config);
+	try {
+		// Get VIP IDs first
+		const vipIds = await getVipSymbolIds();
+		console.log(`\n📋 Found ${vipIds.size} VIP symbols (watchlist + holdings)`);
 
-        // Phase 2: Detect gaps
-        const gaps = await detectGaps(config, vipIds);
+		// Phase 1: Detect and clean anomalies
+		const anomalies = await detectAnomalies(config);
+		const deletedCount = await cleanupAnomalies(anomalies, config);
 
-        // Phase 3: Repair
-        const { success, failed } = await repairSymbols(gaps, config);
+		// Phase 2: Detect gaps
+		const gaps = await detectGaps(config, vipIds);
 
-        // Final Summary
-        const totalDuration = Date.now() - overallStart;
-        const rateLimiter = getYahooRateLimiter();
-        
-        console.log('\n═══════════════════════════════════════════════════════════');
-        console.log('                    📊 FINAL SUMMARY                        ');
-        console.log('═══════════════════════════════════════════════════════════');
-        console.log(`   Anomalies Found:     ${anomalies.length}`);
-        console.log(`   Anomalies Deleted:   ${deletedCount}`);
-        console.log(`   Gaps Detected:       ${gaps.length}`);
-        console.log(`   Repairs Attempted:   ${success + failed}`);
-        console.log(`   Successful:          ${success}`);
-        console.log(`   Failed:              ${failed}`);
-        console.log(`   Total Duration:      ${formatDuration(totalDuration)}`);
-        rateLimiter.printStats();
-        console.log('═══════════════════════════════════════════════════════════');
+		// Phase 3: Repair
+		const { success, failed } = await repairSymbols(gaps, config);
 
-        if (!config.dryRun && success > 0) {
-            console.log('\n✅ Database is now cleaner and more complete!');
-        }
+		// Final Summary
+		const totalDuration = Date.now() - overallStart;
+		const rateLimiter = getYahooRateLimiter();
 
-    } catch (e) {
-        console.error('\n❌ Fatal error:', e);
-        process.exit(1);
-    }
+		console.log("\n═══════════════════════════════════════════════════════════");
+		console.log("                    📊 FINAL SUMMARY                        ");
+		console.log("═══════════════════════════════════════════════════════════");
+		console.log(`   Anomalies Found:     ${anomalies.length}`);
+		console.log(`   Anomalies Deleted:   ${deletedCount}`);
+		console.log(`   Gaps Detected:       ${gaps.length}`);
+		console.log(`   Repairs Attempted:   ${success + failed}`);
+		console.log(`   Successful:          ${success}`);
+		console.log(`   Failed:              ${failed}`);
+		console.log(`   Total Duration:      ${formatDuration(totalDuration)}`);
+		rateLimiter.printStats();
+		console.log("═══════════════════════════════════════════════════════════");
 
-    process.exit(0);
+		if (!config.dryRun && success > 0) {
+			console.log("\n✅ Database is now cleaner and more complete!");
+		}
+	} catch (e) {
+		console.error("\n❌ Fatal error:", e);
+		process.exit(1);
+	}
+
+	process.exit(0);
 }
 
 main();

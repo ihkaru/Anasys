@@ -17,37 +17,34 @@
 </template>
 
 <script setup lang="ts">
-import { useFullscreen } from '@vueuse/core';
-import { computed, onMounted, onUnmounted, ref, toRef } from 'vue';
-import { type Signal } from '../../../stores/market';
-import { useSettingsStore } from '../../../stores/settings';
-import { useChart } from '../composables/useChart';
-import { useChartData } from '../composables/useChartData';
-import { useInfiniteScroll } from '../composables/useInfiniteScroll';
-import { type OHLCVData } from '../utils/chart-formatters';
-import ChartLegend from './ChartLegend.vue';
+import { useFullscreen } from "@vueuse/core";
+import { computed, onMounted, onUnmounted, ref, toRef } from "vue";
+import type { Signal } from "../../../stores/market";
+import { useSettingsStore } from "../../../stores/settings";
+import { useChart } from "../composables/useChart";
+import { useChartData } from "../composables/useChartData";
+import { useInfiniteScroll } from "../composables/useInfiniteScroll";
+import type { OHLCVData } from "../utils/chart-formatters";
 
 const props = defineProps<{
-    ohlcvData: OHLCVData[];
-    signals: Signal[];
-    loading?: boolean;
+	ohlcvData: OHLCVData[];
+	signals: Signal[];
+	loading?: boolean;
 }>();
 
-const emit = defineEmits<{
-    (e: 'load-more'): void;
-}>();
+const emit = defineEmits<(e: "load-more") => void>();
 
 const chartRef = ref<HTMLDivElement | null>(null);
 const chartContainerRef = ref<HTMLDivElement | null>(null);
 const settingsStore = useSettingsStore();
 
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(chartContainerRef);
-const hasSignals = computed(() => props.signals.length > 0);
+const _hasSignals = computed(() => props.signals.length > 0);
 
-const timezoneTooltip = computed(() => {
-    return settingsStore.timezoneMode === 'local'
-        ? 'Displaying times in your local timezone'
-        : 'Displaying times in US market timezone (EST/EDT)';
+const _timezoneTooltip = computed(() => {
+	return settingsStore.timezoneMode === "local"
+		? "Displaying times in your local timezone"
+		: "Displaying times in US market timezone (EST/EDT)";
 });
 
 const { chart, candleSeries, initChart, destroyChart, fitContent, resizeChart } = useChart(chartRef, isFullscreen);
@@ -55,41 +52,36 @@ const { chart, candleSeries, initChart, destroyChart, fitContent, resizeChart } 
 // When chart is initialized, we need to bind everything
 // Because useChart returns chart as a Ref<IChartApi | null>, useInfiniteScroll needs it.
 
-const { updateAll } = useChartData(
-    candleSeries,
-    toRef(props, 'ohlcvData'),
-    toRef(props, 'signals')
-);
+const { updateAll } = useChartData(candleSeries, toRef(props, "ohlcvData"), toRef(props, "signals"));
 
 // We need to wait until chart is created to subscribe, or handle null chart gracefully in composable
 // The composable handles null chart, but we must call subscribe AFTER init.
 
-const { subscribe: subscribeScroll, unsubscribe: unsubscribeScroll } = useInfiniteScroll(
-    chart,
-    async () => emit('load-more')
+const { subscribe: subscribeScroll, unsubscribe: unsubscribeScroll } = useInfiniteScroll(chart, async () =>
+	emit("load-more"),
 );
 
 onMounted(() => {
-    initChart();
-    // Now chart.value is set inside useChart
-    subscribeScroll();
-    updateAll();
+	initChart();
+	// Now chart.value is set inside useChart
+	subscribeScroll();
+	updateAll();
 
-    // Initial fit (small delay to ensure rendering)
-    setTimeout(() => {
-        fitContent();
-    }, 100);
+	// Initial fit (small delay to ensure rendering)
+	setTimeout(() => {
+		fitContent();
+	}, 100);
 });
 
 onUnmounted(() => {
-    unsubscribeScroll();
-    destroyChart();
+	unsubscribeScroll();
+	destroyChart();
 });
 
 // Expose methods to parent
 defineExpose({
-    toggleFullscreen,
-    fitContent,
+	toggleFullscreen,
+	fitContent,
 });
 </script>
 

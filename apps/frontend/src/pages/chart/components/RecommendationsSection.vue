@@ -22,24 +22,20 @@
 </template>
 
 <script setup lang="ts">
-import AssetLogo from '../../home/components/AssetLogo.vue';
-
 interface RecommendationItem {
-    ticker: string;
-    name: string;
-    price: number;
-    changePercent: number;
-    iconUrl?: string;
-    type?: 'STOCK' | 'CRYPTO';
+	ticker: string;
+	name: string;
+	price: number;
+	changePercent: number;
+	iconUrl?: string;
+	type?: "STOCK" | "CRYPTO";
 }
 
 defineProps<{
-    recommendations: RecommendationItem[];
+	recommendations: RecommendationItem[];
 }>();
 
-defineEmits<{
-    (e: 'click', item: RecommendationItem): void;
-}>();
+defineEmits<(e: "click", item: RecommendationItem) => void>();
 </script>
 
 <style scoped>

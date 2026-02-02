@@ -1,4 +1,3 @@
-
 import { db } from "../../db";
 import { Logger } from "../../utils/logger";
 import { CacheService } from "./cache/cache.service";
@@ -16,10 +15,10 @@ import { SymbolService } from "./services/symbol.service";
 import { SyncService } from "./services/sync.service";
 
 // Initialize Dependencies
-// Note: In a real NestJS app this would be in a module. 
+// Note: In a real NestJS app this would be in a module.
 // Here we manually wire them up.
 
-const logger = new Logger('MarketService');
+const logger = new Logger("MarketService");
 const symbolRepo = new SymbolRepository(db);
 const marketDataRepo = new MarketDataRepository(db);
 const dataProvider = new YahooFinanceProvider();
@@ -36,143 +35,148 @@ const moversService = new MoversService(quoteService, cacheService, logger);
 const financialsService = new FinancialsService(dataProvider);
 
 export class MarketService {
-    
-    // Delegate to SymbolService
-    async ensureSymbol(ticker: string, type: 'STOCK' | 'CRYPTO') {
-        return symbolService.ensureSymbol(ticker, type);
-    }
+	// Delegate to SymbolService
+	async ensureSymbol(ticker: string, type: "STOCK" | "CRYPTO") {
+		return symbolService.ensureSymbol(ticker, type);
+	}
 
-    async getSymbols() {
-        return symbolService.getSymbols();
-    }
+	async getSymbols() {
+		return symbolService.getSymbols();
+	}
 
-    async enrichSymbol(ticker: string) {
-        return symbolService.enrichSymbol(ticker);
-    }
+	async enrichSymbol(ticker: string) {
+		return symbolService.enrichSymbol(ticker);
+	}
 
-    async getSymbolByTicker(ticker: string) {
-        return symbolService.getSymbolByTicker(ticker);
-    }
-    
-    // Delegate to SyncService
-    async syncSymbolData(ticker: string, type: 'STOCK' | 'CRYPTO', interval: string = '1h', endDate?: Date, source: string = 'YAHOO') {
-        return syncService.syncSymbolData(ticker, type, interval, endDate, source);
-    }
-    
-    // Delegate to CandleService
-    async getOHLCV(ticker: string, interval: string, limit: number, before?: string, source: string = 'YAHOO') {
-        return candleService.getOHLCV(ticker, interval, limit, before, source);
-    }
-    
-    async getDownsampledCandles(ticker: string, resolution: string, limit: number) {
-        return candleService.getDownsampledCandles(ticker, resolution, limit);
-    }
-    
-    // Delegate to OverviewService (for backward compatibility)
-    async getMarketOverview(tickers: string[]) {
-        return overviewService.getMarketOverview(tickers);
-    }
-    
-    // Delegate to MoversService
-    async getTopMovers(limit = 6) {
-        return moversService.getTopMovers(limit);
-    }
+	async getSymbolByTicker(ticker: string) {
+		return symbolService.getSymbolByTicker(ticker);
+	}
 
-    // ===== Delegate to QuoteService =====
-    
-    /**
-     * Get real-time quotes for multiple tickers
-     * Uses caching to avoid rate limiting
-     */
-    async getQuotes(tickers: string[], period: string = '7d', source: string = 'YAHOO') {
-        return quoteService.getQuotes(tickers, period, source);
-    }
+	// Delegate to SyncService
+	async syncSymbolData(
+		ticker: string,
+		type: "STOCK" | "CRYPTO",
+		interval: string = "1h",
+		endDate?: Date,
+		source: string = "YAHOO",
+	) {
+		return syncService.syncSymbolData(ticker, type, interval, endDate, source);
+	}
 
-    /**
-     * Search for symbols using Yahoo Finance
-     */
-    async searchSymbols(query: string, limit: number = 15) {
-        return quoteService.search(query, limit);
-    }
+	// Delegate to CandleService
+	async getOHLCV(ticker: string, interval: string, limit: number, before?: string, source: string = "YAHOO") {
+		return candleService.getOHLCV(ticker, interval, limit, before, source);
+	}
 
-    /**
-     * Search for symbols across multiple sources (Yahoo + TradingView)
-     * Returns aggregated results with source labels
-     */
-    async searchSymbolsMultiSource(query: string, limit: number = 15): Promise<any[]> {
-        logger.debug(`Multi-source search for: ${query}`);
-        
-        // Query both sources in parallel
-        const [yahooResults, tvResults] = await Promise.allSettled([
-            quoteService.search(query, limit),
-            tvProvider.search(query, limit)
-        ]);
+	async getDownsampledCandles(ticker: string, resolution: string, limit: number) {
+		return candleService.getDownsampledCandles(ticker, resolution, limit);
+	}
 
-        const results: any[] = [];
-        
-        // Process Yahoo results
-        if (yahooResults.status === 'fulfilled' && yahooResults.value) {
-            const yahooMapped = yahooResults.value.map((r: any) => ({
-                symbol: r.ticker || r.symbol, // Handle both just in case
-                name: r.name || r.longName || r.shortName,
-                type: r.type || r.quoteType,
-                exchange: r.exchange || r.exchDisp,
-                currency: r.currency,
-                source: 'YAHOO'
-            }));
-            results.push(...yahooMapped);
-        }
-        
-        // Process TradingView results
-        if (tvResults.status === 'fulfilled' && tvResults.value) {
-            results.push(...tvResults.value);
-        } else if (tvResults.status === 'rejected') {
-            logger.warn('TradingView search failed, continuing with Yahoo only');
-        }
-        
-        logger.debug(`Multi-source search returned ${results.length} total results`);
-        return results;
-    }
+	// Delegate to OverviewService (for backward compatibility)
+	async getMarketOverview(tickers: string[]) {
+		return overviewService.getMarketOverview(tickers);
+	}
 
-    /**
-     * Get trending symbols
-     */
-    async getTrendingSymbols(region: string = 'US', count: number = 10) {
-        return quoteService.getTrending(region, count);
-    }
+	// Delegate to MoversService
+	async getTopMovers(limit = 6) {
+		return moversService.getTopMovers(limit);
+	}
 
-    /**
-     * Get recommendations for a symbol
-     */
-    async getRecommendations(ticker: string) {
-        return quoteService.getRecommendations(ticker);
-    }
+	// ===== Delegate to QuoteService =====
 
-    // ===== Delegate to FinancialsService =====
+	/**
+	 * Get real-time quotes for multiple tickers
+	 * Uses caching to avoid rate limiting
+	 */
+	async getQuotes(tickers: string[], period: string = "7d", source: string = "YAHOO") {
+		return quoteService.getQuotes(tickers, period, source);
+	}
 
-    /**
-     * Get financial metrics for a stock (PE, margins, etc)
-     * Data from: summaryDetail, financialData, defaultKeyStatistics
-     */
-    async getFinancials(ticker: string) {
-        return financialsService.getFinancials(ticker);
-    }
+	/**
+	 * Search for symbols using Yahoo Finance
+	 */
+	async searchSymbols(query: string, limit: number = 15) {
+		return quoteService.search(query, limit);
+	}
 
-    /**
-     * Get earnings data (history, calendar, trend)
-     * Data from: earnings, earningsHistory, calendarEvents
-     */
-    async getEarnings(ticker: string) {
-        return financialsService.getEarnings(ticker);
-    }
+	/**
+	 * Search for symbols across multiple sources (Yahoo + TradingView)
+	 * Returns aggregated results with source labels
+	 */
+	async searchSymbolsMultiSource(query: string, limit: number = 15): Promise<any[]> {
+		logger.debug(`Multi-source search for: ${query}`);
 
-    /**
-     * Get analyst ratings breakdown (buy/hold/sell)
-     * Data from: recommendationTrend
-     */
-    async getAnalystRatings(ticker: string) {
-        return financialsService.getAnalystRatings(ticker);
-    }
+		// Query both sources in parallel
+		const [yahooResults, tvResults] = await Promise.allSettled([
+			quoteService.search(query, limit),
+			tvProvider.search(query, limit),
+		]);
+
+		const results: any[] = [];
+
+		// Process Yahoo results
+		if (yahooResults.status === "fulfilled" && yahooResults.value) {
+			const yahooMapped = yahooResults.value.map((r: any) => ({
+				symbol: r.ticker || r.symbol, // Handle both just in case
+				name: r.name || r.longName || r.shortName,
+				type: r.type || r.quoteType,
+				exchange: r.exchange || r.exchDisp,
+				currency: r.currency,
+				source: "YAHOO",
+			}));
+			results.push(...yahooMapped);
+		}
+
+		// Process TradingView results
+		if (tvResults.status === "fulfilled" && tvResults.value) {
+			results.push(...tvResults.value);
+		} else if (tvResults.status === "rejected") {
+			logger.warn("TradingView search failed, continuing with Yahoo only");
+		}
+
+		logger.debug(`Multi-source search returned ${results.length} total results`);
+		return results;
+	}
+
+	/**
+	 * Get trending symbols
+	 */
+	async getTrendingSymbols(region: string = "US", count: number = 10) {
+		return quoteService.getTrending(region, count);
+	}
+
+	/**
+	 * Get recommendations for a symbol
+	 */
+	async getRecommendations(ticker: string) {
+		return quoteService.getRecommendations(ticker);
+	}
+
+	// ===== Delegate to FinancialsService =====
+
+	/**
+	 * Get financial metrics for a stock (PE, margins, etc)
+	 * Data from: summaryDetail, financialData, defaultKeyStatistics
+	 */
+	async getFinancials(ticker: string) {
+		return financialsService.getFinancials(ticker);
+	}
+
+	/**
+	 * Get earnings data (history, calendar, trend)
+	 * Data from: earnings, earningsHistory, calendarEvents
+	 */
+	async getEarnings(ticker: string) {
+		return financialsService.getEarnings(ticker);
+	}
+
+	/**
+	 * Get analyst ratings breakdown (buy/hold/sell)
+	 * Data from: recommendationTrend
+	 */
+	async getAnalystRatings(ticker: string) {
+		return financialsService.getAnalystRatings(ticker);
+	}
 }
 
 // Export singleton

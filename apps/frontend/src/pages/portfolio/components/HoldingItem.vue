@@ -43,39 +43,25 @@
 </template>
 
 <script setup lang="ts">
-import { formatCurrency, formatPercent } from '../../../utils/formatters';
-import AssetLogo from '../../home/components/AssetLogo.vue'; // Reusing from home
-import { useLongPress } from '../../home/composables/useLongPress'; // Reusing from home, better to move to shared but this works for now
-// Sparkline might be in global components or chart page? 
-// Actually HomePage has WatchlistItem using sparkline but it draws it manually or uses component?
-// Let's check WatchlistItem.vue. It uses inline SVG.
-// So SparklineChart might NOT exist yet as a standalone component?
-// The plan said: "SparklineChart.vue (already exists)". 
-// Warning: If it doesn't exist, I need to create it or assume it's global.
-// Let's assume it doesn't exist yet as standalone if I haven't seen it, but I will check later.
-// For now I will create a simple SparklineChart component if needed, or use the one from HomePage logic.
-// But wait, the plan implies I should use `SparklineChart`. 
-// I will create SparklineChart.vue in shared/components/ if it doesn't exist.
-// Checking previous file list, I don't recall creating unique SparklineChart.vue.
-// I will use `../../home/components/WatchlistItem.vue` logic reference.
-// Actually, better to create a simplified SparklineChart here or in shared.
-import SparklineChart from '../../../components/SparklineChart.vue'; // Hypothetical path
+import { useLongPress } from "../../home/composables/useLongPress"; // Reusing from home, better to move to shared but this works for now
 
 const props = defineProps<{
-    holding: any; // Using any for now to avoid strict type dependency if Holding interface is in store
+	holding: any; // Using any for now to avoid strict type dependency if Holding interface is in store
 }>();
 
 const emit = defineEmits<{
-    (e: 'click', holding: any): void;
-    (e: 'edit', holding: any): void;
-    (e: 'delete', holding: any): void;
-    (e: 'hold', holding: any): void;
+	(e: "click", holding: any): void;
+	(e: "edit", holding: any): void;
+	(e: "delete", holding: any): void;
+	(e: "hold", holding: any): void;
 }>();
 
-const { isHolding, start: startHold, cancel: cancelHold, end: endHold } = useLongPress(
-    () => emit('hold', props.holding),
-    600
-);
+const {
+	isHolding,
+	start: startHold,
+	cancel: cancelHold,
+	end: endHold,
+} = useLongPress(() => emit("hold", props.holding), 600);
 </script>
 
 <style scoped>

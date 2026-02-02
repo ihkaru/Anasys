@@ -17,21 +17,19 @@
 </template>
 
 <script setup lang="ts">
-import WatchlistItem from './WatchlistItem.vue';
-
 interface Props {
-    items: any[];
-    loaded: boolean;
-    watchlistId: number | null;
+	items: any[];
+	loaded: boolean;
+	watchlistId: number | null;
 }
 
 defineProps<Props>();
 
 defineEmits<{
-    (e: 'item-click', item: any): void;
-    (e: 'item-remove', ticker: string): void;
-    (e: 'item-hold', item: any): void;
-    (e: 'add-asset'): void;
+	(e: "item-click", item: any): void;
+	(e: "item-remove", ticker: string): void;
+	(e: "item-hold", item: any): void;
+	(e: "add-asset"): void;
 }>();
 </script>
 

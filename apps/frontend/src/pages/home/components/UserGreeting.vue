@@ -13,19 +13,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 interface Props {
-    userName?: string;
+	userName?: string;
 }
 
-const props = defineProps<Props>();
+const _props = defineProps<Props>();
 
-const timeOfDay = computed(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'morning';
-    if (hour < 17) return 'afternoon';
-    return 'evening';
+const _timeOfDay = computed(() => {
+	const hour = new Date().getHours();
+	if (hour < 12) return "morning";
+	if (hour < 17) return "afternoon";
+	return "evening";
 });
 </script>
 

@@ -39,47 +39,47 @@
 </template>
 
 <script setup lang="ts">
-import { f7 } from 'framework7-vue';
-import { ref } from 'vue';
+import { f7 } from "framework7-vue";
+import { ref } from "vue";
 
-const strategies = ref([
-  {
-    id: '1',
-    name: 'Big Tech Momentum',
-    description: 'Trend following strategy for large cap tech stocks.',
-    returnYear: 42.5,
-    risk: 'High',
-    followers: '12.4k',
-    color: '#3b82f6',
-    icon: 'f7:rocket_fill',
-    iconMd: 'material:rocket_launch'
-  },
-  {
-    id: '2',
-    name: 'Dividend Aristocrats',
-    description: 'Safe, high-yield dividend paying companies.',
-    returnYear: 12.8,
-    risk: 'Low',
-    followers: '8.1k',
-    color: '#10b981',
-    icon: 'f7:money_dollar_circle_fill',
-    iconMd: 'material:attach_money'
-  },
-  {
-    id: '3',
-    name: 'Crypto Swing',
-    description: 'Active swing trading for top 10 cryptocurrencies.',
-    returnYear: 85.2,
-    risk: 'Very High',
-    followers: '24.5k',
-    color: '#8b5cf6',
-    icon: 'f7:bitcoin_circle_fill',
-    iconMd: 'material:currency_bitcoin'
-  }
+const _strategies = ref([
+	{
+		id: "1",
+		name: "Big Tech Momentum",
+		description: "Trend following strategy for large cap tech stocks.",
+		returnYear: 42.5,
+		risk: "High",
+		followers: "12.4k",
+		color: "#3b82f6",
+		icon: "f7:rocket_fill",
+		iconMd: "material:rocket_launch",
+	},
+	{
+		id: "2",
+		name: "Dividend Aristocrats",
+		description: "Safe, high-yield dividend paying companies.",
+		returnYear: 12.8,
+		risk: "Low",
+		followers: "8.1k",
+		color: "#10b981",
+		icon: "f7:money_dollar_circle_fill",
+		iconMd: "material:attach_money",
+	},
+	{
+		id: "3",
+		name: "Crypto Swing",
+		description: "Active swing trading for top 10 cryptocurrencies.",
+		returnYear: 85.2,
+		risk: "Very High",
+		followers: "24.5k",
+		color: "#8b5cf6",
+		icon: "f7:bitcoin_circle_fill",
+		iconMd: "material:currency_bitcoin",
+	},
 ]);
 
-function openStrategy(strategy: any) {
-  f7.views.main.router.navigate(`/strategy/${strategy.id}/`);
+function _openStrategy(strategy: any) {
+	f7.views.main.router.navigate(`/strategy/${strategy.id}/`);
 }
 </script>
 

@@ -73,114 +73,102 @@
 </template>
 
 <script setup lang="ts">
-import { useDebounceFn } from '@vueuse/core';
-import { f7 } from 'framework7-vue';
-import { computed, onMounted, ref, watch } from 'vue';
-import { useMarketStore } from '../../stores/market';
-import { createLogger } from '../../utils/logger';
-import AssetItemList from './components/AssetItemList.vue';
-import CategoryChips from './components/CategoryChips.vue';
-import TrendingSection from './components/TrendingSection.vue';
-import { useExploreFilters } from './composables/useExploreFilters';
+import { useDebounceFn } from "@vueuse/core";
+import { f7 } from "framework7-vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useMarketStore } from "../../stores/market";
+import { createLogger } from "../../utils/logger";
+import { useExploreFilters } from "./composables/useExploreFilters";
 
-const logger = createLogger('ExplorePage');
+const logger = createLogger("ExplorePage");
 const marketStore = useMarketStore();
 
-const {
-  selectedCategories,
-  searchQuery,
-  filterSheetOpened,
-  toggleCategory,
-  clearFilters
-} = useExploreFilters();
+const { selectedCategories, searchQuery, filterSheetOpened, toggleCategory, clearFilters } = useExploreFilters();
 
 // Search results from backend
 const backendSearchResults = ref<any[]>([]);
 const searchLoading = ref(false);
 
 onMounted(async () => {
-  // Fetch trending from Yahoo (fresh) and movers from DB
-  await Promise.all([
-    marketStore.fetchTrending('US', 8),
-    marketStore.fetchMovers()
-  ]);
+	// Fetch trending from Yahoo (fresh) and movers from DB
+	await Promise.all([marketStore.fetchTrending("US", 8), marketStore.fetchMovers()]);
 });
 
 // Computed Data
-const trendingAssets = computed(() => marketStore.movers.trending || []);
-const topGainers = computed(() => marketStore.movers.gainers || []);
-const topLosers = computed(() => marketStore.movers.losers || []);
+const _trendingAssets = computed(() => marketStore.movers.trending || []);
+const _topGainers = computed(() => marketStore.movers.gainers || []);
+const _topLosers = computed(() => marketStore.movers.losers || []);
 
 // Debounced search to backend
 const debouncedSearch = useDebounceFn(async (query: string) => {
-  if (!query || query.length < 2) {
-    backendSearchResults.value = [];
-    searchLoading.value = false;
-    return;
-  }
+	if (!query || query.length < 2) {
+		backendSearchResults.value = [];
+		searchLoading.value = false;
+		return;
+	}
 
-  searchLoading.value = true;
-  try {
-    const results = await marketStore.searchSymbols(query, 20);
-    // Map to our expected format
-    backendSearchResults.value = results.map((r: any) => ({
-      ticker: r.symbol || r.ticker,
-      name: r.name,
-      type: r.type === 'CRYPTOCURRENCY' ? 'CRYPTO' : 'STOCK',
-      price: 0, // Search doesn't return price
-      changePercent: 0,
-      sparkline: [],
-      exchange: r.exchange,
-      source: r.source,
-      currency: r.currency,
-    }));
-  } catch (e) {
-    logger.error('Search failed', e);
-    backendSearchResults.value = [];
-  } finally {
-    searchLoading.value = false;
-  }
+	searchLoading.value = true;
+	try {
+		const results = await marketStore.searchSymbols(query, 20);
+		// Map to our expected format
+		backendSearchResults.value = results.map((r: any) => ({
+			ticker: r.symbol || r.ticker,
+			name: r.name,
+			type: r.type === "CRYPTOCURRENCY" ? "CRYPTO" : "STOCK",
+			price: 0, // Search doesn't return price
+			changePercent: 0,
+			sparkline: [],
+			exchange: r.exchange,
+			source: r.source,
+			currency: r.currency,
+		}));
+	} catch (e) {
+		logger.error("Search failed", e);
+		backendSearchResults.value = [];
+	} finally {
+		searchLoading.value = false;
+	}
 }, 300);
 
 // Watch search query and trigger backend search
 watch(searchQuery, (newQuery) => {
-  if (newQuery && newQuery.length >= 2) {
-    searchLoading.value = true;
-    debouncedSearch(newQuery);
-  } else {
-    backendSearchResults.value = [];
-    searchLoading.value = false;
-  }
+	if (newQuery && newQuery.length >= 2) {
+		searchLoading.value = true;
+		debouncedSearch(newQuery);
+	} else {
+		backendSearchResults.value = [];
+		searchLoading.value = false;
+	}
 });
 
-const searchResults = computed(() => {
-  // Filter by category if needed
-  let results = backendSearchResults.value;
-  if (selectedCategories.value.length > 0) {
-    results = results.filter(a => selectedCategories.value.includes(a.type));
-  }
-  return results;
+const _searchResults = computed(() => {
+	// Filter by category if needed
+	let results = backendSearchResults.value;
+	if (selectedCategories.value.length > 0) {
+		results = results.filter((a) => selectedCategories.value.includes(a.type));
+	}
+	return results;
 });
 
 // Logic
-function onSearch(_: any, query: string) {
-  searchQuery.value = query;
+function _onSearch(_: any, query: string) {
+	searchQuery.value = query;
 }
 
-function onSearchClear() {
-  searchQuery.value = '';
-  backendSearchResults.value = [];
+function _onSearchClear() {
+	searchQuery.value = "";
+	backendSearchResults.value = [];
 }
 
-function openAsset(item: any) {
-  logger.debug('Open asset:', item.ticker, item.source);
-  marketStore.selectSymbol(item.ticker);
-  if (item.source) {
-    marketStore.selectSource(item.source);
-  } else {
-    marketStore.selectSource('YAHOO'); // Default
-  }
-  f7.views.main.router.navigate('/chart/', { props: { ticker: item.ticker } });
+function _openAsset(item: any) {
+	logger.debug("Open asset:", item.ticker, item.source);
+	marketStore.selectSymbol(item.ticker);
+	if (item.source) {
+		marketStore.selectSource(item.source);
+	} else {
+		marketStore.selectSource("YAHOO"); // Default
+	}
+	f7.views.main.router.navigate("/chart/", { props: { ticker: item.ticker } });
 }
 </script>
 

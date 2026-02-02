@@ -72,38 +72,37 @@
 </template>
 
 <script setup lang="ts">
-
 const props = defineProps<{
-    financials: any;
-    analyst: any;
-    currentPrice: number;
+	financials: any;
+	analyst: any;
+	currentPrice: number;
 }>();
 
-function formatLargeNumber(num: number) {
-    if (!num) return '-';
-    if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
-    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
-    return num.toLocaleString();
+function _formatLargeNumber(num: number) {
+	if (!num) return "-";
+	if (num >= 1e12) return `${(num / 1e12).toFixed(2)}T`;
+	if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
+	if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
+	return num.toLocaleString();
 }
 
-function calculateRangePercent(fin: any) {
-    if (!fin.fiftyTwoWeekHigh || !fin.fiftyTwoWeekLow || !props.currentPrice) return 50;
-    const range = fin.fiftyTwoWeekHigh - fin.fiftyTwoWeekLow;
-    const current = props.currentPrice - fin.fiftyTwoWeekLow;
-    return Math.max(0, Math.min(100, (current / range) * 100));
+function _calculateRangePercent(fin: any) {
+	if (!fin.fiftyTwoWeekHigh || !fin.fiftyTwoWeekLow || !props.currentPrice) return 50;
+	const range = fin.fiftyTwoWeekHigh - fin.fiftyTwoWeekLow;
+	const current = props.currentPrice - fin.fiftyTwoWeekLow;
+	return Math.max(0, Math.min(100, (current / range) * 100));
 }
 
-function formatRatingObj(key: string) {
-    if (!key) return 'N/A';
-    return key.replace('-', ' ').toUpperCase();
+function _formatRatingObj(key: string) {
+	if (!key) return "N/A";
+	return key.replace("-", " ").toUpperCase();
 }
 
-function getRatingClass(key: string) {
-    if (!key) return '';
-    if (key.includes('buy')) return 'positive';
-    if (key.includes('sell')) return 'negative';
-    return 'neutral';
+function _getRatingClass(key: string) {
+	if (!key) return "";
+	if (key.includes("buy")) return "positive";
+	if (key.includes("sell")) return "negative";
+	return "neutral";
 }
 </script>
 

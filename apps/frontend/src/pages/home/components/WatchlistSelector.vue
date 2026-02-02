@@ -14,21 +14,21 @@
 
 <script setup lang="ts">
 interface Watchlist {
-    id: number;
-    name: string;
-    isDefault?: boolean;
+	id: number;
+	name: string;
+	isDefault?: boolean;
 }
 
 interface Props {
-    watchlists: Watchlist[];
-    selectedId: number | null;
+	watchlists: Watchlist[];
+	selectedId: number | null;
 }
 
 defineProps<Props>();
 
 defineEmits<{
-    (e: 'select', id: number): void;
-    (e: 'create'): void;
+	(e: "select", id: number): void;
+	(e: "create"): void;
 }>();
 </script>
 

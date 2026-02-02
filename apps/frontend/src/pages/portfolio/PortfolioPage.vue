@@ -21,23 +21,20 @@
 </template>
 
 <script setup lang="ts">
-import { f7 } from 'framework7-vue';
-import { computed, onMounted, ref } from 'vue';
-import { useHoldingsStore, type Holding } from '../../stores/holdings';
-import { useMarketStore } from '../../stores/market';
-import { createLogger } from '../../utils/logger';
-import AddHoldingSheet, { type HoldingFormData } from './components/AddHoldingSheet.vue';
-import AllocationChart from './components/AllocationChart.vue';
-import HoldingsList from './components/HoldingsList.vue';
-import PortfolioSummaryCard from './components/PortfolioSummaryCard.vue';
+import { f7 } from "framework7-vue";
+import { computed, onMounted, ref } from "vue";
+import { type Holding, useHoldingsStore } from "../../stores/holdings";
+import { useMarketStore } from "../../stores/market";
+import { createLogger } from "../../utils/logger";
+import type { HoldingFormData } from "./components/AddHoldingSheet.vue";
 
-const logger = createLogger('PortfolioPage');
+const logger = createLogger("PortfolioPage");
 const holdingsStore = useHoldingsStore();
 const marketStore = useMarketStore();
 
 onMounted(async () => {
-  logger.debug('PortfolioPage Mounted');
-  await holdingsStore.initialize();
+	logger.debug("PortfolioPage Mounted");
+	await holdingsStore.initialize();
 });
 
 // UI State
@@ -46,120 +43,117 @@ const sheetOpen = ref(false);
 const editingHolding = ref<Holding | null>(null);
 
 // Computed from store
-const totalValue = computed(() => holdingsStore.totalValue);
-const totalChange = computed(() => holdingsStore.totalPnl);
-const totalChangePercent = computed(() => holdingsStore.totalPnlPercent);
+const _totalValue = computed(() => holdingsStore.totalValue);
+const _totalChange = computed(() => holdingsStore.totalPnl);
+const _totalChangePercent = computed(() => holdingsStore.totalPnlPercent);
 
-const allocationData = computed(() =>
-  holdingsStore.allocation.map(a => ({
-    label: a.ticker,
-    percent: a.percent,
-  }))
+const _allocationData = computed(() =>
+	holdingsStore.allocation.map((a) => ({
+		label: a.ticker,
+		percent: a.percent,
+	})),
 );
 
 // We assume holding object in store matches what HoldingItem expects or has enough fields
 // Enriched holdings logic (sparkline fallback, etc)
-const enrichedHoldings = computed(() =>
-  holdingsStore.holdings.map(h => ({
-    ...h,
-    sparkline: h.sparkline && h.sparkline.length > 0
-      ? h.sparkline
-      : generateFallbackSparkline(h.pnlPercent >= 0),
-  }))
+const _enrichedHoldings = computed(() =>
+	holdingsStore.holdings.map((h) => ({
+		...h,
+		sparkline: h.sparkline && h.sparkline.length > 0 ? h.sparkline : generateFallbackSparkline(h.pnlPercent >= 0),
+	})),
 );
 
-const allocationColors = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
-  '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'
-];
+const _allocationColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
 // Fallback sparkline
 function generateFallbackSparkline(positive: boolean): number[] {
-  // Simple straight line or slight curve simulation
-  return positive ? [100, 102, 104, 103, 105, 108] : [100, 98, 96, 97, 95, 92];
+	// Simple straight line or slight curve simulation
+	return positive ? [100, 102, 104, 103, 105, 108] : [100, 98, 96, 97, 95, 92];
 }
 
 // UI Actions
-function toggleBalance() {
-  showBalance.value = !showBalance.value;
+function _toggleBalance() {
+	showBalance.value = !showBalance.value;
 }
 
-function showAddSheet() {
-  editingHolding.value = null;
-  sheetOpen.value = true;
+function _showAddSheet() {
+	editingHolding.value = null;
+	sheetOpen.value = true;
 }
 
 function closeSheet() {
-  sheetOpen.value = false;
-  editingHolding.value = null;
+	sheetOpen.value = false;
+	editingHolding.value = null;
 }
 
 // Holdings Actions
-function handleEdit(holding: Holding) {
-  editingHolding.value = holding;
-  sheetOpen.value = true;
+function _handleEdit(holding: Holding) {
+	editingHolding.value = holding;
+	sheetOpen.value = true;
 }
 
-async function handleSave(formData: HoldingFormData) {
-  if (editingHolding.value) {
-    const result = await holdingsStore.updateHolding(editingHolding.value.id, {
-      shares: formData.shares,
-      avgCost: formData.avgCost,
-    });
+async function _handleSave(formData: HoldingFormData) {
+	if (editingHolding.value) {
+		const result = await holdingsStore.updateHolding(editingHolding.value.id, {
+			shares: formData.shares,
+			avgCost: formData.avgCost,
+		});
 
-    if (result.success) {
-      f7.toast.show({ text: 'Holding updated', closeTimeout: 2000 });
-    } else {
-      f7.toast.show({ text: result.error || 'Failed to update', closeTimeout: 2000 });
-    }
-  } else {
-    const result = await holdingsStore.addHolding(
-      formData.ticker.toUpperCase(),
-      formData.shares,
-      formData.avgCost,
-      formData.source
-    );
+		if (result.success) {
+			f7.toast.show({ text: "Holding updated", closeTimeout: 2000 });
+		} else {
+			f7.toast.show({ text: result.error || "Failed to update", closeTimeout: 2000 });
+		}
+	} else {
+		const result = await holdingsStore.addHolding(
+			formData.ticker.toUpperCase(),
+			formData.shares,
+			formData.avgCost,
+			formData.source,
+		);
 
-    if (result.success) {
-      f7.toast.show({ text: `Added ${formData.ticker}`, closeTimeout: 2000 });
-    } else {
-      f7.toast.show({ text: result.error || 'Failed to add', closeTimeout: 2000 });
-    }
-  }
+		if (result.success) {
+			f7.toast.show({ text: `Added ${formData.ticker}`, closeTimeout: 2000 });
+		} else {
+			f7.toast.show({ text: result.error || "Failed to add", closeTimeout: 2000 });
+		}
+	}
 
-  closeSheet();
+	closeSheet();
 }
 
 async function handleDelete(holding: Holding) {
-  const result = await holdingsStore.deleteHolding(holding.id);
+	const result = await holdingsStore.deleteHolding(holding.id);
 
-  if (result.success) {
-    f7.toast.show({ text: 'Holding removed', closeTimeout: 2000 });
-  } else {
-    f7.toast.show({ text: 'Failed to remove', closeTimeout: 2000 });
-  }
+	if (result.success) {
+		f7.toast.show({ text: "Holding removed", closeTimeout: 2000 });
+	} else {
+		f7.toast.show({ text: "Failed to remove", closeTimeout: 2000 });
+	}
 }
 
-function handleHold(holding: Holding) {
-  f7.dialog.create({
-    title: 'Remove Holding',
-    text: `Remove ${holding.ticker} from portfolio?`,
-    buttons: [
-      { text: 'Cancel', color: 'gray' },
-      { text: 'Remove', color: 'red', onClick: () => handleDelete(holding) }
-    ]
-  }).open();
+function _handleHold(holding: Holding) {
+	f7.dialog
+		.create({
+			title: "Remove Holding",
+			text: `Remove ${holding.ticker} from portfolio?`,
+			buttons: [
+				{ text: "Cancel", color: "gray" },
+				{ text: "Remove", color: "red", onClick: () => handleDelete(holding) },
+			],
+		})
+		.open();
 }
 
-function openHoldingDetail(holding: Holding) {
-  logger.debug('Open holding detail:', holding.ticker, holding.source);
-  marketStore.selectSymbol(holding.ticker);
-  if (holding.source) {
-    marketStore.selectSource(holding.source);
-  } else {
-    marketStore.selectSource('YAHOO');
-  }
-  f7.views.main.router.navigate('/chart/', { props: { ticker: holding.ticker } });
+function _openHoldingDetail(holding: Holding) {
+	logger.debug("Open holding detail:", holding.ticker, holding.source);
+	marketStore.selectSymbol(holding.ticker);
+	if (holding.source) {
+		marketStore.selectSource(holding.source);
+	} else {
+		marketStore.selectSource("YAHOO");
+	}
+	f7.views.main.router.navigate("/chart/", { props: { ticker: holding.ticker } });
 }
 </script>
 

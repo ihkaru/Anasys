@@ -57,48 +57,47 @@
 </template>
 
 <script setup lang="ts">
-import SparklineChart from '../../../components/SparklineChart.vue';
-import { formatPrice, getExtendedHoursInfo } from '../../../utils/formatters';
-import AssetLogo from '../../home/components/AssetLogo.vue';
+import { getExtendedHoursInfo } from "../../../utils/formatters";
 
 interface AssetItem {
-    ticker: string;
-    name?: string;
-    price: number;
-    changePercent?: number;
-    sparkline?: number[];
-    iconUrl?: string;
-    website?: string;
-    type?: string;
-    // Multi-source fields
-    source?: string;
-    exchange?: string;
-    currency?: string;
+	ticker: string;
+	name?: string;
+	price: number;
+	changePercent?: number;
+	sparkline?: number[];
+	iconUrl?: string;
+	website?: string;
+	type?: string;
+	// Multi-source fields
+	source?: string;
+	exchange?: string;
+	currency?: string;
 }
 
-const props = withDefaults(defineProps<{
-    items: AssetItem[];
-    showSparkline?: boolean;
-    showSubtitle?: boolean;
-    showPrice?: boolean;
-    emptyMessage?: string;
-}>(), {
-    showSparkline: true,
-    showSubtitle: false,
-    showPrice: true
-});
+const _props = withDefaults(
+	defineProps<{
+		items: AssetItem[];
+		showSparkline?: boolean;
+		showSubtitle?: boolean;
+		showPrice?: boolean;
+		emptyMessage?: string;
+	}>(),
+	{
+		showSparkline: true,
+		showSubtitle: false,
+		showPrice: true,
+	},
+);
 
-defineEmits<{
-    (e: 'click', item: AssetItem): void;
-}>();
+defineEmits<(e: "click", item: AssetItem) => void>();
 
-function isPositive(item: AssetItem): boolean {
-    return (item.changePercent || 0) >= 0;
+function _isPositive(item: AssetItem): boolean {
+	return (item.changePercent || 0) >= 0;
 }
 
 // Get extended hours info for an item
-function getExtendedHours(item: AssetItem) {
-    return getExtendedHoursInfo(item as any);
+function _getExtendedHours(item: AssetItem) {
+	return getExtendedHoursInfo(item as any);
 }
 </script>
 

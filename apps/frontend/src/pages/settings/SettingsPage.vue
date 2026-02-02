@@ -120,156 +120,201 @@
 
 <script setup lang="ts">
 import { f7 } from "framework7-vue";
-import { computed, ref } from 'vue';
+import { computed, ref } from "vue";
 import { api } from "../../api/client";
 import { sqliteService } from "../../services/sqlite";
 import { useAuthStore } from "../../stores/auth";
 import { useSettingsStore } from "../../stores/settings";
 import { useThemeStore } from "../../stores/theme";
-import { createLogger } from '../../utils/logger';
+import { createLogger } from "../../utils/logger";
 
 const auth = useAuthStore();
 const themeStore = useThemeStore();
 const settingsStore = useSettingsStore();
-const logger = createLogger('SettingsPage');
+const _logger = createLogger("SettingsPage");
 
-const appVersion = ref('1.0.0');
+const _appVersion = ref("1.0.0");
 
 // Computed labels
-const timezoneDisplayLabel = computed(() => {
-  return settingsStore.timezoneMode === 'local' 
-    ? `Local (${settingsStore.timezoneLabel})`
-    : `Exchange (${settingsStore.timezoneLabel})`;
+const _timezoneDisplayLabel = computed(() => {
+	return settingsStore.timezoneMode === "local"
+		? `Local (${settingsStore.timezoneLabel})`
+		: `Exchange (${settingsStore.timezoneLabel})`;
 });
 
-function showThemePicker() {
-  f7.dialog.create({
-    title: 'Appearance',
-    text: 'Choose your preferred theme',
-    buttons: [
-      {
-        text: '☀️ Light',
-        onClick: () => {
-          themeStore.setMode('light');
-          f7.toast.show({ text: 'Light mode enabled', closeTimeout: 1500 });
-        }
-      },
-      {
-        text: '🌙 Dark',
-        onClick: () => {
-          themeStore.setMode('dark');
-          f7.toast.show({ text: 'Dark mode enabled', closeTimeout: 1500 });
-        }
-      },
-      {
-        text: '🖥️ System',
-        onClick: () => {
-          themeStore.setMode('system');
-          f7.toast.show({ text: 'Following system preference', closeTimeout: 1500 });
-        }
-      },
-      { text: 'Cancel', color: 'gray' },
-    ],
-    verticalButtons: true,
-  }).open();
+function _showThemePicker() {
+	f7.dialog
+		.create({
+			title: "Appearance",
+			text: "Choose your preferred theme",
+			buttons: [
+				{
+					text: "☀️ Light",
+					onClick: () => {
+						themeStore.setMode("light");
+						f7.toast.show({ text: "Light mode enabled", closeTimeout: 1500 });
+					},
+				},
+				{
+					text: "🌙 Dark",
+					onClick: () => {
+						themeStore.setMode("dark");
+						f7.toast.show({ text: "Dark mode enabled", closeTimeout: 1500 });
+					},
+				},
+				{
+					text: "🖥️ System",
+					onClick: () => {
+						themeStore.setMode("system");
+						f7.toast.show({ text: "Following system preference", closeTimeout: 1500 });
+					},
+				},
+				{ text: "Cancel", color: "gray" },
+			],
+			verticalButtons: true,
+		})
+		.open();
 }
 
-function toggleNotifications(value: boolean) {
-  settingsStore.setNotifications(value);
-  f7.toast.show({ text: `Notifications ${value ? 'enabled' : 'disabled'}`, closeTimeout: 1500 });
+function _toggleNotifications(value: boolean) {
+	settingsStore.setNotifications(value);
+	f7.toast.show({ text: `Notifications ${value ? "enabled" : "disabled"}`, closeTimeout: 1500 });
 }
 
-function showCurrencyPicker() {
-  f7.dialog.create({
-    title: 'Select Currency',
-    buttons: [
-      { text: 'USD ($)', onClick: () => { settingsStore.setCurrency('USD'); } },
-      { text: 'EUR (€)', onClick: () => { settingsStore.setCurrency('EUR'); } },
-      { text: 'GBP (£)', onClick: () => { settingsStore.setCurrency('GBP'); } },
-      { text: 'IDR (Rp)', onClick: () => { settingsStore.setCurrency('IDR'); } },
-      { text: 'Cancel', color: 'gray' },
-    ],
-    verticalButtons: true,
-  }).open();
+function _showCurrencyPicker() {
+	f7.dialog
+		.create({
+			title: "Select Currency",
+			buttons: [
+				{
+					text: "USD ($)",
+					onClick: () => {
+						settingsStore.setCurrency("USD");
+					},
+				},
+				{
+					text: "EUR (€)",
+					onClick: () => {
+						settingsStore.setCurrency("EUR");
+					},
+				},
+				{
+					text: "GBP (£)",
+					onClick: () => {
+						settingsStore.setCurrency("GBP");
+					},
+				},
+				{
+					text: "IDR (Rp)",
+					onClick: () => {
+						settingsStore.setCurrency("IDR");
+					},
+				},
+				{ text: "Cancel", color: "gray" },
+			],
+			verticalButtons: true,
+		})
+		.open();
 }
 
-function showIntervalPicker() {
-  f7.dialog.create({
-    title: 'Default Chart Interval',
-    buttons: [
-      { text: '1 Hour', onClick: () => { settingsStore.setDefaultInterval('1h'); } },
-      { text: '1 Day', onClick: () => { settingsStore.setDefaultInterval('1d'); } },
-      { text: '1 Week', onClick: () => { settingsStore.setDefaultInterval('1w'); } },
-      { text: 'Cancel', color: 'gray' },
-    ],
-    verticalButtons: true,
-  }).open();
+function _showIntervalPicker() {
+	f7.dialog
+		.create({
+			title: "Default Chart Interval",
+			buttons: [
+				{
+					text: "1 Hour",
+					onClick: () => {
+						settingsStore.setDefaultInterval("1h");
+					},
+				},
+				{
+					text: "1 Day",
+					onClick: () => {
+						settingsStore.setDefaultInterval("1d");
+					},
+				},
+				{
+					text: "1 Week",
+					onClick: () => {
+						settingsStore.setDefaultInterval("1w");
+					},
+				},
+				{ text: "Cancel", color: "gray" },
+			],
+			verticalButtons: true,
+		})
+		.open();
 }
 
-function showTimezonePicker() {
-  f7.dialog.create({
-    title: 'Chart Timezone',
-    text: 'Choose how times are displayed on charts',
-    buttons: [
-      { 
-        text: '🌍 Local Time', 
-        onClick: () => { 
-          settingsStore.setTimezoneMode('local'); 
-          f7.toast.show({ text: 'Using local timezone', closeTimeout: 1500 });
-        } 
-      },
-      { 
-        text: '🏛️ Exchange Time (EST)', 
-        onClick: () => { 
-          settingsStore.setTimezoneMode('exchange'); 
-          f7.toast.show({ text: 'Using US market timezone (EST)', closeTimeout: 1500 });
-        } 
-      },
-      { text: 'Cancel', color: 'gray' },
-    ],
-    verticalButtons: true,
-  }).open();
+function _showTimezonePicker() {
+	f7.dialog
+		.create({
+			title: "Chart Timezone",
+			text: "Choose how times are displayed on charts",
+			buttons: [
+				{
+					text: "🌍 Local Time",
+					onClick: () => {
+						settingsStore.setTimezoneMode("local");
+						f7.toast.show({ text: "Using local timezone", closeTimeout: 1500 });
+					},
+				},
+				{
+					text: "🏛️ Exchange Time (EST)",
+					onClick: () => {
+						settingsStore.setTimezoneMode("exchange");
+						f7.toast.show({ text: "Using US market timezone (EST)", closeTimeout: 1500 });
+					},
+				},
+				{ text: "Cancel", color: "gray" },
+			],
+			verticalButtons: true,
+		})
+		.open();
 }
 
-function syncData() {
-  f7.dialog.preloader('Syncing data...');
-  setTimeout(() => {
-    f7.dialog.close();
-    f7.toast.show({ text: 'Data synced successfully', closeTimeout: 2000 });
-  }, 2000);
+function _syncData() {
+	f7.dialog.preloader("Syncing data...");
+	setTimeout(() => {
+		f7.dialog.close();
+		f7.toast.show({ text: "Data synced successfully", closeTimeout: 2000 });
+	}, 2000);
 }
 
-function clearCache() {
-  f7.dialog.confirm('Clear all cached data?', 'Clear Cache', () => {
-    f7.toast.show({ text: 'Cache cleared', closeTimeout: 2000 });
-  });
+function _clearCache() {
+	f7.dialog.confirm("Clear all cached data?", "Clear Cache", () => {
+		f7.toast.show({ text: "Cache cleared", closeTimeout: 2000 });
+	});
 }
 
-const clearDB = () => {
-  f7.dialog.confirm(
-    'Are you sure you want to delete the database? This action cannot be undone.',
-    'Warning',
-    async () => {
-      f7.dialog.preloader('Clearing database...');
-      try {
-        try { await api.post("/auth/logout"); } catch { }
-        await sqliteService.clearDatabase();
-      } catch (e) {
-        f7.dialog.close();
-        f7.dialog.alert('Failed to clear database');
-      }
-    }
-  );
+const _clearDB = () => {
+	f7.dialog.confirm(
+		"Are you sure you want to delete the database? This action cannot be undone.",
+		"Warning",
+		async () => {
+			f7.dialog.preloader("Clearing database...");
+			try {
+				try {
+					await api.post("/auth/logout");
+				} catch {}
+				await sqliteService.clearDatabase();
+			} catch (_e) {
+				f7.dialog.close();
+				f7.dialog.alert("Failed to clear database");
+			}
+		},
+	);
 };
 
-const handleLogout = () => {
-  f7.dialog.confirm('Are you sure you want to sign out?', () => {
-    auth.logout();
-  });
+const _handleLogout = () => {
+	f7.dialog.confirm("Are you sure you want to sign out?", () => {
+		auth.logout();
+	});
 };
 
-const handleLogin = () => {
-  f7.views.main.router.navigate('/login/');
+const _handleLogin = () => {
+	f7.views.main.router.navigate("/login/");
 };
 </script>
 

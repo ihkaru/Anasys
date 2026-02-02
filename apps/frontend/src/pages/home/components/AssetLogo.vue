@@ -9,58 +9,61 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { getColorForTicker } from '../utils/assetColors';
+import { computed, ref, watch } from "vue";
 
 interface Props {
-    ticker: string;
-    name?: string;
-    type?: string;
-    iconUrl?: string;
-    website?: string;
-    size?: 'small' | 'medium' | 'large';
+	ticker: string;
+	name?: string;
+	type?: string;
+	iconUrl?: string;
+	website?: string;
+	size?: "small" | "medium" | "large";
 }
 
 const props = withDefaults(defineProps<Props>(), {
-    size: 'medium',
-    type: 'STOCK'
+	size: "medium",
+	type: "STOCK",
 });
 
 const hasError = ref(false);
 
 // Reset error if ticker changes
-watch(() => props.ticker, () => {
-    hasError.value = false;
-});
+watch(
+	() => props.ticker,
+	() => {
+		hasError.value = false;
+	},
+);
 
 const logoUrl = computed(() => {
-    // Priority 1: Use cached icon from backend if available
-    if (props.iconUrl) return props.iconUrl;
+	// Priority 1: Use cached icon from backend if available
+	if (props.iconUrl) return props.iconUrl;
 
-    // Stocks/ETFs - use symbol endpoint
-    if (!props.ticker) return '';
-    const url = props.type === 'CRYPTO' || props.ticker.includes('-USD')
-        ? `https://api.elbstream.com/logos/crypto/${props.ticker.split('-')[0].toUpperCase()}`
-        : `https://api.elbstream.com/logos/symbol/${props.ticker}`;
+	// Stocks/ETFs - use symbol endpoint
+	if (!props.ticker) return "";
+	const url =
+		props.type === "CRYPTO" || props.ticker.includes("-USD")
+			? `https://api.elbstream.com/logos/crypto/${props.ticker.split("-")[0].toUpperCase()}`
+			: `https://api.elbstream.com/logos/symbol/${props.ticker}`;
 
-    // If backend provided iconUrl, favor it (it likely points to local /public/logos/...)
-    // Note: iconUrl from DB might be relative path like '/public/logos/...'
-    if (props.iconUrl) {
-        console.log(`[AssetLogo:${props.ticker}] Using DB URL:`, props.iconUrl);
-        return props.iconUrl;
-    }
+	// If backend provided iconUrl, favor it (it likely points to local /public/logos/...)
+	// Note: iconUrl from DB might be relative path like '/public/logos/...'
+	if (props.iconUrl) {
+		console.log(`[AssetLogo:${props.ticker}] Using DB URL:`, props.iconUrl);
+		return props.iconUrl;
+	}
 
-    console.log(`[AssetLogo:${props.ticker}] Using External URL:`, url);
-    return url;
+	console.log(`[AssetLogo:${props.ticker}] Using External URL:`, url);
+	return url;
 });
 
-function onLogoLoad() {
-    console.log(`[AssetLogo:${props.ticker}] ✅ Image loaded successfully:`, logoUrl.value);
+function _onLogoLoad() {
+	console.log(`[AssetLogo:${props.ticker}] ✅ Image loaded successfully:`, logoUrl.value);
 }
 
-function onLogoError(e: Event) {
-    console.error(`[AssetLogo:${props.ticker}] ❌ Image load failed:`, logoUrl.value, e);
-    hasError.value = true;
+function _onLogoError(e: Event) {
+	console.error(`[AssetLogo:${props.ticker}] ❌ Image load failed:`, logoUrl.value, e);
+	hasError.value = true;
 }
 </script>
 

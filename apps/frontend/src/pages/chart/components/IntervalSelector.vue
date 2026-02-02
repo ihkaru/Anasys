@@ -10,20 +10,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 const props = defineProps<{
-    modelValue: string;
-    intervals?: string[];
+	modelValue: string;
+	intervals?: string[];
 }>();
 
-defineEmits<{
-    (e: 'update:modelValue', value: string): void;
-}>();
+defineEmits<(e: "update:modelValue", value: string) => void>();
 
-const intervals = computed(() =>
-    props.intervals || ['15m', '30m', '1h', '1d', '1wk']
-);
+const _intervals = computed(() => props.intervals || ["15m", "30m", "1h", "1d", "1wk"]);
 </script>
 
 <style scoped>

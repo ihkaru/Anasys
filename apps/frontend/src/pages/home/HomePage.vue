@@ -42,223 +42,225 @@
 </template>
 
 <script setup lang="ts">
-import { f7 } from 'framework7-vue';
-import { computed, onMounted, ref, watch } from 'vue';
-import { useAuthStore } from '../../stores/auth';
-import { useMarketStore } from '../../stores/market';
-import { useWatchlistStore } from '../../stores/watchlist';
-import { createLogger } from '../../utils/logger';
-
-// Components
-import AddAssetSheet from './components/AddAssetSheet.vue';
-import MarketSummaryCard from './components/MarketSummaryCard.vue';
-import UserGreeting from './components/UserGreeting.vue';
-import WatchlistItemList from './components/WatchlistItemList.vue';
-import WatchlistSelector from './components/WatchlistSelector.vue';
+import { f7 } from "framework7-vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { useAuthStore } from "../../stores/auth";
+import { useMarketStore } from "../../stores/market";
+import { useWatchlistStore } from "../../stores/watchlist";
+import { createLogger } from "../../utils/logger";
 
 // Composables & Utils
-import { useWatchlistActions } from './composables/useWatchlistActions';
-import { generateSparkline } from './utils/assetFormatters';
+import { useWatchlistActions } from "./composables/useWatchlistActions";
+import { generateSparkline } from "./utils/assetFormatters";
 
-const auth = useAuthStore();
+const _auth = useAuthStore();
 const marketStore = useMarketStore();
 const watchlistStore = useWatchlistStore();
-const logger = createLogger('HomePage');
+const logger = createLogger("HomePage");
 
 const loaded = ref(false);
 const addAssetSheetOpen = ref(false);
 const selectedWatchlistId = ref<number | null>(null);
-const sparklinePeriod = ref('7d');
+const sparklinePeriod = ref("7d");
 
-function changePeriod(p: string) {
-  if (sparklinePeriod.value === p) return;
-  sparklinePeriod.value = p;
-  if (watchlistStore.currentWatchlist?.items.length) {
-    // Group items by source
-    const bySource = new Map<string, string[]>();
-    watchlistStore.currentWatchlist.items.forEach(item => {
-      const src = item.source || 'YAHOO';
-      if (!bySource.has(src)) bySource.set(src, []);
-      bySource.get(src)!.push(item.ticker);
-    });
-    // Fetch each source group separately
-    bySource.forEach((tickers, source) => {
-      marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
-    });
-  }
+function _changePeriod(p: string) {
+	if (sparklinePeriod.value === p) return;
+	sparklinePeriod.value = p;
+	if (watchlistStore.currentWatchlist?.items.length) {
+		// Group items by source
+		const bySource = new Map<string, string[]>();
+		watchlistStore.currentWatchlist.items.forEach((item) => {
+			const src = item.source || "YAHOO";
+			if (!bySource.has(src)) bySource.set(src, []);
+			bySource.get(src)!.push(item.ticker);
+		});
+		// Fetch each source group separately
+		bySource.forEach((tickers, source) => {
+			marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
+		});
+	}
 }
 
 const watchlists = computed(() => watchlistStore.watchlists);
 
-const watchlistActions = useWatchlistActions(watchlistStore, selectedWatchlistId, watchlists);
+const _watchlistActions = useWatchlistActions(watchlistStore, selectedWatchlistId, watchlists);
 
 // Current watchlist items with real price data
-const currentWatchlistItems = computed(() => {
-  if (!watchlistStore.currentWatchlist) return [];
+const _currentWatchlistItems = computed(() => {
+	if (!watchlistStore.currentWatchlist) return [];
 
-  return watchlistStore.currentWatchlist.items.map(item => {
-    // Use ticker:source as key to get correct quote for this item's source
-    const src = item.source || 'YAHOO';
-    const quoteKey = `${item.ticker}:${src}`;
-    const quote = marketStore.quotes.get(quoteKey) ||
-      [...marketStore.movers.trending, ...marketStore.movers.gainers, ...marketStore.movers.losers]
-        .find(m => m.ticker === item.ticker);
+	return watchlistStore.currentWatchlist.items.map((item) => {
+		// Use ticker:source as key to get correct quote for this item's source
+		const src = item.source || "YAHOO";
+		const quoteKey = `${item.ticker}:${src}`;
+		const quote =
+			marketStore.quotes.get(quoteKey) ||
+			[...marketStore.movers.trending, ...marketStore.movers.gainers, ...marketStore.movers.losers].find(
+				(m) => m.ticker === item.ticker,
+			);
 
-    if (quote) {
-      return {
-        ...item,
-        price: quote.price,
-        changePercent: quote.changePercent,
-        sparkline: quote.sparkline && quote.sparkline.length > 0 ? quote.sparkline : generateSparkline(quote.changePercent >= 0),
-        // Pass extended hours data
-        marketState: quote.marketState,
-        preMarketPrice: quote.preMarketPrice,
-        preMarketChange: quote.preMarketChange,
-        preMarketChangePercent: quote.preMarketChangePercent,
-        postMarketPrice: quote.postMarketPrice,
-        postMarketChange: quote.postMarketChange,
-        postMarketChangePercent: quote.postMarketChangePercent,
-      };
-    }
+		if (quote) {
+			return {
+				...item,
+				price: quote.price,
+				changePercent: quote.changePercent,
+				sparkline:
+					quote.sparkline && quote.sparkline.length > 0 ? quote.sparkline : generateSparkline(quote.changePercent >= 0),
+				// Pass extended hours data
+				marketState: quote.marketState,
+				preMarketPrice: quote.preMarketPrice,
+				preMarketChange: quote.preMarketChange,
+				preMarketChangePercent: quote.preMarketChangePercent,
+				postMarketPrice: quote.postMarketPrice,
+				postMarketChange: quote.postMarketChange,
+				postMarketChangePercent: quote.postMarketChangePercent,
+			};
+		}
 
-    // Fallback if no data (yet)
-    return {
-      ...item,
-      price: 0,
-      changePercent: 0,
-      sparkline: [],
-    };
-  });
+		// Fallback if no data (yet)
+		return {
+			...item,
+			price: 0,
+			changePercent: 0,
+			sparkline: [],
+		};
+	});
 });
 
-async function selectWatchlist(id: number) {
-  selectedWatchlistId.value = id;
+async function _selectWatchlist(id: number) {
+	selectedWatchlistId.value = id;
 }
 
 watch(selectedWatchlistId, async (newId) => {
-  if (newId) {
-    await watchlistStore.fetchWatchlistWithItems(newId);
-    // Fetch fresh prices for this watchlist, grouped by source
-    if (watchlistStore.currentWatchlist?.items.length) {
-      // Group items by source
-      const bySource = new Map<string, string[]>();
-      watchlistStore.currentWatchlist.items.forEach(item => {
-        const src = item.source || 'YAHOO';
-        if (!bySource.has(src)) bySource.set(src, []);
-        bySource.get(src)!.push(item.ticker);
-      });
-      // Fetch each source group separately
-      bySource.forEach((tickers, source) => {
-        marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
-      });
-    }
-  }
+	if (newId) {
+		await watchlistStore.fetchWatchlistWithItems(newId);
+		// Fetch fresh prices for this watchlist, grouped by source
+		if (watchlistStore.currentWatchlist?.items.length) {
+			// Group items by source
+			const bySource = new Map<string, string[]>();
+			watchlistStore.currentWatchlist.items.forEach((item) => {
+				const src = item.source || "YAHOO";
+				if (!bySource.has(src)) bySource.set(src, []);
+				bySource.get(src)!.push(item.ticker);
+			});
+			// Fetch each source group separately
+			bySource.forEach((tickers, source) => {
+				marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
+			});
+		}
+	}
 });
 
 // Also watch for items changes to fetch new added items
-watch(() => watchlistStore.currentWatchlist?.items, (newItems) => {
-  if (newItems && newItems.length > 0) {
-    // Group items by source
-    const bySource = new Map<string, string[]>();
-    newItems.forEach(item => {
-      const src = item.source || 'YAHOO';
-      if (!bySource.has(src)) bySource.set(src, []);
-      bySource.get(src)!.push(item.ticker);
-    });
-    // Fetch each source group separately
-    bySource.forEach((tickers, source) => {
-      marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
-    });
-  }
-}, { deep: true });
+watch(
+	() => watchlistStore.currentWatchlist?.items,
+	(newItems) => {
+		if (newItems && newItems.length > 0) {
+			// Group items by source
+			const bySource = new Map<string, string[]>();
+			newItems.forEach((item) => {
+				const src = item.source || "YAHOO";
+				if (!bySource.has(src)) bySource.set(src, []);
+				bySource.get(src)!.push(item.ticker);
+			});
+			// Fetch each source group separately
+			bySource.forEach((tickers, source) => {
+				marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
+			});
+		}
+	},
+	{ deep: true },
+);
 
-function openAssetDetail(item: any) {
-  logger.debug('Open asset detail:', item.ticker, item.source);
-  marketStore.selectSymbol(item.ticker);
-  if (item.source) {
-    marketStore.selectSource(item.source);
-  } else {
-    // If no source is explicit, do NOT forcibly reset to YAHOO if it's already set correctly.
-    // BUT, for watchlist items, we usually know the source if we stored it.
-    // If we rely on stored data, we should probably default to 'YAHOO' if missing,
-    // to ensure we don't accidentally view a TV asset as Yahoo if previous state was TV.
-    marketStore.selectSource('YAHOO');
-  }
-  f7.views.main.router.navigate('/chart/', { props: { ticker: item.ticker } });
+function _openAssetDetail(item: any) {
+	logger.debug("Open asset detail:", item.ticker, item.source);
+	marketStore.selectSymbol(item.ticker);
+	if (item.source) {
+		marketStore.selectSource(item.source);
+	} else {
+		// If no source is explicit, do NOT forcibly reset to YAHOO if it's already set correctly.
+		// BUT, for watchlist items, we usually know the source if we stored it.
+		// If we rely on stored data, we should probably default to 'YAHOO' if missing,
+		// to ensure we don't accidentally view a TV asset as Yahoo if previous state was TV.
+		marketStore.selectSource("YAHOO");
+	}
+	f7.views.main.router.navigate("/chart/", { props: { ticker: item.ticker } });
 }
 
-async function handleAddAsset(asset: any) {
-  if (!selectedWatchlistId.value) return;
+async function _handleAddAsset(asset: any) {
+	if (!selectedWatchlistId.value) return;
 
-  try {
-    await watchlistStore.addSymbolToWatchlist(selectedWatchlistId.value, asset.ticker, asset.type, asset.source);
-    addAssetSheetOpen.value = false;
-    f7.toast.show({ text: `Added ${asset.ticker}`, closeTimeout: 2000 });
-    // Will trigger watch above
-  } catch (e) {
-    f7.toast.show({ text: (e as Error).message || 'Failed to add', closeTimeout: 2000 });
-  }
+	try {
+		await watchlistStore.addSymbolToWatchlist(selectedWatchlistId.value, asset.ticker, asset.type, asset.source);
+		addAssetSheetOpen.value = false;
+		f7.toast.show({ text: `Added ${asset.ticker}`, closeTimeout: 2000 });
+		// Will trigger watch above
+	} catch (e) {
+		f7.toast.show({ text: (e as Error).message || "Failed to add", closeTimeout: 2000 });
+	}
 }
 
 async function handleRemoveAsset(ticker: string) {
-  if (!selectedWatchlistId.value) return;
-  try {
-    await watchlistStore.removeSymbolFromWatchlist(selectedWatchlistId.value, ticker);
-    f7.toast.show({ text: `Removed ${ticker}`, closeTimeout: 2000 });
-  } catch (e) {
-    f7.toast.show({ text: 'Failed to remove', closeTimeout: 2000 });
-  }
+	if (!selectedWatchlistId.value) return;
+	try {
+		await watchlistStore.removeSymbolFromWatchlist(selectedWatchlistId.value, ticker);
+		f7.toast.show({ text: `Removed ${ticker}`, closeTimeout: 2000 });
+	} catch (_e) {
+		f7.toast.show({ text: "Failed to remove", closeTimeout: 2000 });
+	}
 }
 
-function onItemHold(item: any) {
-  if (!selectedWatchlistId.value) return;
+function _onItemHold(item: any) {
+	if (!selectedWatchlistId.value) return;
 
-  f7.dialog.create({
-    title: 'Remove Asset',
-    text: `Remove ${item.ticker} from watchlist?`,
-    buttons: [
-      { text: 'Cancel', color: 'gray' },
-      {
-        text: 'Remove',
-        color: 'red',
-        onClick: () => handleRemoveAsset(item.ticker)
-      }
-    ]
-  }).open();
+	f7.dialog
+		.create({
+			title: "Remove Asset",
+			text: `Remove ${item.ticker} from watchlist?`,
+			buttons: [
+				{ text: "Cancel", color: "gray" },
+				{
+					text: "Remove",
+					color: "red",
+					onClick: () => handleRemoveAsset(item.ticker),
+				},
+			],
+		})
+		.open();
 }
 
 onMounted(async () => {
-  logger.debug('HomePage Mounted');
+	logger.debug("HomePage Mounted");
 
-  await Promise.all([
-    marketStore.fetchSymbols(),
-    marketStore.fetchMovers(), // Fetch movers for trending/summary
-    watchlistStore.fetchWatchlists(),
-  ]);
+	await Promise.all([
+		marketStore.fetchSymbols(),
+		marketStore.fetchMovers(), // Fetch movers for trending/summary
+		watchlistStore.fetchWatchlists(),
+	]);
 
-  if (watchlistStore.defaultWatchlist) {
-    selectedWatchlistId.value = watchlistStore.defaultWatchlist.id;
-  }
+	if (watchlistStore.defaultWatchlist) {
+		selectedWatchlistId.value = watchlistStore.defaultWatchlist.id;
+	}
 
-  // Initial fetch for overview if we have a watchlist loaded
-  if (selectedWatchlistId.value && watchlistStore.currentWatchlist) {
-    const items = watchlistStore.currentWatchlist.items;
-    if (items.length) {
-      // Group items by source
-      const bySource = new Map<string, string[]>();
-      items.forEach(item => {
-        const src = item.source || 'YAHOO';
-        if (!bySource.has(src)) bySource.set(src, []);
-        bySource.get(src)!.push(item.ticker);
-      });
-      // Fetch each source group separately
-      bySource.forEach((tickers, source) => {
-        marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
-      });
-    }
-  }
+	// Initial fetch for overview if we have a watchlist loaded
+	if (selectedWatchlistId.value && watchlistStore.currentWatchlist) {
+		const items = watchlistStore.currentWatchlist.items;
+		if (items.length) {
+			// Group items by source
+			const bySource = new Map<string, string[]>();
+			items.forEach((item) => {
+				const src = item.source || "YAHOO";
+				if (!bySource.has(src)) bySource.set(src, []);
+				bySource.get(src)!.push(item.ticker);
+			});
+			// Fetch each source group separately
+			bySource.forEach((tickers, source) => {
+				marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
+			});
+		}
+	}
 
-  loaded.value = true;
+	loaded.value = true;
 });
 </script>
 

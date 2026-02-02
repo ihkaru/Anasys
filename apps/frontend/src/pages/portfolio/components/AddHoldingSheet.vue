@@ -36,60 +36,63 @@
 </template>
 
 <script setup lang="ts">
-import { f7 } from 'framework7-vue';
-import { reactive, watch } from 'vue';
+import { f7 } from "framework7-vue";
+import { reactive, watch } from "vue";
 
 export interface HoldingFormData {
-    ticker: string;
-    shares: number;
-    avgCost: number;
-    source: string;
+	ticker: string;
+	shares: number;
+	avgCost: number;
+	source: string;
 }
 
 const props = defineProps<{
-    opened: boolean;
-    editing?: any | null;
+	opened: boolean;
+	editing?: any | null;
 }>();
 
 const emit = defineEmits<{
-    (e: 'close'): void;
-    (e: 'save', data: HoldingFormData): void;
+	(e: "close"): void;
+	(e: "save", data: HoldingFormData): void;
 }>();
 
 const form = reactive<HoldingFormData>({
-    ticker: '',
-    shares: 0,
-    avgCost: 0,
-    source: 'YAHOO',
+	ticker: "",
+	shares: 0,
+	avgCost: 0,
+	source: "YAHOO",
 });
 
 // Watch for editing prop changes
-watch(() => props.editing, (holding) => {
-    if (holding) {
-        form.ticker = holding.ticker;
-        form.shares = holding.shares;
-        form.avgCost = holding.avgCost;
-        form.source = holding.source || 'YAHOO';
-    } else {
-        resetForm();
-    }
-});
+watch(
+	() => props.editing,
+	(holding) => {
+		if (holding) {
+			form.ticker = holding.ticker;
+			form.shares = holding.shares;
+			form.avgCost = holding.avgCost;
+			form.source = holding.source || "YAHOO";
+		} else {
+			resetForm();
+		}
+	},
+);
 
 function resetForm() {
-    form.ticker = '';
-    form.shares = 0; // Ensure number
-    form.avgCost = 0; // Ensure number
-    form.source = 'YAHOO';
+	form.ticker = "";
+	form.shares = 0; // Ensure number
+	form.avgCost = 0; // Ensure number
+	form.source = "YAHOO";
 }
 
-function handleSave() {
-    if (!form.ticker || form.shares <= 0 || form.avgCost <= 0) {
-        f7.toast.show({ text: 'Please fill all fields', closeTimeout: 2000 });
-        return;
-    }
+function _handleSave() {
+	if (!form.ticker || form.shares <= 0 || form.avgCost <= 0) {
+		f7.toast.show({ text: "Please fill all fields", closeTimeout: 2000 });
+		return;
+	}
 
-    emit('save', { ...form });
-    resetForm();
+	emit("save", { ...form });
+	resetForm();
 }
 </script>
 

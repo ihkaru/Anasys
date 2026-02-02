@@ -87,38 +87,38 @@
 </template>
 
 <script setup lang="ts">
-import { f7 } from 'framework7-vue';
-import { reactive } from 'vue';
-import { useHoldingsStore, type Holding } from '../../stores/holdings';
+import { f7 } from "framework7-vue";
+import { reactive } from "vue";
+import { type Holding, useHoldingsStore } from "../../stores/holdings";
 
 const holdingsStore = useHoldingsStore();
 
-const form = reactive<Omit<Holding, 'id'>>({
-    ticker: '',
-    type: 'STOCK',
-    amount: 0,
-    avgPrice: 0
+const form = reactive<Omit<Holding, "id">>({
+	ticker: "",
+	type: "STOCK",
+	amount: 0,
+	avgPrice: 0,
 });
 
-function deleteHolding(id: string) {
-    holdingsStore.removeHolding(id);
+function _deleteHolding(id: string) {
+	holdingsStore.removeHolding(id);
 }
 
-function submitHolding() {
-    if (!form.ticker || form.amount <= 0 || form.avgPrice <= 0) {
-        f7.dialog.alert('Please fill all fields correctly');
-        return;
-    }
+function _submitHolding() {
+	if (!form.ticker || form.amount <= 0 || form.avgPrice <= 0) {
+		f7.dialog.alert("Please fill all fields correctly");
+		return;
+	}
 
-    holdingsStore.addHolding({ ...form });
-    
-    // Reset form
-    form.ticker = '';
-    form.amount = 0;
-    form.avgPrice = 0;
-    
-    f7.popover.close('.add-holding-popover');
-    f7.toast.show({ text: 'Asset Added', closeTimeout: 2000 });
+	holdingsStore.addHolding({ ...form });
+
+	// Reset form
+	form.ticker = "";
+	form.amount = 0;
+	form.avgPrice = 0;
+
+	f7.popover.close(".add-holding-popover");
+	f7.toast.show({ text: "Asset Added", closeTimeout: 2000 });
 }
 </script>
 

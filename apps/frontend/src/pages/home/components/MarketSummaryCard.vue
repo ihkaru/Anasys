@@ -22,14 +22,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useMarketData } from '../composables/useMarketData';
-import { formatChangePercent } from '../utils/assetFormatters';
+import { onMounted } from "vue";
+import { useMarketData } from "../composables/useMarketData";
 
 const { marketOverview, loading, fetchMarketOverview } = useMarketData();
 
 onMounted(() => {
-    fetchMarketOverview();
+	fetchMarketOverview();
 });
 </script>
 

@@ -1,16 +1,16 @@
 {
-  "name": "@packages/analysis",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
-    "@ixjb94/indicators": "^1.2.4",
-    "danfojs-node": "^1.2.0"
-  }
+	"name": "@packages/analysis",
+	"module": "index.ts",
+	"type": "module",
+	"private": true,
+	"devDependencies": {
+		"@types/bun": "latest"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@ixjb94/indicators": "^1.2.4",
+		"danfojs-node": "^1.2.0"
+	}
 }

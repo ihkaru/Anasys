@@ -8,29 +8,26 @@
 </template>
 
 <script setup lang="ts">
-
 const props = defineProps<{
-    selected: string[];
+	selected: string[];
 }>();
 
-const emit = defineEmits<{
-    (e: 'update:selected', value: string[]): void;
-}>();
+const emit = defineEmits<(e: "update:selected", value: string[]) => void>();
 
-const categories = [
-    { name: 'Stocks', slug: 'STOCK' },
-    { name: 'Crypto', slug: 'CRYPTO' },
+const _categories = [
+	{ name: "Stocks", slug: "STOCK" },
+	{ name: "Crypto", slug: "CRYPTO" },
 ];
 
-function toggle(slug: string) {
-    const newSelected = [...props.selected];
-    const idx = newSelected.indexOf(slug);
-    if (idx >= 0) {
-        newSelected.splice(idx, 1);
-    } else {
-        newSelected.push(slug);
-    }
-    emit('update:selected', newSelected);
+function _toggle(slug: string) {
+	const newSelected = [...props.selected];
+	const idx = newSelected.indexOf(slug);
+	if (idx >= 0) {
+		newSelected.splice(idx, 1);
+	} else {
+		newSelected.push(slug);
+	}
+	emit("update:selected", newSelected);
 }
 </script>
 

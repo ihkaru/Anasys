@@ -19,17 +19,15 @@
 </template>
 
 <script setup lang="ts">
-import { toRef } from 'vue';
-import { type Signal } from '../../../stores/market';
-import { useSignalMarkers } from '../composables/useSignalMarkers';
+import { toRef } from "vue";
+import type { Signal } from "../../../stores/market";
+import { useSignalMarkers } from "../composables/useSignalMarkers";
 
 const props = defineProps<{
-    signals: Signal[];
+	signals: Signal[];
 }>();
 
-const { buySignals, sellSignals, totalSignals, hasSignals } = useSignalMarkers(
-    toRef(props, 'signals')
-);
+const { buySignals, sellSignals, totalSignals, hasSignals } = useSignalMarkers(toRef(props, "signals"));
 </script>
 
 <style scoped>

@@ -1,217 +1,185 @@
 import yahooFinance from "yahoo-finance2";
-import { IDataProvider, UnifiedCandle } from "./data-provider.interface";
+import type { IDataProvider, UnifiedCandle } from "./data-provider.interface";
 
 export interface QuoteResult {
-    ticker: string;
-    name: string;
-    price: number;
-    previousClose: number;
-    change: number;
-    changePercent: number;
-    volume: number;
-    marketCap?: number;
-    high52Week?: number;
-    low52Week?: number;
-    updatedAt: Date;
-    currency?: string;
-    // Extended Hours Data
-    marketState?: 'PRE' | 'REGULAR' | 'POST' | 'POSTPOST' | 'CLOSED';
-    preMarketPrice?: number;
-    preMarketChange?: number;
-    preMarketChangePercent?: number;
-    postMarketPrice?: number;
-    postMarketChange?: number;
-    postMarketChangePercent?: number;
+	ticker: string;
+	name: string;
+	price: number;
+	previousClose: number;
+	change: number;
+	changePercent: number;
+	volume: number;
+	marketCap?: number;
+	high52Week?: number;
+	low52Week?: number;
+	updatedAt: Date;
+	currency?: string;
+	marketState?: "PRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
+	preMarketPrice?: number;
+	preMarketChange?: number;
+	preMarketChangePercent?: number;
+	postMarketPrice?: number;
+	postMarketChange?: number;
+	postMarketChangePercent?: number;
 }
 
 export interface SearchResult {
-    ticker: string;
-    name: string;
-    type: string;
-    exchange: string;
-    score?: number;
+	ticker: string;
+	name: string;
+	type: string;
+	exchange: string;
+	score?: number;
 }
 
 export interface TrendingResult {
-    ticker: string;
-    name?: string;
+	ticker: string;
+	name?: string;
 }
 
 export class YahooFinanceProvider implements IDataProvider {
-    private client: any;
+	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
+		const result = await yahooFinance.chart(ticker, options);
+		if (!result || !result.quotes) return [];
 
-    constructor() {
-        this.client = new (yahooFinance as any)();
-    }
+		return result.quotes
+			.map((q: any) => ({
+				timestamp: new Date(q.date),
+				open: q.open ?? 0,
+				high: q.high ?? 0,
+				low: q.low ?? 0,
+				close: q.close ?? 0,
+				volume: q.volume || 0,
+			}))
+			.filter((c: UnifiedCandle) => c.open !== null && c.close !== null);
+	}
 
-    async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
-        const result = await this.client.chart(ticker, options);
-        if (!result || !result.quotes) return [];
+	async fetchQuoteSummary(ticker: string, modules: string[]): Promise<any> {
+		return await yahooFinance.quoteSummary(ticker, { modules });
+	}
 
-        return result.quotes.map((q: any) => ({
-            timestamp: new Date(q.date),
-            open: q.open,
-            high: q.high,
-            low: q.low,
-            close: q.close,
-            volume: q.volume || 0
-        })).filter((c: UnifiedCandle) => c.open !== null && c.close !== null); // Basic null check
-    }
-    
-    async fetchQuoteSummary(ticker: string, modules: string[]): Promise<any> {
-        return await this.client.quoteSummary(ticker, { modules });
-    }
+	async fetchQuotes(tickers: string[]): Promise<QuoteResult[]> {
+		const results: QuoteResult[] = [];
 
-    /**
-     * Fetch real-time quotes for multiple tickers
-     * Rate limit: ~2000 requests/hour for quote endpoint
-     */
-    async fetchQuotes(tickers: string[]): Promise<QuoteResult[]> {
-        const results: QuoteResult[] = [];
-        
-        // Yahoo quote() can handle multiple tickers
-        for (const ticker of tickers) {
-            try {
-                const quote = await this.client.quote(ticker);
-                if (quote) {
-                    results.push({
-                        ticker: quote.symbol,
-                        name: quote.shortName || quote.longName || ticker,
-                        price: quote.regularMarketPrice || 0,
-                        previousClose: quote.regularMarketPreviousClose || 0,
-                        change: quote.regularMarketChange || 0,
-                        changePercent: quote.regularMarketChangePercent || 0,
-                        volume: quote.regularMarketVolume || 0,
-                        marketCap: quote.marketCap,
-                        high52Week: quote.fiftyTwoWeekHigh,
-                        low52Week: quote.fiftyTwoWeekLow,
-                        updatedAt: new Date(),
-                        currency: quote.currency,
-                        // Extended Hours Data
-                        marketState: quote.marketState,
-                        preMarketPrice: quote.preMarketPrice,
-                        preMarketChange: quote.preMarketChange,
-                        preMarketChangePercent: quote.preMarketChangePercent,
-                        postMarketPrice: quote.postMarketPrice,
-                        postMarketChange: quote.postMarketChange,
-                        postMarketChangePercent: quote.postMarketChangePercent,
-                    });
-                }
-            } catch (e) {
-                // Skip failed tickers, don't break the batch
-                console.warn(`Quote fetch failed for ${ticker}:`, (e as Error).message);
-            }
-        }
-        
-        return results;
-    }
+		for (const ticker of tickers) {
+			try {
+				const quote: any = await yahooFinance.quote(ticker);
+				if (quote) {
+					results.push({
+						ticker: quote.symbol,
+						name: quote.shortName || quote.longName || ticker,
+						price: quote.regularMarketPrice || 0,
+						previousClose: quote.regularMarketPreviousClose || 0,
+						change: quote.regularMarketChange || 0,
+						changePercent: quote.regularMarketChangePercent || 0,
+						volume: quote.regularMarketVolume || 0,
+						marketCap: quote.marketCap,
+						high52Week: quote.fiftyTwoWeekHigh,
+						low52Week: quote.fiftyTwoWeekLow,
+						updatedAt: new Date(),
+						currency: quote.currency,
+						marketState: quote.marketState,
+						preMarketPrice: quote.preMarketPrice,
+						preMarketChange: quote.preMarketChange,
+						preMarketChangePercent: quote.preMarketChangePercent,
+						postMarketPrice: quote.postMarketPrice,
+						postMarketChange: quote.postMarketChange,
+						postMarketChangePercent: quote.postMarketChangePercent,
+					});
+				}
+			} catch (e) {
+				console.warn(`Quote fetch failed for ${ticker}:`, (e as Error).message);
+			}
+		}
 
-    /**
-     * Search for symbols by query
-     */
-    async search(query: string, limit: number = 10): Promise<SearchResult[]> {
-        try {
-            const result = await this.client.search(query, { 
-                newsCount: 0, 
-                quotesCount: limit 
-            });
-            
-            // Filter out items without valid symbol (can happen with some Yahoo results)
-            return (result.quotes || [])
-                .filter((q: any) => q && q.symbol)
-                .map((q: any) => ({
-                    ticker: q.symbol,
-                    name: q.shortname || q.longname || q.symbol,
-                    type: q.quoteType || 'EQUITY',
-                    exchange: q.exchange || '',
-                    score: q.score,
-                }));
-        } catch (e) {
-            console.error('Search failed:', (e as Error).message);
-            return [];
-        }
-    }
+		return results;
+	}
 
-    /**
-     * Get trending symbols by region
-     */
-    async fetchTrending(region: string = 'US', count: number = 10): Promise<TrendingResult[]> {
-        try {
-            const result = await this.client.trendingSymbols(region, { count });
-            
-            return (result.quotes || []).map((q: any) => ({
-                ticker: q.symbol,
-                name: q.shortName || q.longName,
-            }));
-        } catch (e) {
-            console.error('Trending fetch failed:', (e as Error).message);
-            return [];
-        }
-    }
+	async search(query: string, limit = 10): Promise<SearchResult[]> {
+		try {
+			const result: any = await yahooFinance.search(query, {
+				newsCount: 0,
+				quotesCount: limit,
+			});
 
-    /**
-     * Get recommendations for a symbol
-     */
-    async fetchRecommendations(ticker: string): Promise<string[]> {
-        try {
-            const result = await this.client.recommendationsBySymbol(ticker);
-            return (result.recommendedSymbols || []).map((r: any) => r.symbol);
-        } catch (e) {
-            console.error(`Recommendations fetch failed for ${ticker}:`, (e as Error).message);
-            return [];
-        }
-    }
+			return (result.quotes || [])
+				.filter((q: any) => q?.symbol)
+				.map((q: any) => ({
+					ticker: q.symbol,
+					name: q.shortname || q.longname || q.symbol,
+					type: q.quoteType || "EQUITY",
+					exchange: q.exchange || "",
+					score: q.score,
+				}));
+		} catch (e) {
+			console.error("Search failed:", (e as Error).message);
+			return [];
+		}
+	}
 
-    /**
-     * Get Daily Gainers (Global) - Using Screener
-     */
-    async fetchDailyGainers(count = 10): Promise<QuoteResult[]> {
-        try {
-            // Use 'screener' module as dailyGainers is deprecated
-            // Predefined screener ID for day gainers is 'day_gainers'
-            const result = await this.client.screener({ scrIds: 'day_gainers', count, region: 'US', lang: 'en-US' });
-            return this.mapQuotes(result.quotes || []);
-        } catch (e) {
-            console.error('Daily Gainers fetch failed:', (e as Error).message);
-            return [];
-        }
-    }
+	async fetchTrending(region = "US", count = 10): Promise<TrendingResult[]> {
+		try {
+			const result: any = await yahooFinance.trendingSymbols(region, { count });
 
-    /**
-     * Get Daily Losers (Global) - Using Screener
-     */
-    async fetchDailyLosers(count = 10): Promise<QuoteResult[]> {
-        try {
-            // Use 'screener' module as dailyLosers is deprecated
-            // Predefined screener ID for day losers is 'day_losers'
-            const result = await this.client.screener({ scrIds: 'day_losers', count, region: 'US', lang: 'en-US' });
-            return this.mapQuotes(result.quotes || []);
-        } catch (e) {
-            console.error('Daily Losers fetch failed:', (e as Error).message);
-            return [];
-        }
-    }
+			return (result.quotes || []).map((q: any) => ({
+				ticker: q.symbol,
+				name: q.shortName || q.longName,
+			}));
+		} catch (e) {
+			console.error("Trending fetch failed:", (e as Error).message);
+			return [];
+		}
+	}
 
-    private mapQuotes(quotes: any[]): QuoteResult[] {
-        return quotes
-            .filter((q: any) => q && q.symbol)
-            .map((quote: any) => ({
-                ticker: quote.symbol,
-                name: quote.shortName || quote.longName || quote.symbol,
-                price: quote.regularMarketPrice || 0,
-                previousClose: quote.regularMarketPreviousClose || 0,
-                change: quote.regularMarketChange || 0,
-                changePercent: quote.regularMarketChangePercent || 0,
-                volume: quote.regularMarketVolume || 0,
-                marketCap: quote.marketCap,
-                high52Week: quote.fiftyTwoWeekHigh,
-                low52Week: quote.fiftyTwoWeekLow,
-                updatedAt: new Date(),
-                currency: quote.currency,
-            }));
-    }
+	async fetchRecommendations(ticker: string): Promise<string[]> {
+		try {
+			const result: any = await yahooFinance.recommendationsBySymbol(ticker);
+			return (result.recommendedSymbols || []).map((r: any) => r.symbol);
+		} catch (e) {
+			console.error(`Recommendations fetch failed for ${ticker}:`, (e as Error).message);
+			return [];
+		}
+	}
 
-    getName(): string {
-        return 'yahoo-finance';
-    }
+	async fetchDailyGainers(count = 10): Promise<QuoteResult[]> {
+		try {
+			const result: any = await yahooFinance.screener({ scrIds: "day_gainers", count, region: "US", lang: "en-US" });
+			return this.mapQuotes(result.quotes || []);
+		} catch (e) {
+			console.error("Daily Gainers fetch failed:", (e as Error).message);
+			return [];
+		}
+	}
+
+	async fetchDailyLosers(count = 10): Promise<QuoteResult[]> {
+		try {
+			const result: any = await yahooFinance.screener({ scrIds: "day_losers", count, region: "US", lang: "en-US" });
+			return this.mapQuotes(result.quotes || []);
+		} catch (e) {
+			console.error("Daily Losers fetch failed:", (e as Error).message);
+			return [];
+		}
+	}
+
+	private mapQuotes(quotes: any[]): QuoteResult[] {
+		return quotes
+			.filter((q: any) => q?.symbol)
+			.map((quote: any) => ({
+				ticker: quote.symbol,
+				name: quote.shortName || quote.longName || quote.symbol,
+				price: quote.regularMarketPrice || 0,
+				previousClose: quote.regularMarketPreviousClose || 0,
+				change: quote.regularMarketChange || 0,
+				changePercent: quote.regularMarketChangePercent || 0,
+				volume: quote.regularMarketVolume || 0,
+				marketCap: quote.marketCap,
+				high52Week: quote.fiftyTwoWeekHigh,
+				low52Week: quote.fiftyTwoWeekLow,
+				updatedAt: new Date(),
+				currency: quote.currency,
+			}));
+	}
+
+	getName(): string {
+		return "yahoo-finance";
+	}
 }

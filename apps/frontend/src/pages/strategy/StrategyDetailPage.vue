@@ -105,71 +105,74 @@
 </template>
 
 <script setup lang="ts">
-import { f7 } from 'framework7-vue';
-import { computed, ref } from 'vue';
+import { f7 } from "framework7-vue";
+import { computed, ref } from "vue";
 
 const props = defineProps<{
-  id: string;
+	id: string;
 }>();
 
 const isFollowing = ref(false);
 
 // Formatting dummy data based on ID
-const strategy = computed(() => {
-  // Mock Data store
-  const strategies: Record<string, any> = {
-    '1': {
-      id: '1',
-      name: 'Big Tech Momentum',
-      description: 'Trend following strategy for large cap tech stocks.',
-      returnYear: 42.5,
-      risk: 'High',
-      color: '#3b82f6',
-      icon: 'f7:rocket_fill',
-      iconMd: 'material:rocket_launch',
-      thesis: 'This strategy capitalizes on the momentum of mega-cap technology stocks. By utilizing a 50/200 day SMA crossover technique combined with RSI filters, we identify strong uptrends while avoiding overbought conditions. The current market environment favors scalable tech infrastructure.',
-      tags: ['Growth', 'Tech', 'Momentum'],
-    },
-    '2': {
-      id: '2',
-      name: 'Dividend Aristocrats',
-      description: 'Safe, high-yield dividend paying companies.',
-      returnYear: 12.8,
-      risk: 'Low',
-      color: '#10b981',
-      icon: 'f7:money_dollar_circle_fill',
-      iconMd: 'material:attach_money',
-      thesis: 'In uncertain economic times, cash flow is king. This strategy focuses on companies with a 25+ year history of increasing dividends. It provides steady income with lower volatility than the broader market.',
-      tags: ['Income', 'Stability', 'Value'],
-    },
-    '3': {
-      id: '3',
-      name: 'Crypto Swing',
-      description: 'Active swing trading for top 10 cryptocurrencies.',
-      returnYear: 85.2,
-      risk: 'Very High',
-      color: '#8b5cf6',
-      icon: 'f7:bitcoin_circle_fill',
-      iconMd: 'material:currency_bitcoin',
-      thesis: 'Crypto markets exhibit strong volatility cycles. This strategy uses Bollinger Bands and MACD to capture swings in major crypto assets like BTC and ETH, taking profits during rapid expansions.',
-      tags: ['Crypto', 'Swing', 'High Risk'],
-    }
-  };
-  return strategies[props.id] || strategies['1'];
+const _strategy = computed(() => {
+	// Mock Data store
+	const strategies: Record<string, any> = {
+		"1": {
+			id: "1",
+			name: "Big Tech Momentum",
+			description: "Trend following strategy for large cap tech stocks.",
+			returnYear: 42.5,
+			risk: "High",
+			color: "#3b82f6",
+			icon: "f7:rocket_fill",
+			iconMd: "material:rocket_launch",
+			thesis:
+				"This strategy capitalizes on the momentum of mega-cap technology stocks. By utilizing a 50/200 day SMA crossover technique combined with RSI filters, we identify strong uptrends while avoiding overbought conditions. The current market environment favors scalable tech infrastructure.",
+			tags: ["Growth", "Tech", "Momentum"],
+		},
+		"2": {
+			id: "2",
+			name: "Dividend Aristocrats",
+			description: "Safe, high-yield dividend paying companies.",
+			returnYear: 12.8,
+			risk: "Low",
+			color: "#10b981",
+			icon: "f7:money_dollar_circle_fill",
+			iconMd: "material:attach_money",
+			thesis:
+				"In uncertain economic times, cash flow is king. This strategy focuses on companies with a 25+ year history of increasing dividends. It provides steady income with lower volatility than the broader market.",
+			tags: ["Income", "Stability", "Value"],
+		},
+		"3": {
+			id: "3",
+			name: "Crypto Swing",
+			description: "Active swing trading for top 10 cryptocurrencies.",
+			returnYear: 85.2,
+			risk: "Very High",
+			color: "#8b5cf6",
+			icon: "f7:bitcoin_circle_fill",
+			iconMd: "material:currency_bitcoin",
+			thesis:
+				"Crypto markets exhibit strong volatility cycles. This strategy uses Bollinger Bands and MACD to capture swings in major crypto assets like BTC and ETH, taking profits during rapid expansions.",
+			tags: ["Crypto", "Swing", "High Risk"],
+		},
+	};
+	return strategies[props.id] || strategies["1"];
 });
 
-function toggleFollow() {
-  isFollowing.value = !isFollowing.value;
-  if (isFollowing.value) {
-    f7.toast.show({ text: 'Strategy Followed!', closeTimeout: 2000, position: 'center' });
-  } else {
-    f7.toast.show({ text: 'Unfollowed Strategy', closeTimeout: 2000, position: 'center' });
-  }
+function _toggleFollow() {
+	isFollowing.value = !isFollowing.value;
+	if (isFollowing.value) {
+		f7.toast.show({ text: "Strategy Followed!", closeTimeout: 2000, position: "center" });
+	} else {
+		f7.toast.show({ text: "Unfollowed Strategy", closeTimeout: 2000, position: "center" });
+	}
 }
 
-function toggleFullScreen() {
-  // Mock full screen - ideally opens a popup or rotates
-  f7.dialog.alert('Chart Full Screen Mode (Mock)', 'Chart View');
+function _toggleFullScreen() {
+	// Mock full screen - ideally opens a popup or rotates
+	f7.dialog.alert("Chart Full Screen Mode (Mock)", "Chart View");
 }
 </script>
 

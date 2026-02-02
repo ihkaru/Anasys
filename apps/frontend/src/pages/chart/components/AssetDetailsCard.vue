@@ -40,21 +40,19 @@
 </template>
 
 <script setup lang="ts">
-import AssetLogo from '../../home/components/AssetLogo.vue';
-
 interface AssetDetails {
-    name?: string;
-    ticker: string;
-    type?: string;
-    iconUrl?: string;
-    sector?: string;
-    industry?: string;
-    description?: string;
-    website?: string;
+	name?: string;
+	ticker: string;
+	type?: string;
+	iconUrl?: string;
+	sector?: string;
+	industry?: string;
+	description?: string;
+	website?: string;
 }
 
-const props = defineProps<{
-    asset: AssetDetails | null;
+const _props = defineProps<{
+	asset: AssetDetails | null;
 }>();
 </script>
 

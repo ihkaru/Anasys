@@ -11,26 +11,24 @@
 
 <script setup lang="ts">
 interface Timeframe {
-    value: string;
-    label: string;
+	value: string;
+	label: string;
 }
 
 defineProps<{
-    modelValue: string;
+	modelValue: string;
 }>();
 
-defineEmits<{
-    (e: 'update:modelValue', value: string): void;
-}>();
+defineEmits<(e: "update:modelValue", value: string) => void>();
 
 // Professional timeframe options
-const timeframes: Timeframe[] = [
-    { value: '1D', label: '1D' },
-    { value: '1W', label: '1W' },
-    { value: '1M', label: '1M' },
-    { value: '3M', label: '3M' },
-    { value: '1Y', label: '1Y' },
-    { value: 'ALL', label: 'ALL' },
+const _timeframes: Timeframe[] = [
+	{ value: "1D", label: "1D" },
+	{ value: "1W", label: "1W" },
+	{ value: "1M", label: "1M" },
+	{ value: "3M", label: "3M" },
+	{ value: "1Y", label: "1Y" },
+	{ value: "ALL", label: "ALL" },
 ];
 </script>
 
