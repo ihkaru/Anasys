@@ -53,7 +53,7 @@ import { createLogger } from "../../utils/logger";
 import { useWatchlistActions } from "./composables/useWatchlistActions";
 import { generateSparkline } from "./utils/assetFormatters";
 
-const _auth = useAuthStore();
+const auth = useAuthStore();
 const marketStore = useMarketStore();
 const watchlistStore = useWatchlistStore();
 const logger = createLogger("HomePage");
@@ -63,7 +63,7 @@ const addAssetSheetOpen = ref(false);
 const selectedWatchlistId = ref<number | null>(null);
 const sparklinePeriod = ref("7d");
 
-function _changePeriod(p: string) {
+function changePeriod(p: string) {
 	if (sparklinePeriod.value === p) return;
 	sparklinePeriod.value = p;
 	if (watchlistStore.currentWatchlist?.items.length) {
@@ -83,10 +83,10 @@ function _changePeriod(p: string) {
 
 const watchlists = computed(() => watchlistStore.watchlists);
 
-const _watchlistActions = useWatchlistActions(watchlistStore, selectedWatchlistId, watchlists);
+const watchlistActions = useWatchlistActions(watchlistStore, selectedWatchlistId, watchlists);
 
 // Current watchlist items with real price data
-const _currentWatchlistItems = computed(() => {
+const currentWatchlistItems = computed(() => {
 	if (!watchlistStore.currentWatchlist) return [];
 
 	return watchlistStore.currentWatchlist.items.map((item) => {
@@ -127,7 +127,7 @@ const _currentWatchlistItems = computed(() => {
 	});
 });
 
-async function _selectWatchlist(id: number) {
+async function selectWatchlist(id: number) {
 	selectedWatchlistId.value = id;
 }
 
@@ -172,7 +172,7 @@ watch(
 	{ deep: true },
 );
 
-function _openAssetDetail(item: any) {
+function openAssetDetail(item: any) {
 	logger.debug("Open asset detail:", item.ticker, item.source);
 	marketStore.selectSymbol(item.ticker);
 	if (item.source) {
@@ -187,7 +187,7 @@ function _openAssetDetail(item: any) {
 	f7.views.main.router.navigate("/chart/", { props: { ticker: item.ticker } });
 }
 
-async function _handleAddAsset(asset: any) {
+async function handleAddAsset(asset: any) {
 	if (!selectedWatchlistId.value) return;
 
 	try {
@@ -210,7 +210,7 @@ async function handleRemoveAsset(ticker: string) {
 	}
 }
 
-function _onItemHold(item: any) {
+function onItemHold(item: any) {
 	if (!selectedWatchlistId.value) return;
 
 	f7.dialog

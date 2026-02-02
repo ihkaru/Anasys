@@ -78,7 +78,7 @@ const props = defineProps<{
 	currentPrice: number;
 }>();
 
-function _formatLargeNumber(num: number) {
+function formatLargeNumber(num: number) {
 	if (!num) return "-";
 	if (num >= 1e12) return `${(num / 1e12).toFixed(2)}T`;
 	if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
@@ -86,19 +86,19 @@ function _formatLargeNumber(num: number) {
 	return num.toLocaleString();
 }
 
-function _calculateRangePercent(fin: any) {
+function calculateRangePercent(fin: any) {
 	if (!fin.fiftyTwoWeekHigh || !fin.fiftyTwoWeekLow || !props.currentPrice) return 50;
 	const range = fin.fiftyTwoWeekHigh - fin.fiftyTwoWeekLow;
 	const current = props.currentPrice - fin.fiftyTwoWeekLow;
 	return Math.max(0, Math.min(100, (current / range) * 100));
 }
 
-function _formatRatingObj(key: string) {
+function formatRatingObj(key: string) {
 	if (!key) return "N/A";
 	return key.replace("-", " ").toUpperCase();
 }
 
-function _getRatingClass(key: string) {
+function getRatingClass(key: string) {
 	if (!key) return "";
 	if (key.includes("buy")) return "positive";
 	if (key.includes("sell")) return "negative";

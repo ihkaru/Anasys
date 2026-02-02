@@ -42,7 +42,7 @@
 import { f7 } from "framework7-vue";
 import { ref } from "vue";
 
-const _strategies = ref([
+const strategies = ref([
 	{
 		id: "1",
 		name: "Big Tech Momentum",
@@ -78,7 +78,7 @@ const _strategies = ref([
 	},
 ]);
 
-function _openStrategy(strategy: any) {
+function openStrategy(strategy: any) {
 	f7.views.main.router.navigate(`/strategy/${strategy.id}/`);
 }
 </script>

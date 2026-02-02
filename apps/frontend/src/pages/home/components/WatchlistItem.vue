@@ -63,7 +63,7 @@ const emit = defineEmits<{
 	(e: "hold", item: any): void;
 }>();
 
-const _longPress = useLongPress((item) => {
+const longPress = useLongPress((item) => {
 	emit("hold", item);
 });
 
@@ -71,7 +71,7 @@ const _longPress = useLongPress((item) => {
 const extendedHours = computed(() => getExtendedHoursInfo(props.item));
 
 // Determine Primary Display (Extended takes priority if available)
-const _primaryDisplay = computed(() => {
+const primaryDisplay = computed(() => {
 	if (extendedHours.value) {
 		return {
 			price: extendedHours.value.price,
@@ -89,7 +89,7 @@ const _primaryDisplay = computed(() => {
 });
 
 // Determine Secondary Display (Regular Close if Extended is active)
-const _secondaryDisplay = computed(() => {
+const secondaryDisplay = computed(() => {
 	if (extendedHours.value) {
 		return {
 			price: props.item.price ?? 0,

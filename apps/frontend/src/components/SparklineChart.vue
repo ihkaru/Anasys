@@ -21,9 +21,9 @@ const props = withDefaults(
 	},
 );
 
-const _color = computed(() => (props.positive ? "#10b981" : "#ef4444"));
+const color = computed(() => (props.positive ? "#10b981" : "#ef4444"));
 
-const _path = computed(() => {
+const path = computed(() => {
 	if (!props.data || props.data.length < 2) return "";
 
 	const min = Math.min(...props.data);

@@ -19,9 +19,9 @@ interface Props {
 	userName?: string;
 }
 
-const _props = defineProps<Props>();
+const props = defineProps<Props>();
 
-const _timeOfDay = computed(() => {
+const timeOfDay = computed(() => {
 	const hour = new Date().getHours();
 	if (hour < 12) return "morning";
 	if (hour < 17) return "afternoon";

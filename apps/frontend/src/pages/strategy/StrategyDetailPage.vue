@@ -115,7 +115,7 @@ const props = defineProps<{
 const isFollowing = ref(false);
 
 // Formatting dummy data based on ID
-const _strategy = computed(() => {
+const strategy = computed(() => {
 	// Mock Data store
 	const strategies: Record<string, any> = {
 		"1": {
@@ -161,7 +161,7 @@ const _strategy = computed(() => {
 	return strategies[props.id] || strategies["1"];
 });
 
-function _toggleFollow() {
+function toggleFollow() {
 	isFollowing.value = !isFollowing.value;
 	if (isFollowing.value) {
 		f7.toast.show({ text: "Strategy Followed!", closeTimeout: 2000, position: "center" });
@@ -170,7 +170,7 @@ function _toggleFollow() {
 	}
 }
 
-function _toggleFullScreen() {
+function toggleFullScreen() {
 	// Mock full screen - ideally opens a popup or rotates
 	f7.dialog.alert("Chart Full Screen Mode (Mock)", "Chart View");
 }

@@ -37,7 +37,7 @@ defineProps<{
 
 defineEmits<(e: "click", item: TrendingItem) => void>();
 
-function _isPositive(item: TrendingItem): boolean {
+function isPositive(item: TrendingItem): boolean {
 	return item.changePercent >= 0;
 }
 </script>

@@ -43,11 +43,11 @@ const sheetOpen = ref(false);
 const editingHolding = ref<Holding | null>(null);
 
 // Computed from store
-const _totalValue = computed(() => holdingsStore.totalValue);
-const _totalChange = computed(() => holdingsStore.totalPnl);
-const _totalChangePercent = computed(() => holdingsStore.totalPnlPercent);
+const totalValue = computed(() => holdingsStore.totalValue);
+const totalChange = computed(() => holdingsStore.totalPnl);
+const totalChangePercent = computed(() => holdingsStore.totalPnlPercent);
 
-const _allocationData = computed(() =>
+const allocationData = computed(() =>
 	holdingsStore.allocation.map((a) => ({
 		label: a.ticker,
 		percent: a.percent,
@@ -56,14 +56,14 @@ const _allocationData = computed(() =>
 
 // We assume holding object in store matches what HoldingItem expects or has enough fields
 // Enriched holdings logic (sparkline fallback, etc)
-const _enrichedHoldings = computed(() =>
+const enrichedHoldings = computed(() =>
 	holdingsStore.holdings.map((h) => ({
 		...h,
 		sparkline: h.sparkline && h.sparkline.length > 0 ? h.sparkline : generateFallbackSparkline(h.pnlPercent >= 0),
 	})),
 );
 
-const _allocationColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
+const allocationColors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#84cc16"];
 
 // Fallback sparkline
 function generateFallbackSparkline(positive: boolean): number[] {
@@ -72,11 +72,11 @@ function generateFallbackSparkline(positive: boolean): number[] {
 }
 
 // UI Actions
-function _toggleBalance() {
+function toggleBalance() {
 	showBalance.value = !showBalance.value;
 }
 
-function _showAddSheet() {
+function showAddSheet() {
 	editingHolding.value = null;
 	sheetOpen.value = true;
 }
@@ -87,12 +87,12 @@ function closeSheet() {
 }
 
 // Holdings Actions
-function _handleEdit(holding: Holding) {
+function handleEdit(holding: Holding) {
 	editingHolding.value = holding;
 	sheetOpen.value = true;
 }
 
-async function _handleSave(formData: HoldingFormData) {
+async function handleSave(formData: HoldingFormData) {
 	if (editingHolding.value) {
 		const result = await holdingsStore.updateHolding(editingHolding.value.id, {
 			shares: formData.shares,
@@ -132,7 +132,7 @@ async function handleDelete(holding: Holding) {
 	}
 }
 
-function _handleHold(holding: Holding) {
+function handleHold(holding: Holding) {
 	f7.dialog
 		.create({
 			title: "Remove Holding",
@@ -145,7 +145,7 @@ function _handleHold(holding: Holding) {
 		.open();
 }
 
-function _openHoldingDetail(holding: Holding) {
+function openHoldingDetail(holding: Holding) {
 	logger.debug("Open holding detail:", holding.ticker, holding.source);
 	marketStore.selectSymbol(holding.ticker);
 	if (holding.source) {

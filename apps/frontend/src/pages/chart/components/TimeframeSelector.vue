@@ -22,7 +22,7 @@ defineProps<{
 defineEmits<(e: "update:modelValue", value: string) => void>();
 
 // Professional timeframe options
-const _timeframes: Timeframe[] = [
+const timeframes: Timeframe[] = [
 	{ value: "1D", label: "1D" },
 	{ value: "1W", label: "1W" },
 	{ value: "1M", label: "1M" },

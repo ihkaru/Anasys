@@ -39,9 +39,9 @@ const chartContainerRef = ref<HTMLDivElement | null>(null);
 const settingsStore = useSettingsStore();
 
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(chartContainerRef);
-const _hasSignals = computed(() => props.signals.length > 0);
+const hasSignals = computed(() => props.signals.length > 0);
 
-const _timezoneTooltip = computed(() => {
+const timezoneTooltip = computed(() => {
 	return settingsStore.timezoneMode === "local"
 		? "Displaying times in your local timezone"
 		: "Displaying times in US market timezone (EST/EDT)";

@@ -85,7 +85,7 @@ function resetForm() {
 	form.source = "YAHOO";
 }
 
-function _handleSave() {
+function handleSave() {
 	if (!form.ticker || form.shares <= 0 || form.avgCost <= 0) {
 		f7.toast.show({ text: "Please fill all fields", closeTimeout: 2000 });
 		return;

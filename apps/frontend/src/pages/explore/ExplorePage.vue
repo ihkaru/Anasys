@@ -95,9 +95,9 @@ onMounted(async () => {
 });
 
 // Computed Data
-const _trendingAssets = computed(() => marketStore.movers.trending || []);
-const _topGainers = computed(() => marketStore.movers.gainers || []);
-const _topLosers = computed(() => marketStore.movers.losers || []);
+const trendingAssets = computed(() => marketStore.movers.trending || []);
+const topGainers = computed(() => marketStore.movers.gainers || []);
+const topLosers = computed(() => marketStore.movers.losers || []);
 
 // Debounced search to backend
 const debouncedSearch = useDebounceFn(async (query: string) => {
@@ -141,7 +141,7 @@ watch(searchQuery, (newQuery) => {
 	}
 });
 
-const _searchResults = computed(() => {
+const searchResults = computed(() => {
 	// Filter by category if needed
 	let results = backendSearchResults.value;
 	if (selectedCategories.value.length > 0) {
@@ -151,16 +151,16 @@ const _searchResults = computed(() => {
 });
 
 // Logic
-function _onSearch(_: any, query: string) {
+function onSearch(_: any, query: string) {
 	searchQuery.value = query;
 }
 
-function _onSearchClear() {
+function onSearchClear() {
 	searchQuery.value = "";
 	backendSearchResults.value = [];
 }
 
-function _openAsset(item: any) {
+function openAsset(item: any) {
 	logger.debug("Open asset:", item.ticker, item.source);
 	marketStore.selectSymbol(item.ticker);
 	if (item.source) {

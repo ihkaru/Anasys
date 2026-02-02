@@ -19,7 +19,7 @@ const props = defineProps<{
 
 defineEmits<(e: "update:modelValue", value: string) => void>();
 
-const _intervals = computed(() => props.intervals || ["15m", "30m", "1h", "1d", "1wk"]);
+const intervals = computed(() => props.intervals || ["15m", "30m", "1h", "1d", "1wk"]);
 </script>
 
 <style scoped>

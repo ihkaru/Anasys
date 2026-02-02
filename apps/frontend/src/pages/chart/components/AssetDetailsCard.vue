@@ -51,7 +51,7 @@ interface AssetDetails {
 	website?: string;
 }
 
-const _props = defineProps<{
+const props = defineProps<{
 	asset: AssetDetails | null;
 }>();
 </script>

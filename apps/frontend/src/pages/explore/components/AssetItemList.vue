@@ -74,7 +74,7 @@ interface AssetItem {
 	currency?: string;
 }
 
-const _props = withDefaults(
+const props = withDefaults(
 	defineProps<{
 		items: AssetItem[];
 		showSparkline?: boolean;
@@ -91,12 +91,12 @@ const _props = withDefaults(
 
 defineEmits<(e: "click", item: AssetItem) => void>();
 
-function _isPositive(item: AssetItem): boolean {
+function isPositive(item: AssetItem): boolean {
 	return (item.changePercent || 0) >= 0;
 }
 
 // Get extended hours info for an item
-function _getExtendedHours(item: AssetItem) {
+function getExtendedHours(item: AssetItem) {
 	return getExtendedHoursInfo(item as any);
 }
 </script>

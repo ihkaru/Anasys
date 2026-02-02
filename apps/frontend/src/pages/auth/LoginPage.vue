@@ -54,7 +54,7 @@ import { useAuthStore } from "../../stores/auth";
 
 const auth = useAuthStore();
 
-const _handleGoogleLogin = () => {
+const handleGoogleLogin = () => {
 	auth.login();
 };
 </script>

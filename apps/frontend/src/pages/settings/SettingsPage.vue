@@ -131,18 +131,18 @@ import { createLogger } from "../../utils/logger";
 const auth = useAuthStore();
 const themeStore = useThemeStore();
 const settingsStore = useSettingsStore();
-const _logger = createLogger("SettingsPage");
+const logger = createLogger("SettingsPage");
 
-const _appVersion = ref("1.0.0");
+const appVersion = ref("1.0.0");
 
 // Computed labels
-const _timezoneDisplayLabel = computed(() => {
+const timezoneDisplayLabel = computed(() => {
 	return settingsStore.timezoneMode === "local"
 		? `Local (${settingsStore.timezoneLabel})`
 		: `Exchange (${settingsStore.timezoneLabel})`;
 });
 
-function _showThemePicker() {
+function showThemePicker() {
 	f7.dialog
 		.create({
 			title: "Appearance",
@@ -176,12 +176,12 @@ function _showThemePicker() {
 		.open();
 }
 
-function _toggleNotifications(value: boolean) {
+function toggleNotifications(value: boolean) {
 	settingsStore.setNotifications(value);
 	f7.toast.show({ text: `Notifications ${value ? "enabled" : "disabled"}`, closeTimeout: 1500 });
 }
 
-function _showCurrencyPicker() {
+function showCurrencyPicker() {
 	f7.dialog
 		.create({
 			title: "Select Currency",
@@ -217,7 +217,7 @@ function _showCurrencyPicker() {
 		.open();
 }
 
-function _showIntervalPicker() {
+function showIntervalPicker() {
 	f7.dialog
 		.create({
 			title: "Default Chart Interval",
@@ -247,7 +247,7 @@ function _showIntervalPicker() {
 		.open();
 }
 
-function _showTimezonePicker() {
+function showTimezonePicker() {
 	f7.dialog
 		.create({
 			title: "Chart Timezone",
@@ -274,7 +274,7 @@ function _showTimezonePicker() {
 		.open();
 }
 
-function _syncData() {
+function syncData() {
 	f7.dialog.preloader("Syncing data...");
 	setTimeout(() => {
 		f7.dialog.close();
@@ -282,13 +282,13 @@ function _syncData() {
 	}, 2000);
 }
 
-function _clearCache() {
+function clearCache() {
 	f7.dialog.confirm("Clear all cached data?", "Clear Cache", () => {
 		f7.toast.show({ text: "Cache cleared", closeTimeout: 2000 });
 	});
 }
 
-const _clearDB = () => {
+const clearDB = () => {
 	f7.dialog.confirm(
 		"Are you sure you want to delete the database? This action cannot be undone.",
 		"Warning",
@@ -307,13 +307,13 @@ const _clearDB = () => {
 	);
 };
 
-const _handleLogout = () => {
+const handleLogout = () => {
 	f7.dialog.confirm("Are you sure you want to sign out?", () => {
 		auth.logout();
 	});
 };
 
-const _handleLogin = () => {
+const handleLogin = () => {
 	f7.views.main.router.navigate("/login/");
 };
 </script>

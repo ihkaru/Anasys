@@ -27,7 +27,7 @@ export interface AllocationItem {
 	percent: number;
 }
 
-const _props = withDefaults(
+const props = withDefaults(
 	defineProps<{
 		data: AllocationItem[];
 		colors?: string[];

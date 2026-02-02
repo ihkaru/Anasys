@@ -14,12 +14,12 @@ const props = defineProps<{
 
 const emit = defineEmits<(e: "update:selected", value: string[]) => void>();
 
-const _categories = [
+const categories = [
 	{ name: "Stocks", slug: "STOCK" },
 	{ name: "Crypto", slug: "CRYPTO" },
 ];
 
-function _toggle(slug: string) {
+function toggle(slug: string) {
 	const newSelected = [...props.selected];
 	const idx = newSelected.indexOf(slug);
 	if (idx >= 0) {

@@ -57,11 +57,11 @@ const logoUrl = computed(() => {
 	return url;
 });
 
-function _onLogoLoad() {
+function onLogoLoad() {
 	console.log(`[AssetLogo:${props.ticker}] ✅ Image loaded successfully:`, logoUrl.value);
 }
 
-function _onLogoError(e: Event) {
+function onLogoError(e: Event) {
 	console.error(`[AssetLogo:${props.ticker}] ❌ Image load failed:`, logoUrl.value, e);
 	hasError.value = true;
 }

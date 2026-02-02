@@ -100,11 +100,11 @@ const form = reactive<Omit<Holding, "id">>({
 	avgPrice: 0,
 });
 
-function _deleteHolding(id: string) {
+function deleteHolding(id: string) {
 	holdingsStore.removeHolding(id);
 }
 
-function _submitHolding() {
+function submitHolding() {
 	if (!form.ticker || form.amount <= 0 || form.avgPrice <= 0) {
 		f7.dialog.alert("Please fill all fields correctly");
 		return;

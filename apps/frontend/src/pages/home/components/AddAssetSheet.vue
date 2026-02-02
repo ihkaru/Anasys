@@ -46,7 +46,7 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const _emit = defineEmits<{
+const emit = defineEmits<{
 	(e: "close"): void;
 	(e: "add", asset: any): void;
 }>();
@@ -89,7 +89,7 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
 	}
 }, 300);
 
-function _onSearch(_: any, query: string) {
+function onSearch(_: any, query: string) {
 	searchQuery.value = query;
 	if (query && query.length >= 2) {
 		loading.value = true;

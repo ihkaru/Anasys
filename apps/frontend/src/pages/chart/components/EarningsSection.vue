@@ -62,23 +62,23 @@ const props = defineProps<{
 	earnings: any;
 }>();
 
-const _viewMode = ref<"eps" | "revenue">("eps");
+const viewMode = ref<"eps" | "revenue">("eps");
 
-const _hasData = computed(() => {
+const hasData = computed(() => {
 	return props.earnings && (props.earnings.earningsHistory?.length || props.earnings.revenueHistory?.length);
 });
 
-const _sortedHistory = computed(() => {
+const sortedHistory = computed(() => {
 	if (!props.earnings?.earningsHistory) return [];
 	return [...props.earnings.earningsHistory].reverse().slice(0, 4);
 });
 
-const _sortedRevenue = computed(() => {
+const sortedRevenue = computed(() => {
 	if (!props.earnings?.revenueHistory) return [];
 	return [...props.earnings.revenueHistory].reverse().slice(0, 4);
 });
 
-function _formatDate(dateStr: string) {
+function formatDate(dateStr: string) {
 	if (!dateStr) return "-";
 	try {
 		const d = new Date(dateStr);
@@ -92,7 +92,7 @@ function _formatDate(dateStr: string) {
 	}
 }
 
-function _formatPeriod(dateStr: string) {
+function formatPeriod(dateStr: string) {
 	if (!dateStr) return "-";
 
 	if (/^\d[Qq]\d{4}$/.test(dateStr)) {
@@ -115,7 +115,7 @@ function _formatPeriod(dateStr: string) {
 	}
 }
 
-function _formatLargeNumber(num: number) {
+function formatLargeNumber(num: number) {
 	if (!num) return "-";
 	if (num >= 1e12) return `${(num / 1e12).toFixed(2)}T`;
 	if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
@@ -123,7 +123,7 @@ function _formatLargeNumber(num: number) {
 	return num.toLocaleString();
 }
 
-function _getBeatClass(item: any) {
+function getBeatClass(item: any) {
 	if (item.epsActual === undefined || item.epsEstimate === undefined) return "";
 	return item.epsActual >= item.epsEstimate ? "beat" : "miss";
 }

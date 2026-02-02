@@ -92,7 +92,7 @@ const marketStore = useMarketStore();
 const chartRef = ref<InstanceType<typeof TradingChart> | null>(null);
 const selectedTimeframe = ref("1M");
 const selectedInterval = ref("1h"); // Auto-derived from timeframe (1M = 1h)
-const _isFullscreen = ref(false);
+const isFullscreen = ref(false);
 const recommendations = ref<any[]>([]);
 const financials = ref<any>(null);
 const analystRatings = ref<any>(null);
@@ -100,10 +100,10 @@ const earnings = ref<any>(null);
 const currentQuote = ref<any>(null);
 
 // Source Selector State
-const _sourcePopoverOpen = ref(false);
-const _sourcePopoverTarget = ref<any>(null);
+const sourcePopoverOpen = ref(false);
+const sourcePopoverTarget = ref<any>(null);
 
-const _currentSourceLabel = computed(() => {
+const currentSourceLabel = computed(() => {
 	return marketStore.selectedSource === "YAHOO" ? "Yahoo" : "TradingView";
 });
 
@@ -114,7 +114,7 @@ const extendedHoursInfo = computed(() => {
 });
 
 // Primary info (Extended takes priority)
-const _primaryQuoteInfo = computed(() => {
+const primaryQuoteInfo = computed(() => {
 	if (extendedHoursInfo.value) {
 		return {
 			price: extendedHoursInfo.value.price,
@@ -137,7 +137,7 @@ const _primaryQuoteInfo = computed(() => {
 });
 
 // Secondary info (Regular close if Extended active)
-const _secondaryQuoteInfo = computed(() => {
+const secondaryQuoteInfo = computed(() => {
 	if (extendedHoursInfo.value && currentQuote.value) {
 		return {
 			price: currentQuote.value.price,
@@ -149,7 +149,7 @@ const _secondaryQuoteInfo = computed(() => {
 	return null;
 });
 
-function _switchSource(source: string) {
+function switchSource(source: string) {
 	if (marketStore.selectedSource === source) return;
 	handleSourceChange(source);
 }
@@ -176,7 +176,7 @@ function getTimeframeConfig(timeframe: string): { interval: string; limit: numbe
 	}
 }
 
-async function _handleTimeframeChange(timeframe: string) {
+async function handleTimeframeChange(timeframe: string) {
 	if (!marketStore.selectedSymbol) return;
 	selectedTimeframe.value = timeframe;
 	lastLoadedTimestamp.value = null; // Reset for new timeframe
@@ -211,7 +211,7 @@ async function handleSourceChange(source: string) {
 
 const lastLoadedTimestamp = ref<string | null>(null);
 
-async function _handleLoadMore() {
+async function handleLoadMore() {
 	if (!marketStore.selectedSymbol || marketStore.ohlcvData.length === 0) {
 		// console.debug('[ChartPage] LoadMore skipped: No symbol or data');
 		return 0;
@@ -247,13 +247,13 @@ async function _handleLoadMore() {
 	}
 }
 
-function _getIntervalLimit(interval: string): number {
+function getIntervalLimit(interval: string): number {
 	if (interval === "1d" || interval === "1wk") return 365;
 	if (interval === "15m") return 200;
 	return 500;
 }
 
-function _formatPrice(price: number) {
+function formatPrice(price: number) {
 	if (!price) return "-";
 	return price < 1 ? price.toFixed(4) : price.toFixed(2);
 }
@@ -328,7 +328,7 @@ function loadBackgroundData(ticker: string) {
 	});
 }
 
-function _openRecommendation(item: any) {
+function openRecommendation(item: any) {
 	console.log("[ChartPage] Opening recommendation:", item.ticker);
 	// Navigate to the recommended asset by reloading data
 	loadInitialData(item.ticker);
