@@ -5,9 +5,8 @@
             @click="$emit('click', item)">
             <template #title>
                 <div class="title-row">
-                    <span class="ticker">{{ item.ticker }}</span>
+                    <span class="ticker">{{ item.ticker?.trim() }}</span>
                     <div class="badges">
-                        <span v-if="item.exchange" class="badge exchange">{{ item.exchange }}</span>
                         <span v-if="item.source" class="badge source" :class="item.source.toLowerCase()">
                             {{ item.source === 'YAHOO' ? 'Y' : 'TV' }}
                         </span>
@@ -36,7 +35,7 @@
                         <!-- Extended Hours Secondary Display -->
                         <span v-if="getExtendedHours(item)" class="extended-hours">
                             {{ getExtendedHours(item)?.label }}: {{ formatPrice(getExtendedHours(item)?.price || 0,
-                            item.currency) }}
+                                item.currency) }}
                             <span
                                 :class="(getExtendedHours(item)?.changePercent || 0) >= 0 ? 'ext-positive' : 'ext-negative'">
                                 {{ (getExtendedHours(item)?.changePercent || 0) >= 0 ? '+' : '' }}{{
@@ -65,44 +64,44 @@ import { formatPrice, getExtendedHoursInfo } from "../../../utils/formatters";
 import AssetLogo from "../../home/components/AssetLogo.vue";
 
 interface AssetItem {
-    ticker: string;
-    name?: string;
-    price: number;
-    changePercent?: number;
-    sparkline?: number[];
-    iconUrl?: string;
-    website?: string;
-    type?: string;
-    // Multi-source fields
-    source?: string;
-    exchange?: string;
-    currency?: string;
+	ticker: string;
+	name?: string;
+	price: number;
+	changePercent?: number;
+	sparkline?: number[];
+	iconUrl?: string;
+	website?: string;
+	type?: string;
+	// Multi-source fields
+	source?: string;
+	exchange?: string;
+	currency?: string;
 }
 
 const props = withDefaults(
-    defineProps<{
-        items: AssetItem[];
-        showSparkline?: boolean;
-        showSubtitle?: boolean;
-        showPrice?: boolean;
-        emptyMessage?: string;
-    }>(),
-    {
-        showSparkline: true,
-        showSubtitle: false,
-        showPrice: true,
-    },
+	defineProps<{
+		items: AssetItem[];
+		showSparkline?: boolean;
+		showSubtitle?: boolean;
+		showPrice?: boolean;
+		emptyMessage?: string;
+	}>(),
+	{
+		showSparkline: true,
+		showSubtitle: false,
+		showPrice: true,
+	},
 );
 
 defineEmits<(e: "click", item: AssetItem) => void>();
 
 function isPositive(item: AssetItem): boolean {
-    return (item.changePercent || 0) >= 0;
+	return (item.changePercent || 0) >= 0;
 }
 
 // Get extended hours info for an item
 function getExtendedHours(item: AssetItem) {
-    return getExtendedHoursInfo(item as any);
+	return getExtendedHoursInfo(item as any);
 }
 </script>
 
@@ -173,10 +172,12 @@ function getExtendedHours(item: AssetItem) {
     display: flex;
     align-items: center;
     gap: 8px;
+    justify-content: flex-start;
 }
 
 .ticker {
     font-weight: 600;
+    flex: 0 0 auto;
 }
 
 .badges {

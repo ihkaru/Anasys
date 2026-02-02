@@ -49,21 +49,21 @@ import AssetLogo from "../../home/components/AssetLogo.vue";
 import { useLongPress } from "../../home/composables/useLongPress"; // Reusing from home, better to move to shared but this works for now
 
 const props = defineProps<{
-    holding: any; // Using any for now to avoid strict type dependency if Holding interface is in store
+	holding: any; // Using any for now to avoid strict type dependency if Holding interface is in store
 }>();
 
 const emit = defineEmits<{
-    (e: "click", holding: any): void;
-    (e: "edit", holding: any): void;
-    (e: "delete", holding: any): void;
-    (e: "hold", holding: any): void;
+	(e: "click", holding: any): void;
+	(e: "edit", holding: any): void;
+	(e: "delete", holding: any): void;
+	(e: "hold", holding: any): void;
 }>();
 
 const {
-    isHolding,
-    start: startHold,
-    cancel: cancelHold,
-    end: endHold,
+	isHolding,
+	start: startHold,
+	cancel: cancelHold,
+	end: endHold,
 } = useLongPress(() => emit("hold", props.holding), 600);
 </script>
 

@@ -1,87 +1,98 @@
 <template>
-    <f7-page class="chart-page">
-        <!-- Custom Navbar with Real-time Price -->
-        <f7-navbar back-link="Back">
-            <f7-nav-title>
-                <div class="nav-title-content">
-                    <div class="title-row">
-                        <span class="ticker">{{ marketStore.selectedSymbol || 'Chart' }}</span>
-                        <!-- Source Badge -->
-                        <a href="#" class="source-badge" @click="sourcePopoverOpen = true; sourcePopoverTarget = $event.target">
-                            {{ currentSourceLabel }}
-                            <f7-icon f7="chevron_down" size="10px"></f7-icon>
-                        </a>
-                    </div>
-                    <div v-if="primaryQuoteInfo" class="price-info-wrapper">
-                    <div class="main-price-row">
-                        <span v-if="primaryQuoteInfo.isExtended" class="ext-badge">{{ primaryQuoteInfo.label }}</span>
-                        <span class="price">{{ formatPrice(primaryQuoteInfo.price) }}</span>
-                        <span class="change" :class="primaryQuoteInfo.changePercent >= 0 ? 'up' : 'down'">
-                            {{ (primaryQuoteInfo.change || 0) >= 0 ? '+' : '' }}{{ (primaryQuoteInfo.change || 0).toFixed(2) }}
-                            ({{ primaryQuoteInfo.changePercent >= 0 ? '+' : '' }}{{ primaryQuoteInfo.changePercent.toFixed(2) }}%)
-                        </span>
-                    </div>
-                    <div v-if="secondaryQuoteInfo" class="secondary-info">
-                        Reg: {{ formatPrice(secondaryQuoteInfo.price) }}
-                        <span :class="secondaryQuoteInfo.changePercent >= 0 ? 'sec-up' : 'sec-down'">
-                             ({{ secondaryQuoteInfo.changePercent.toFixed(2) }}%)
-                        </span>
-                    </div>
-                </div>
-                </div>
-            </f7-nav-title>
-            <f7-nav-right>
-                <f7-link @click="chartRef?.toggleFullscreen()">
-                    <f7-icon
-                        :ios="isFullscreen ? 'f7:arrow_down_right_and_arrow_up_left' : 'f7:arrow_up_left_and_arrow_down_right'"
-                        :md="isFullscreen ? 'material:fullscreen_exit' : 'material:fullscreen'"></f7-icon>
-                </f7-link>
-            </f7-nav-right>
-        </f7-navbar>
+	<f7-page class="chart-page">
+		<!-- Custom Navbar with Real-time Price -->
+		<f7-navbar back-link="Back">
+			<f7-nav-title>
+				<div class="nav-title-content">
+					<div class="title-row">
+						<span class="ticker">{{ marketStore.selectedSymbol || 'Chart' }}</span>
+						<!-- Source Badge -->
+						<a href="#" class="source-badge"
+							@click="sourcePopoverOpen = true; sourcePopoverTarget = $event.target">
+							{{ currentSourceLabel }}
+							<f7-icon f7="chevron_down" size="12px"></f7-icon>
+						</a>
+					</div>
+					<div v-if="primaryQuoteInfo" class="price-info-wrapper">
+						<div class="main-price-row">
+							<span v-if="primaryQuoteInfo.isExtended" class="ext-badge">{{ primaryQuoteInfo.label
+							}}</span>
+							<span class="price">{{ formatPrice(primaryQuoteInfo.price, primaryQuoteInfo.currency)
+							}}</span>
+							<span class="change" :class="primaryQuoteInfo.changePercent >= 0 ? 'up' : 'down'">
+								{{ (primaryQuoteInfo.change || 0) >= 0 ? '+' : '' }}{{ (primaryQuoteInfo.change ||
+									0).toFixed(2) }}
+								({{ primaryQuoteInfo.changePercent >= 0 ? '+' : '' }}{{
+									primaryQuoteInfo.changePercent.toFixed(2) }}%)
+							</span>
+						</div>
+						<div v-if="secondaryQuoteInfo" class="secondary-info">
+							Reg: {{ formatPrice(secondaryQuoteInfo.price, secondaryQuoteInfo.currency) }}
+							<span :class="secondaryQuoteInfo.changePercent >= 0 ? 'sec-up' : 'sec-down'">
+								({{ secondaryQuoteInfo.changePercent.toFixed(2) }}%)
+							</span>
+						</div>
+					</div>
+				</div>
+			</f7-nav-title>
+			<f7-nav-right>
+				<f7-link @click="chartRef?.toggleFullscreen()">
+					<f7-icon
+						:ios="isFullscreen ? 'f7:arrow_down_right_and_arrow_up_left' : 'f7:arrow_up_left_and_arrow_down_right'"
+						:md="isFullscreen ? 'material:fullscreen_exit' : 'material:fullscreen'"></f7-icon>
+				</f7-link>
+			</f7-nav-right>
+		</f7-navbar>
 
-        <!-- Source Popover -->
-        <f7-popover :opened="sourcePopoverOpen" :target="sourcePopoverTarget" @popover:closed="sourcePopoverOpen = false">
-            <f7-list>
-                <f7-list-item title="Yahoo Finance (Default)" @click="switchSource('YAHOO')" :checked="marketStore.selectedSource === 'YAHOO'" link="#" popover-close>
-                     <template #after><f7-icon v-if="marketStore.selectedSource==='YAHOO'" f7="checkmark_alt" size="16"></f7-icon></template>
-                </f7-list-item>
-                <f7-list-item title="TradingView" @click="switchSource('TRADINGVIEW')" :checked="marketStore.selectedSource === 'TRADINGVIEW'" link="#" popover-close>
-                     <template #after><f7-icon v-if="marketStore.selectedSource==='TRADINGVIEW'" f7="checkmark_alt" size="16"></f7-icon></template>
-                </f7-list-item>
-            </f7-list>
-        </f7-popover>
+		<!-- Source Popover -->
+		<f7-popover :opened="sourcePopoverOpen" :target="sourcePopoverTarget"
+			@popover:closed="sourcePopoverOpen = false">
+			<f7-list>
+				<f7-list-item title="Yahoo Finance (Default)" @click="switchSource('YAHOO')"
+					:checked="marketStore.selectedSource === 'YAHOO'" link="#" popover-close>
+					<template #after><f7-icon v-if="marketStore.selectedSource === 'YAHOO'" f7="checkmark_alt"
+							size="16"></f7-icon></template>
+				</f7-list-item>
+				<f7-list-item title="TradingView" @click="switchSource('TRADINGVIEW')"
+					:checked="marketStore.selectedSource === 'TRADINGVIEW'" link="#" popover-close>
+					<template #after><f7-icon v-if="marketStore.selectedSource === 'TRADINGVIEW'" f7="checkmark_alt"
+							size="16"></f7-icon></template>
+				</f7-list-item>
+			</f7-list>
+		</f7-popover>
 
-        <TradingChart ref="chartRef" :ohlcv-data="marketStore.ohlcvData" :signals="marketStore.signals"
-            :loading="marketStore.loading" @load-more="handleLoadMore" />
+		<TradingChart ref="chartRef" :key="marketStore.selectedSymbol" :ohlcv-data="marketStore.ohlcvData"
+			:signals="marketStore.signals" :loading="marketStore.historyLoading" :on-load-more="handleLoadMore" />
 
-        <div class="controls-row">
-            <TimeframeSelector v-model="selectedTimeframe" @update:model-value="handleTimeframeChange" />
-        </div>
+		<div class="controls-row">
+			<TimeframeSelector v-model="selectedTimeframe" @update:model-value="handleTimeframeChange" />
+		</div>
 
-        <SignalSummaryCard v-if="!isFullscreen" :signals="marketStore.signals" />
+		<SignalSummaryCard v-if="!isFullscreen" :signals="marketStore.signals" />
 
-        <AssetDetailsCard v-if="!isFullscreen" :asset="marketStore.selectedSymbolData" />
+		<AssetDetailsCard v-if="!isFullscreen" :asset="marketStore.selectedSymbolData" />
 
-        <!-- NEW: Financials Section -->
-        <FinancialsSection v-if="!isFullscreen && financials" :financials="financials" :analyst="analystRatings"
-            :current-price="primaryQuoteInfo?.price || 0" />
+		<!-- NEW: Financials Section -->
+		<FinancialsSection v-if="!isFullscreen && financials" :financials="financials" :analyst="analystRatings"
+			:current-price="primaryQuoteInfo?.price || 0" :symbol="marketStore.selectedSymbol" />
 
-        <!-- NEW: Earnings Section -->
-        <EarningsSection v-if="!isFullscreen && earnings" :earnings="earnings" />
+		<!-- NEW: Earnings Section -->
+		<EarningsSection v-if="!isFullscreen && earnings" :earnings="earnings" :symbol="marketStore.selectedSymbol" />
 
-        <RecommendationsSection v-if="!isFullscreen && recommendations.length > 0" :recommendations="recommendations"
-            @click="openRecommendation" />
+		<RecommendationsSection v-if="!isFullscreen && recommendations.length > 0" :recommendations="recommendations"
+			@click="openRecommendation" />
 
-        <div v-if="!isFullscreen && !marketStore.selectedSymbolData && marketStore.loading" class="details-loading">
-            <f7-preloader />
-        </div>
-    </f7-page>
+		<div v-if="!isFullscreen && !marketStore.selectedSymbolData && marketStore.loading" class="details-loading">
+			<f7-preloader />
+		</div>
+	</f7-page>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { subscribeOHLCV, subscribeQuotes } from "../../composables/useRealtimeQuotes";
 import { useMarketStore } from "../../stores/market";
-import { getExtendedHoursInfo } from "../../utils/formatters";
+import { formatPrice, getExtendedHoursInfo } from "../../utils/formatters";
 import AssetDetailsCard from "./components/AssetDetailsCard.vue";
 import EarningsSection from "./components/EarningsSection.vue";
 import FinancialsSection from "./components/FinancialsSection.vue";
@@ -109,6 +120,129 @@ const currentQuote = ref<any>(null);
 const sourcePopoverOpen = ref(false);
 const sourcePopoverTarget = ref<any>(null);
 
+// ==================== Real-Time Subscriptions ====================
+
+let unsubscribeQuote: (() => void) | null = null;
+let unsubscribeOHLCV: (() => void) | null = null;
+
+// Subscribe to real-time updates for current symbol
+function setupRealtimeSubscriptions(ticker: string, interval: string, source: string) {
+	// Clean up previous subscriptions
+	if (unsubscribeQuote) {
+		unsubscribeQuote();
+		unsubscribeQuote = null;
+	}
+	if (unsubscribeOHLCV) {
+		unsubscribeOHLCV();
+		unsubscribeOHLCV = null;
+	}
+
+	console.log(`[ChartPage RT] Setting up subscriptions for ${ticker} (${source})`);
+
+	// Subscribe to quote updates (for navbar price AND live candle)
+	unsubscribeQuote = subscribeQuotes(
+		[ticker],
+		(update) => {
+			// Filter invalid updates
+			if (!update.price || update.price <= 0) return;
+
+			// Update currentQuote for navbar display
+			currentQuote.value = {
+				...currentQuote.value,
+				price: update.price,
+				change: update.change,
+				changePercent: update.changePercent,
+				volume: update.volume,
+			};
+			console.log(`[ChartPage RT] Quote: ${ticker} $${update.price}`);
+
+			// Update Chart Candle from Quote
+			// Since stocks (Yahoo/TradingView polled) don't send OHLCV updates, drive it from Quotes
+			const data = marketStore.ohlcvData;
+			if (data.length > 0) {
+				const lastIndex = data.length - 1;
+				const lastCandle = data[lastIndex];
+
+				// Simple update: assumes the quote belongs to the current last candle interval
+				// Ideally we check timestamps, but for immediate feedback let's update the active candle
+				const newCandle = {
+					...lastCandle,
+					close: update.price,
+					high: Math.max(lastCandle.high, update.price),
+					low: Math.min(lastCandle.low, update.price),
+					// Don't update volume from quote as it is usually daily cumulative for stocks
+				};
+
+				// Update store data (for persistence/switching) - Note: shallowRef index update won't trigger prop watcher
+				marketStore.ohlcvData[lastIndex] = newCandle;
+
+				// Imperatively update the chart for performance and to bypass shallowRef limitation
+				if (chartRef.value) {
+					chartRef.value.updateCandle(newCandle);
+				}
+			}
+		},
+		source,
+	);
+
+	// Subscribe to OHLCV updates (for live candles)
+	unsubscribeOHLCV = subscribeOHLCV(
+		ticker,
+		interval,
+		(update) => {
+			// Update the last candle in ohlcvData or append if new
+			const data = [...marketStore.ohlcvData];
+
+			if (data.length === 0) return;
+
+			const lastCandle = data[data.length - 1];
+			const updateTime = new Date(update.timestamp).getTime();
+			const lastTime = new Date(lastCandle.timestamp).getTime();
+
+			if (updateTime === lastTime) {
+				// Update existing candle
+				data[data.length - 1] = {
+					timestamp: lastCandle.timestamp,
+					open: lastCandle.open, // Keep original open
+					high: Math.max(lastCandle.high, update.high),
+					low: Math.min(lastCandle.low, update.low),
+					close: update.close,
+					volume: update.volume,
+				};
+			} else if (updateTime > lastTime && update.isClosed) {
+				// Append new candle if it's closed
+				data.push({
+					timestamp: new Date(update.timestamp).toISOString(),
+					open: update.open,
+					high: update.high,
+					low: update.low,
+					close: update.close,
+					volume: update.volume,
+				});
+			}
+
+			// Update store with new data
+			marketStore.ohlcvData = data;
+			console.log(`[ChartPage RT] OHLCV: ${ticker} candle updated/appended`);
+		},
+		source,
+	);
+}
+
+// Watch for symbol/interval/source changes
+watch(
+	() => [marketStore.selectedSymbol, selectedInterval.value, marketStore.selectedSource] as const,
+	([symbol, interval, source]) => {
+		console.log(`[ChartPage] Watcher triggered: ${symbol} ${interval} ${source}`);
+		if (symbol) {
+			setupRealtimeSubscriptions(symbol, interval, source);
+		}
+	},
+	{ immediate: true }, // Changed to immediate: true to ensure initial subscription
+);
+
+// ==================== Computed Properties ====================
+
 const currentSourceLabel = computed(() => {
 	return marketStore.selectedSource === "YAHOO" ? "Yahoo" : "TradingView";
 });
@@ -128,6 +262,7 @@ const primaryQuoteInfo = computed(() => {
 			changePercent: extendedHoursInfo.value.changePercent,
 			label: extendedHoursInfo.value.label,
 			isExtended: true,
+			currency: currentQuote.value?.currency,
 		};
 	}
 	if (currentQuote.value) {
@@ -137,6 +272,7 @@ const primaryQuoteInfo = computed(() => {
 			changePercent: currentQuote.value.changePercent,
 			label: null,
 			isExtended: false,
+			currency: currentQuote.value.currency,
 		};
 	}
 	return null;
@@ -150,6 +286,7 @@ const secondaryQuoteInfo = computed(() => {
 			change: currentQuote.value.change,
 			changePercent: currentQuote.value.changePercent,
 			label: "Reg Close",
+			currency: currentQuote.value.currency,
 		};
 	}
 	return null;
@@ -190,9 +327,6 @@ async function handleTimeframeChange(timeframe: string) {
 	const config = getTimeframeConfig(timeframe);
 	selectedInterval.value = config.interval;
 
-	// Clear old data to prevent mixing different intervals
-	marketStore.ohlcvData = [];
-
 	await marketStore.fetchHistory(marketStore.selectedSymbol, config.interval, config.limit);
 	chartRef.value?.fitContent();
 }
@@ -201,9 +335,6 @@ async function handleSourceChange(source: string) {
 	if (!marketStore.selectedSymbol) return;
 	console.log("[ChartPage] Source changed to:", source);
 	marketStore.selectSource(source);
-
-	// Clear old data to prevent mixing different sources
-	marketStore.ohlcvData = [];
 
 	// Reload history with current timeframe config
 	lastLoadedTimestamp.value = null;
@@ -259,11 +390,6 @@ function getIntervalLimit(interval: string): number {
 	return 500;
 }
 
-function formatPrice(price: number) {
-	if (!price) return "-";
-	return price < 1 ? price.toFixed(4) : price.toFixed(2);
-}
-
 async function loadInitialData(ticker: string) {
 	marketStore.selectSymbol(ticker);
 	marketStore.selectedSymbolData = null;
@@ -287,9 +413,9 @@ async function loadInitialData(ticker: string) {
 
 	// Fit content immediately after history loaded
 	nextTick(() => {
-		console.log("[ChartPage] fitContent nextTick calling...");
-		chartRef.value?.fitContent();
-		console.log("[ChartPage] fitContent called.");
+		if (chartRef.value?.fitContent) {
+			chartRef.value.fitContent();
+		}
 	});
 
 	// Fetch details in parallel/background (delayed to avoid UI freeze/patch error during mount)
@@ -359,116 +485,120 @@ watch(
 
 <style scoped>
 .chart-page {
-    background: var(--chart-bg, var(--f7-page-bg-color));
+	background: var(--chart-bg, var(--f7-page-bg-color));
 }
 
 .details-loading {
-    display: flex;
-    justify-content: center;
-    padding: 32px;
+	display: flex;
+	justify-content: center;
+	padding: 32px;
 }
 
 .controls-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-right: 16px; 
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding-right: 16px;
 }
 
 /* Custom Nav Title */
 .nav-title-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    /* Center for IOS style */
-    line-height: 1.2;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	line-height: 1.2;
 }
 
 .ticker {
-    font-weight: 700;
-    font-size: 16px;
+	font-weight: 700;
+	font-size: 16px;
 }
 
 .price-info {
-    display: flex;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 500;
+	display: flex;
+	gap: 6px;
+	font-size: 11px;
+	font-weight: 500;
 }
 
 .change.up {
-    color: var(--positive-color, #10b981);
+	color: var(--positive-color, #10b981);
 }
 
 .change.down {
-    color: var(--negative-color, #ef4444);
+	color: var(--negative-color, #ef4444);
 }
 
 .title-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+	display: flex;
+	align-items: center;
+	gap: 6px;
 }
 
 .source-badge {
-    font-size: 10px;
-    background: rgba(var(--f7-theme-color-rgb), 0.15);
-    color: var(--f7-theme-color);
-    padding: 1px 6px;
-    border-radius: 4px;
-    text-transform: uppercase;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    cursor: pointer;
-    text-decoration: none;
+	font-size: 10px;
+	background: rgba(var(--f7-theme-color-rgb), 0.15);
+	color: var(--f7-theme-color);
+	padding: 1px 6px;
+	border-radius: 4px;
+	text-transform: uppercase;
+	font-weight: 700;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	cursor: pointer;
+	text-decoration: none;
 }
 
 /* Extended Hours Styles */
 .extended-hours {
-    font-size: 10px;
-    opacity: 0.7;
-    margin-left: 4px;
+	font-size: 10px;
+	opacity: 0.7;
+	margin-left: 4px;
 }
 
 .extended-hours .ext-down {
-    color: var(--negative-color, #ef4444);
+	color: var(--negative-color, #ef4444);
 }
 
 .price-info-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    line-height: 1.1;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	line-height: 1.1;
 }
 
 .main-price-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    font-weight: 500;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 11px;
+	font-weight: 500;
 }
 
 .ext-badge {
-    font-size: 8px;
-    font-weight: 700;
-    text-transform: uppercase;
-    padding: 1px 3px;
-    border-radius: 2px;
-    background: var(--f7-theme-color);
-    color: #fff;
-    opacity: 0.9;
+	font-size: 8px;
+	font-weight: 700;
+	text-transform: uppercase;
+	padding: 1px 3px;
+	border-radius: 2px;
+	background: var(--f7-theme-color);
+	color: #fff;
+	opacity: 0.9;
 }
 
 .secondary-info {
-    font-size: 9px;
-    opacity: 0.6;
-    display: flex;
-    gap: 3px;
+	font-size: 9px;
+	opacity: 0.6;
+	display: flex;
+	gap: 3px;
 }
 
-.secondary-info .sec-up { color: var(--positive-color, #10b981); }
-.secondary-info .sec-down { color: var(--negative-color, #ef4444); }
+.secondary-info .sec-up {
+	color: var(--positive-color, #10b981);
+}
+
+.secondary-info .sec-down {
+	color: var(--negative-color, #ef4444);
+}
 </style>

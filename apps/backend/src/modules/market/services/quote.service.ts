@@ -11,7 +11,7 @@ export interface QuoteWithSparkline extends QuoteResult {
 	iconUrl?: string;
 	website?: string;
 	// Extended hours data (inherited from QuoteResult, but explicit here for clarity if needed)
-	marketState?: "PRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
+	marketState?: "PRE" | "PREPRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
 	preMarketPrice?: number;
 	preMarketChange?: number;
 	preMarketChangePercent?: number;
@@ -23,7 +23,7 @@ export interface QuoteWithSparkline extends QuoteResult {
 import type { TradingViewPythonProvider } from "../providers/tradingview-python.provider";
 
 export class QuoteService {
-	private readonly QUOTE_CACHE_TTL = 60 * 1000; // 1 minute cache for quotes
+	private readonly QUOTE_CACHE_TTL = 5 * 1000; // 5 seconds cache for quotes
 	private readonly SEARCH_CACHE_TTL = 5 * 60 * 1000; // 5 minutes for search
 	private readonly TRENDING_CACHE_TTL = 15 * 60 * 1000; // 15 minutes for trending
 
@@ -86,14 +86,12 @@ export class QuoteService {
 
 				// Enrich and Cache
 				for (const quote of quotes) {
-					// Debug: log raw quote from provider
-					this.logger.debug(
-						`[DEBUG] Raw ${source} quote for ${quote.ticker}: price=${quote.price}, change=${quote.change}`,
-					);
 					const enriched = await this.enrichQuote(quote, period);
 					if (enriched) {
 						// Cache it
-						this.cacheService.set(`quote:${quote.ticker}:${period}:${source}`, enriched, this.QUOTE_CACHE_TTL);
+						// Cache it
+						const ttl = source === "TRADINGVIEW" ? 250 : this.QUOTE_CACHE_TTL;
+						this.cacheService.set(`quote:${quote.ticker}:${period}:${source}`, enriched, ttl);
 						results.push(enriched);
 					}
 				}
@@ -152,9 +150,35 @@ export class QuoteService {
 			if (symbol) {
 				const recentCandles = await this.marketDataRepo.getRecentCandles(symbol.id, interval, limit);
 				// Since getRecentCandles returns DESC, we need to reverse to show correct graph (left to right) if it is time based
-				// getRecentCandles returns: order by timestamp desc. So index 0 is latest.
-				// Sparkline usually expects [oldest, ..., newest].
 				sparkline = recentCandles.map((c) => Number(c.close)).reverse();
+
+				// Filter outliers: If a single point is > 50% away from its neighbors
+				if (sparkline.length > 3) {
+					sparkline = sparkline.map((val, idx, arr) => {
+						if (idx === 0 || idx === arr.length - 1) return val;
+						const prev = arr[idx - 1];
+						const next = arr[idx + 1];
+						const avg = (prev + next) / 2;
+						if (Math.abs(val - avg) / avg > 0.5) {
+							return avg;
+						}
+						return val;
+					});
+				}
+
+				// Fix: Append current real-time price to sparkline if valid
+				// This ensures the graph ends at the current price, preventing "disconnect" where graph shows down
+				// but price is up (due to gap up after last historical candle)
+				if (quote.price && quote.price > 0) {
+					// Only append if we have some data, or even if we don't?
+					// If we have history, check if the last point is significantly different or just old.
+					// For simplicity, always append current quote price to reflect "NOW".
+					// But we should allow small dupe if the last candle close IS the current price.
+					const lastVal = sparkline[sparkline.length - 1];
+					if (!lastVal || Math.abs(lastVal - quote.price) > 0.0001) {
+						sparkline.push(quote.price);
+					}
+				}
 
 				// Calculate period-based return if we have history
 				if (sparkline.length > 0) {

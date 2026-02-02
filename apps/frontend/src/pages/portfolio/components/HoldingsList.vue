@@ -21,15 +21,15 @@
 <script setup lang="ts">
 import HoldingItem from "./HoldingItem.vue";
 defineProps<{
-    holdings: any[];
+	holdings: any[];
 }>();
 
 defineEmits<{
-    (e: "item-click", holding: any): void;
-    (e: "item-edit", holding: any): void;
-    (e: "item-delete", holding: any): void;
-    (e: "item-hold", holding: any): void;
-    (e: "add"): void;
+	(e: "item-click", holding: any): void;
+	(e: "item-edit", holding: any): void;
+	(e: "item-delete", holding: any): void;
+	(e: "item-hold", holding: any): void;
+	(e: "add"): void;
 }>();
 </script>
 

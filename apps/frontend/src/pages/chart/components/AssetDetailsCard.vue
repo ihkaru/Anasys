@@ -26,7 +26,12 @@
             </div>
 
             <div class="description-block" v-if="asset.description">
-                <p class="description-text">{{ asset.description }}</p>
+                <p class="description-text" :class="{ expanded: isExpanded }" @click="isExpanded = !isExpanded">
+                    {{ asset.description }}
+                </p>
+                <a href="#" class="read-more-link" @click.prevent="isExpanded = !isExpanded">
+                    {{ isExpanded ? "Show Less" : "Read More" }}
+                </a>
             </div>
 
             <div class="actions-block">
@@ -40,22 +45,25 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import AssetLogo from "../../home/components/AssetLogo.vue";
 
 interface AssetDetails {
-    name?: string;
-    ticker: string;
-    type?: string;
-    iconUrl?: string;
-    sector?: string;
-    industry?: string;
-    description?: string;
-    website?: string;
+	name?: string;
+	ticker: string;
+	type?: string;
+	iconUrl?: string;
+	sector?: string;
+	industry?: string;
+	description?: string;
+	website?: string;
 }
 
 const props = defineProps<{
-    asset: AssetDetails | null;
+	asset: AssetDetails | null;
 }>();
+
+const isExpanded = ref(false);
 </script>
 
 <style scoped>
@@ -131,11 +139,26 @@ const props = defineProps<{
     color: var(--f7-text-color);
     opacity: 0.85;
     display: -webkit-box;
-    -webkit-line-clamp: 6;
-    line-clamp: 6;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
     margin: 0;
+    transition: max-height 0.3s ease;
+}
+
+.description-text.expanded {
+    -webkit-line-clamp: unset;
+    display: block;
+}
+
+.read-more-link {
+    font-size: 13px;
+    color: var(--f7-theme-color);
+    font-weight: 600;
+    margin-top: 8px;
+    display: inline-block;
+    text-decoration: none;
 }
 
 .actions-block {

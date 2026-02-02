@@ -137,12 +137,40 @@ try:
             exchange = parts[0]
             curr_symbol = parts[1]
         else:
-            # Fallback or try to search? 
-            # For now, default to 'NASDAQ' if not specified, or try to infer?
-            # Better to assume user provides "NASDAQ:MU". 
-            # If backend sends "MU", we might default to 'AMERICA' or empty.
-            # Warning: TV scraper needs exchange.
-            exchange = "NASDAQ" # Default fallback for US stocks often works
+            # Auto-resolve exchange using Screener to avoid "NASDAQ" fallback failure
+            # Prioritize US exchanges
+            from tradingview_scraper.symbols.screener import Screener
+            screener = Screener()
+            filters = [{'left': 'name', 'operation': 'equal', 'right': raw_symbol.upper()}]
+            columns = ['name', 'exchange', 'description']
+            
+            found_exchange = "NASDAQ" # Default fallback
+            
+            # Try major markets
+            markets_to_try = ['america', 'crypto', 'global']
+            us_exchanges = ['NASDAQ', 'NYSE', 'AMEX', 'ARCA']
+            
+            try:
+                for market in markets_to_try:
+                    res = screener.screen(market=market, filters=filters, columns=columns, limit=5)
+                    data = res.get('data', [])
+                    if data:
+                        # 1. Try to find exact match on major US exchange
+                        for item in data:
+                            ex = item.get('exchange', '')
+                            if ex in us_exchanges:
+                                found_exchange = ex
+                                break
+                        else:
+                            # 2. If no US exchange, take the first valid result's exchange
+                            if data[0].get('exchange'):
+                                found_exchange = data[0].get('exchange')
+                        break
+            except Exception as e:
+                # Fallback to default if search fails
+                pass
+                
+            exchange = found_exchange
             curr_symbol = raw_symbol
             
         # Map interval to TV format if needed (simple check)
@@ -198,6 +226,52 @@ try:
             # Fallback: pass through and hope backend handles it or debugs it
             respond(result)
 
+
+    elif command == "stream":
+        # Real-time streaming using RealTimeData.get_latest_trade_info()
+        # This command outputs JSON per line continuously
+        # Node.js backend should spawn this as a long-running subprocess
+        
+        symbols = args.get('symbols', [])  # Format: ["NASDAQ:AAPL", "AMEX:SLV", "BINANCE:BTCUSDT"]
+        
+        if not symbols:
+            respond(None, "No symbols provided for streaming")
+        
+        # Initialize RealTimeData
+        real_time_data = RealTimeData()
+        
+        # Get the data generator
+        data_generator = real_time_data.get_latest_trade_info(exchange_symbol=symbols)
+        
+        import sys
+        
+        # Stream continuously - each packet is output as JSON line
+        for packet in data_generator:
+            try:
+                # Parse the packet structure
+                # Format: {'m': 'qsd', 'p': ['session_id', {'n': 'BINANCE:BTCUSDT', 's': 'ok', 'v': {'volume': x, 'lp_time': t, 'lp': price, 'chp': change_pct, 'ch': change}}]}
+                if packet.get('m') == 'qsd':
+                    p = packet.get('p', [])
+                    if len(p) >= 2 and isinstance(p[1], dict):
+                        data = p[1]
+                        symbol = data.get('n', '')
+                        values = data.get('v', {})
+                        
+                        if symbol and values:
+                            output = {
+                                "type": "quote",
+                                "symbol": symbol,
+                                "price": values.get('lp'),
+                                "change": values.get('ch'),
+                                "changePercent": values.get('chp'),
+                                "volume": values.get('volume'),
+                                "timestamp": values.get('lp_time'),
+                            }
+                            # Print as JSON line for IPC
+                            print(json.dumps(output), flush=True)
+            except Exception as e:
+                # Log error but continue streaming
+                print(json.dumps({"type": "error", "message": str(e)}), flush=True)
 
     else:
         respond(None, f"Unknown command: {command}")

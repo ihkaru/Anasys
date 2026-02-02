@@ -1,8 +1,11 @@
-export function formatCurrency(value: number, currency: string = "USD", options?: Intl.NumberFormatOptions): string {
+export function formatCurrency(value: number, currency?: string | null, options?: Intl.NumberFormatOptions): string {
+	// Handle null/undefined currency - default to USD
+	const safeCurrency = currency || "USD";
+
 	try {
 		return new Intl.NumberFormat("en-US", {
 			style: "currency",
-			currency: currency,
+			currency: safeCurrency,
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2,
 			...options,
@@ -10,7 +13,7 @@ export function formatCurrency(value: number, currency: string = "USD", options?
 	} catch (_e) {
 		// Fallback for invalid currency codes
 		return (
-			(currency === "USD" ? "$" : `${currency} `) +
+			(safeCurrency === "USD" ? "$" : `${safeCurrency} `) +
 			value.toLocaleString("en-US", {
 				minimumFractionDigits: 2,
 				maximumFractionDigits: 2,
@@ -38,8 +41,26 @@ export function formatCompactNumber(value: number): string {
 	return value.toFixed(2);
 }
 
-export function formatPrice(price: number, currency: string = "USD"): string {
-	// Smart formatting based on price magnitude
+export function formatPrice(price: number | null | undefined, currency?: string | null): string {
+	if (price === null || price === undefined) return "—";
+
+	// If currency is not available, display as plain formatted number (no symbol)
+	// This prevents showing wrong currency when data is still loading
+	if (!currency) {
+		if (price >= 1000) {
+			return price.toLocaleString("en-US", {
+				minimumFractionDigits: 2,
+				maximumFractionDigits: 2,
+			});
+		}
+		if (price >= 1) {
+			return price.toFixed(2);
+		}
+		// For small values (crypto < $1)
+		return price.toFixed(6);
+	}
+
+	// Smart formatting based on price magnitude with proper currency
 	if (price >= 1000) {
 		return formatCurrency(price, currency, { maximumFractionDigits: 2 });
 	}
@@ -54,7 +75,7 @@ export function formatPrice(price: number, currency: string = "USD"): string {
 }
 
 // Extended Hours Types
-export type MarketState = "PRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
+export type MarketState = "PRE" | "PREPRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
 
 export interface ExtendedHoursInfo {
 	label: string;
@@ -90,7 +111,10 @@ export function getExtendedHoursInfo(quote: {
 
 	// After market close, show post-market data
 	if (
-		(quote.marketState === "POST" || quote.marketState === "POSTPOST" || quote.marketState === "CLOSED") &&
+		(quote.marketState === "POST" ||
+			quote.marketState === "POSTPOST" ||
+			quote.marketState === "CLOSED" ||
+			quote.marketState === "PREPRE") &&
 		quote.postMarketPrice
 	) {
 		return {
@@ -119,6 +143,8 @@ export function formatMarketState(state?: MarketState): string {
 			return "After-Hours";
 		case "CLOSED":
 			return "Closed";
+		case "PREPRE":
+			return "Pre-Market";
 		default:
 			return "";
 	}

@@ -25,16 +25,16 @@
 import AssetLogo from "../../home/components/AssetLogo.vue";
 
 interface RecommendationItem {
-    ticker: string;
-    name: string;
-    price: number;
-    changePercent: number;
-    iconUrl?: string;
-    type?: "STOCK" | "CRYPTO";
+	ticker: string;
+	name: string;
+	price: number;
+	changePercent: number;
+	iconUrl?: string;
+	type?: "STOCK" | "CRYPTO";
 }
 
 defineProps<{
-    recommendations: RecommendationItem[];
+	recommendations: RecommendationItem[];
 }>();
 
 defineEmits<(e: "click", item: RecommendationItem) => void>();

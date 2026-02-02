@@ -68,7 +68,6 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
 	loading.value = true;
 	try {
 		const results = await marketStore.searchSymbols(query, 20);
-		console.log("[AddAssetSheet] Raw search results:", results);
 
 		// Map to simple display format
 		searchResults.value = results

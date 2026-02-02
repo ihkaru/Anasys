@@ -8,6 +8,7 @@ import { analysisController } from "./modules/analysis/analysis.controller";
 import { authController } from "./modules/auth/auth.controller";
 import { holdingsController } from "./modules/holdings/holdings.controller";
 import { marketController } from "./modules/market/market.controller";
+import { realtimeController } from "./modules/realtime/realtime.controller";
 import { watchlistController } from "./modules/watchlist/watchlist.controller";
 
 // Validate configuration at startup
@@ -61,6 +62,9 @@ const app = new Elysia()
 		return staticFile;
 	})
 
+	// WebSocket real-time routes (no rate limiting needed)
+	.use(realtimeController)
+
 	// Auth routes with stricter rate limiting
 	.group("/api", (api) =>
 		api
@@ -81,6 +85,7 @@ if (import.meta.main) {
 	const port = process.env.PORT || 3000;
 	app.listen(port);
 	console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
+	console.log(`📡 WebSocket available at ws://localhost:${port}/ws/market`);
 }
 
 export type App = typeof app;

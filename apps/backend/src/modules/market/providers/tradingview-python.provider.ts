@@ -40,8 +40,11 @@ export class TradingViewPythonProvider implements IDataProvider {
 
 		this.logger.debug(`[TradingViewProvider] Requesting ${limit} candles for ${ticker} (${options.interval})`);
 
+		// Construct full symbol if exchange provided
+		const symbol = options.exchange ? `${options.exchange}:${ticker}` : ticker;
+
 		const result = await this.executePython("chart", {
-			symbol: ticker,
+			symbol: symbol,
 			interval: options.interval,
 			period: options.period,
 			limit: limit,
@@ -101,6 +104,89 @@ export class TradingViewPythonProvider implements IDataProvider {
 		return {};
 	}
 
+	// Helper to determine market state based on time (US Centric + IDX)
+	private determineMarketState(exchange: string, ticker?: string): "PRE" | "REGULAR" | "POST" | "CLOSED" {
+		const exUpper = exchange ? exchange.toUpperCase() : "";
+		const tickerUpper = ticker ? ticker.toUpperCase() : "";
+
+		// --- 1. US Markets (ET) ---
+		const usExchanges = ["NASDAQ", "NYSE", "AMEX", "ARCA", "BATS", "OTC"];
+		if (usExchanges.some((e) => exUpper.includes(e))) {
+			const now = new Date();
+			// Get NY time parts
+			const formatter = new Intl.DateTimeFormat("en-US", {
+				timeZone: "America/New_York",
+				hour: "numeric",
+				minute: "numeric",
+				hour12: false,
+			});
+			const parts = formatter.formatToParts(now);
+			const hourPart = parts.find((p) => p.type === "hour");
+			const minutePart = parts.find((p) => p.type === "minute");
+
+			if (hourPart && minutePart) {
+				const hour = parseInt(hourPart.value);
+				const minute = parseInt(minutePart.value);
+				const timeVal = hour * 100 + minute;
+
+				// Extended hours schedule (ET)
+				if (timeVal >= 400 && timeVal < 930) return "PRE";
+				if (timeVal >= 930 && timeVal < 1600) return "REGULAR";
+				if (timeVal >= 1600 && timeVal < 2000) return "POST";
+				return "CLOSED";
+			}
+		}
+
+		// --- 2. Indonesia Markets (IDX) (WIB / UTC+7) ---
+		// Identify by Exchange "IDX", "JK SE" or Ticker suffix ".JK"
+		const isIDX = exUpper === "IDX" || exUpper.includes("JK") || tickerUpper.endsWith(".JK");
+
+		if (isIDX) {
+			const now = new Date();
+			// Get Jakarta time
+			const formatter = new Intl.DateTimeFormat("en-US", {
+				timeZone: "Asia/Jakarta",
+				hour: "numeric",
+				minute: "numeric",
+				hour12: false,
+			});
+
+			const parts = formatter.formatToParts(now);
+			const hourPart = parts.find((p) => p.type === "hour");
+			const minutePart = parts.find((p) => p.type === "minute");
+
+			if (hourPart && minutePart) {
+				const hour = parseInt(hourPart.value);
+				const minute = parseInt(minutePart.value);
+				const timeVal = hour * 100 + minute;
+
+				// IDX Schedule (Mon-Thu)
+				// Session 1: 09:00 - 12:00
+				// Session 2: 13:30 - ~16:00
+				// (Fri slightly different, 09:00-11:30, 14:00-16:00, simplified here for general display)
+
+				// Pre-open (08:45-09:00) -> PRE
+				if (timeVal >= 845 && timeVal < 900) return "PRE";
+
+				// Session 1
+				if (timeVal >= 900 && timeVal < 1200) return "REGULAR";
+
+				// Break (12:00 - 13:30)
+				if (timeVal >= 1200 && timeVal < 1330) return "CLOSED"; // Or break? showing Closed is safer
+
+				// Session 2
+				if (timeVal >= 1330 && timeVal < 1600) return "REGULAR";
+
+				// Post-Close? IDX doesn't have improved extended hours trading like US
+				return "CLOSED";
+			}
+		}
+
+		// --- 3. Default for others ---
+		// For Crypto or undetermined exchanges, assume Open/Regular to avoid "PRE" confusion
+		return "REGULAR";
+	}
+
 	async fetchQuotes(tickers: string[]): Promise<any[]> {
 		if (tickers.length === 0) return [];
 		this.logger.debug(`Fetching quotes for ${tickers.join(",")} from TradingView`);
@@ -114,26 +200,43 @@ export class TradingViewPythonProvider implements IDataProvider {
 		const raw = await this.executePython("quote", { tickers: cleanTickers });
 
 		// Map to format compatible with Yahoo QuoteResult
-		return raw.map((r: any) => ({
-			ticker: r.name, // or keep original?
-			price: Number(r.close || 0),
-			// Screener usually returns 'change' as %. And 'change_abs' as value.
-			// Yahoo 'change' is absolute, 'changePercent' is %.
-			change: Number(r.change_abs || r.change || 0),
-			changePercent: Number(r.change || 0), // Screener 'change' is %
-			volume: Number(r.volume || 0),
-			marketCap: Number(r.market_cap_basic || 0),
-			currency: r.currency || "USD",
-			displayName: r.name,
-			// Extended Hours Logic
-			marketState: r.postmarket_close ? "POST" : r.premarket_close ? "PRE" : "REGULAR",
-			preMarketPrice: r.premarket_close ? Number(r.premarket_close) : undefined,
-			preMarketChange: r.premarket_change_abs ? Number(r.premarket_change_abs) : undefined,
-			preMarketChangePercent: r.premarket_change ? Number(r.premarket_change) : undefined,
-			postMarketPrice: r.postmarket_close ? Number(r.postmarket_close) : undefined,
-			postMarketChange: r.postmarket_change_abs ? Number(r.postmarket_change_abs) : undefined,
-			postMarketChangePercent: r.postmarket_change ? Number(r.postmarket_change) : undefined,
-		}));
+		return raw.map((r: any) => {
+			// Determine market state accurately
+			let state: any = "REGULAR";
+			const computedState = this.determineMarketState(r.exchange);
+
+			// If computed state is REGULAR, force it (ignore premarket_close artifacts)
+			if (computedState === "REGULAR") {
+				state = "REGULAR";
+			} else {
+				// Otherwise trust the data or the computed state
+				if (r.postmarket_close) state = "POST";
+				else if (r.premarket_close && computedState === "PRE") state = "PRE";
+				else if (computedState === "CLOSED") state = "CLOSED";
+				else if (r.premarket_close) state = "PRE"; // Fallback
+			}
+
+			return {
+				ticker: r.name, // or keep original?
+				price: Number(r.close || 0),
+				// Screener usually returns 'change' as %. And 'change_abs' as value.
+				// Yahoo 'change' is absolute, 'changePercent' is %.
+				change: Number(r.change_abs || r.change || 0),
+				changePercent: Number(r.change || 0), // Screener 'change' is %
+				volume: Number(r.volume || 0),
+				marketCap: Number(r.market_cap_basic || 0),
+				currency: r.currency || "USD",
+				displayName: r.name,
+				// Extended Hours Logic
+				marketState: state,
+				preMarketPrice: r.premarket_close ? Number(r.premarket_close) : undefined,
+				preMarketChange: r.premarket_change_abs ? Number(r.premarket_change_abs) : undefined,
+				preMarketChangePercent: r.premarket_change ? Number(r.premarket_change) : undefined,
+				postMarketPrice: r.postmarket_close ? Number(r.postmarket_close) : undefined,
+				postMarketChange: r.postmarket_change_abs ? Number(r.postmarket_change_abs) : undefined,
+				postMarketChangePercent: r.postmarket_change ? Number(r.postmarket_change) : undefined,
+			};
+		});
 	}
 
 	async search(query: string, limit: number = 20): Promise<any[]> {

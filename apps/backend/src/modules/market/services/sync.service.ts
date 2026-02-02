@@ -46,6 +46,7 @@ export class SyncService {
 			const chartOptions: any = {
 				period1: queryOptions.period1,
 				interval: interval as any,
+				exchange: symbol.exchange,
 			};
 			if (queryOptions.period2) {
 				chartOptions.period2 = queryOptions.period2;

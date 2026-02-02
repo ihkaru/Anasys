@@ -12,37 +12,14 @@ export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>
 	function updateData() {
 		if (!candleSeries.value || ohlcvData.value.length === 0) return;
 
-		// === DEBUG LOGGING ===
-		logger.info(`=== CHART DATA DEBUG ===`);
-		logger.info(`Total candles received: ${ohlcvData.value.length}`);
+		// Debug: log data summary
+		logger.debug(`Updating chart with ${ohlcvData.value.length} candles`);
 
-		// Log first 10 raw timestamps to see what's coming from store
-		const rawSamples = ohlcvData.value.slice(0, 10);
-		logger.info(`First 10 raw timestamps from store:`);
-		rawSamples.forEach((c, i) => {
-			const ts = new Date(c.timestamp);
-			const minute = ts.getMinutes();
-			const hourAligned = minute === 0;
-			logger.info(`  [${i}] ${c.timestamp} -> minute=${minute} ${hourAligned ? "✓" : "⚠️ NOT HOUR-ALIGNED"}`);
-		});
-
-		// Check for non-hour-aligned candles in the entire dataset
-		const nonHourAligned = ohlcvData.value.filter((c) => {
-			const ts = new Date(c.timestamp);
-			return ts.getMinutes() !== 0;
-		});
-
-		if (nonHourAligned.length > 0) {
-			logger.warn(`⚠️ Found ${nonHourAligned.length} candles NOT aligned to hour boundary!`);
-			logger.warn(`First 5 non-aligned:`);
-			nonHourAligned.slice(0, 5).forEach((c) => {
-				const ts = new Date(c.timestamp);
-				logger.warn(`  ${c.timestamp} (minute=${ts.getMinutes()})`);
-			});
-		} else {
-			logger.info(`✓ All ${ohlcvData.value.length} candles are hour-aligned`);
+		if (ohlcvData.value.length > 0) {
+			const first = ohlcvData.value[0];
+			const last = ohlcvData.value[ohlcvData.value.length - 1];
+			logger.debug(`Range: ${first.timestamp} -> ${last.timestamp}`);
 		}
-		// === END DEBUG ===
 
 		const chartData = formatOHLCVForChart(ohlcvData.value, settingsStore.timezoneMode);
 		candleSeries.value.setData(chartData);

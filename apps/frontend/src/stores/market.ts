@@ -1,6 +1,6 @@
 import { useLocalStorage } from "@vueuse/core";
 import { defineStore } from "pinia";
-import { computed, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef, triggerRef } from "vue";
 import { api } from "../api/client";
 
 import { sqliteService } from "../services/sqlite";
@@ -55,7 +55,9 @@ export const STRATEGIES: Strategy[] = [
 ];
 export interface MarketMover extends Symbol {
 	price: number;
+	change?: number;
 	changePercent: number;
+	volume?: number;
 	sparkline?: number[];
 	marketState?: "PRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
 	preMarketPrice?: number;
@@ -64,6 +66,9 @@ export interface MarketMover extends Symbol {
 	postMarketPrice?: number;
 	postMarketChange?: number;
 	postMarketChangePercent?: number;
+	source?: string;
+	period?: string;
+	periodBasePrice?: number;
 }
 
 export const useMarketStore = defineStore("market", () => {
@@ -75,17 +80,25 @@ export const useMarketStore = defineStore("market", () => {
 		trending: [],
 	});
 
-	const quotes = ref<Map<string, MarketMover>>(new Map());
+	// Optimization: Use shallowRef for performance. Map contents are not deeply reactive.
+	// We trigger updates by replacing the entire Map (batch updates).
+	const quotes = shallowRef<Map<string, MarketMover>>(new Map());
 
 	const selectedSymbol = useLocalStorage<string>("selected_symbol", "AAPL");
 	const selectedSource = useLocalStorage<string>("selected_source", "YAHOO");
 	const selectedStrategy = useLocalStorage<string>("selected_strategy", "SMA_CROSSOVER");
 
 	const loading = ref(false);
+	const historyLoading = ref(false);
 	const syncing = ref(false);
 	const analyzing = ref(false);
 
 	const ohlcvData = shallowRef<OHLCV[]>([]);
+	const ohlcvCache = shallowRef<Map<string, OHLCV[]>>(new Map()); // RAM Cache
+
+	// Version counter to force computed reactivity when quotes shallowRef is updated
+	const quotesVersion = ref(0);
+
 	const signals = ref<Signal[]>([]);
 	const lastAnalysisTicker = ref<string | null>(null);
 	const selectedSymbolData = ref<Symbol | null>(null);
@@ -107,22 +120,364 @@ export const useMarketStore = defineStore("market", () => {
 		}
 	}
 
+	// In-memory data cache for instant switching (Key: ticker:source:period) -> Quote Data
+	const overviewDataCache = new Map<string, any>();
+	// Negative cache for tickers that don't exist in backend (Key: ticker:source:period)
+	const overviewNotFoundCache = new Set<string>();
+
+	// Timestamp cache for batch requests
+	const overviewFetchTimestamps = new Map<string, number>();
+	const OVERVIEW_CACHE_TTL_MS = 30 * 1000; // 30 seconds
+
+	/**
+	 * Fetch overview for multiple sources in a batched manner.
+	 * This triggers Vue reactivity ONLY ONCE at the end, instead of per-source.
+	 */
+	async function fetchOverviewBatched(itemsBySource: Map<string, string[]>, period: string): Promise<void> {
+		const startTotal = performance.now();
+		const p = period || "7d";
+
+		if (itemsBySource.size === 0) return;
+
+		logger.info(`[Perf] fetchOverviewBatched Start: ${itemsBySource.size} sources, period=${p}`);
+
+		// Quick check: if ALL sources are fresh AND all tickers already in quotes, skip entirely
+		let allTickersAlreadyCurrent = true;
+		const currentQuotes = quotes.value;
+
+		for (const [source, tickers] of itemsBySource) {
+			const requestKey = `${[...tickers].sort().join(",")}:${p}:${source}`;
+			const lastFetch = overviewFetchTimestamps.get(requestKey);
+			const isFresh = lastFetch && Date.now() - lastFetch < OVERVIEW_CACHE_TTL_MS;
+
+			if (!isFresh) {
+				allTickersAlreadyCurrent = false;
+				break;
+			}
+
+			// Check if all tickers are already in current quotes
+			for (const ticker of tickers) {
+				if (!currentQuotes.has(`${ticker}:${source}`)) {
+					allTickersAlreadyCurrent = false;
+					break;
+				}
+			}
+			if (!allTickersAlreadyCurrent) break;
+		}
+
+		if (allTickersAlreadyCurrent) {
+			logger.info(`[Perf] fetchOverviewBatched: All data current, NO-OP (0ms)`);
+			return;
+		}
+
+		// Collect all updates into a single batch
+		const batchedQuotes = new Map(currentQuotes);
+		let hasAnyUpdates = false;
+		const allResults: any[] = [];
+
+		// Process each source
+		for (const [source, tickers] of itemsBySource) {
+			if (tickers.length === 0) continue;
+
+			const src = source;
+			const requestKey = `${[...tickers].sort().join(",")}:${p}:${src}`;
+			const lastFetch = overviewFetchTimestamps.get(requestKey);
+			const now = Date.now();
+			const isFresh = lastFetch && now - lastFetch < OVERVIEW_CACHE_TTL_MS;
+
+			// Check RAM cache
+			if (isFresh) {
+				for (const ticker of tickers) {
+					const ramKey = `${ticker}:${src}:${p}`;
+					const cachedData = overviewDataCache.get(ramKey);
+					if (cachedData) {
+						// Ensure base price logic is applied even for cached data if missing
+						const basePrice =
+							cachedData.price != null && cachedData.change != null ? cachedData.price - cachedData.change : undefined;
+						batchedQuotes.set(`${ticker}:${src}`, {
+							...cachedData,
+							source: src,
+							period: p,
+							periodBasePrice: cachedData.periodBasePrice ?? basePrice,
+						});
+						allResults.push(cachedData);
+						hasAnyUpdates = true;
+					}
+				}
+				continue; // Skip API for this source
+			}
+
+			// Check SQLite cache
+			const sqliteCacheKey = `quote_${src}_${p}`;
+			const tickersToFetch: string[] = [];
+
+			for (const ticker of tickers) {
+				const ramKey = `${ticker}:${src}:${p}`;
+				if (overviewNotFoundCache.has(ramKey)) continue;
+
+				try {
+					const cached = await sqliteService.getSymbolCache(ticker, sqliteCacheKey, 5);
+					if (cached) {
+						overviewDataCache.set(ramKey, cached);
+						const basePrice = cached.price != null && cached.change != null ? cached.price - cached.change : undefined;
+						batchedQuotes.set(`${ticker}:${src}`, {
+							...cached,
+							source: src,
+							period: p,
+							periodBasePrice: basePrice,
+						});
+						allResults.push(cached);
+						hasAnyUpdates = true;
+					} else {
+						tickersToFetch.push(ticker);
+					}
+				} catch {
+					tickersToFetch.push(ticker);
+				}
+			}
+
+			// Fetch from API if needed
+			if (tickersToFetch.length > 0) {
+				try {
+					const response = await api.post("/market/overview", { tickers: tickersToFetch, period: p, source: src });
+					if (response.data.success) {
+						const newQuotes = response.data.data || [];
+						const returnedTickers = new Set<string>();
+
+						newQuotes.forEach((q: any) => {
+							const key = `${q.ticker}:${src}`;
+							const basePrice = q.price != null && q.change != null ? q.price - q.change : undefined;
+							batchedQuotes.set(key, {
+								...q,
+								source: src,
+								period: p,
+								periodBasePrice: basePrice,
+							});
+							overviewDataCache.set(`${q.ticker}:${src}:${p}`, q);
+							returnedTickers.add(q.ticker);
+							hasAnyUpdates = true;
+							allResults.push(q);
+						});
+
+						// Update negative cache
+						tickersToFetch.forEach((t) => {
+							if (!returnedTickers.has(t)) {
+								overviewNotFoundCache.add(`${t}:${src}:${p}`);
+							}
+						});
+
+						// Background save
+						(async () => {
+							for (const q of newQuotes) {
+								try {
+									await sqliteService.saveSymbolCache(q.ticker, sqliteCacheKey, q);
+								} catch {
+									/* ignore */
+								}
+							}
+						})();
+					}
+				} catch (e) {
+					logger.error(`API fetch failed for source ${src}`, e);
+				}
+			}
+
+			overviewFetchTimestamps.set(requestKey, Date.now());
+		}
+
+		// SINGLE reactivity trigger for ALL sources
+		if (hasAnyUpdates) {
+			const reactStart = performance.now();
+			quotes.value = batchedQuotes;
+			logger.info(`[Perf] Batched Reactivity Update: ${Math.round(performance.now() - reactStart)}ms`);
+		}
+
+		logger.info(
+			`[Perf] fetchOverviewBatched Done: ${allResults.length} quotes. Total ${Math.round(performance.now() - startTotal)}ms`,
+		);
+	}
+
 	async function fetchOverview(tickers: string[], period?: string, source?: string): Promise<any[]> {
+		const startTotal = performance.now();
 		try {
 			const src = source || "YAHOO";
-			logger.debug(`Fetching overview for ${tickers.map((t) => t).join(",")} (period=${period}, source=${src})`);
+			const p = period || "7d";
+
 			if (tickers.length === 0) return [];
-			const response = await api.post("/market/overview", { tickers, period, source: src });
+
+			logger.info(`[Perf] fetchOverview Start: ${tickers.length} tickers (${p})`);
+
+			// 1. Check RAM Cache First (Synchronous & Instant)
+			const requestKey = `${[...tickers].sort().join(",")}:${p}:${src}`;
+			const lastFetch = overviewFetchTimestamps.get(requestKey);
+			const now = Date.now();
+			const isFresh = lastFetch && now - lastFetch < OVERVIEW_CACHE_TTL_MS;
+
+			let missingTickers: string[] = [...tickers];
+			const ramResults: any[] = [];
+
+			if (isFresh) {
+				const ramStart = performance.now();
+				missingTickers = [];
+				let hasUpdates = false;
+				const batchedQuotes = new Map(quotes.value);
+
+				for (const ticker of tickers) {
+					const ramKey = `${ticker}:${src}:${p}`;
+					const cachedData = overviewDataCache.get(ramKey);
+					const isNotFound = overviewNotFoundCache.has(ramKey);
+
+					if (cachedData) {
+						const basePrice =
+							cachedData.price != null && cachedData.change != null ? cachedData.price - cachedData.change : undefined;
+						batchedQuotes.set(`${ticker}:${src}`, {
+							...cachedData,
+							source: src,
+							period: p,
+							periodBasePrice: cachedData.periodBasePrice ?? basePrice,
+						});
+						ramResults.push(cachedData);
+						hasUpdates = true;
+					} else if (isNotFound) {
+						// Ignored (Negative Cache)
+					} else {
+						missingTickers.push(ticker);
+					}
+				}
+
+				if (hasUpdates) {
+					const reactStart = performance.now();
+					quotes.value = batchedQuotes; // Instant Partial Update
+					logger.info(`[Perf] RAM Cache Apply: ${Math.round(performance.now() - reactStart)}ms`);
+				}
+
+				if (missingTickers.length === 0) {
+					logger.info(`[Perf] RAM Full Hit: ${Math.round(performance.now() - ramStart)}ms`);
+					return ramResults;
+				}
+				logger.info(
+					`[Perf] RAM Partial Hit: Found ${ramResults.length}, Missing ${missingTickers.length}. Took ${Math.round(performance.now() - ramStart)}ms`,
+				);
+			} else {
+				logger.info(`[Perf] RAM Skip (Stale/New): ${isFresh ? "Fresh" : "Stale"}`);
+			}
+
+			// 2. SWR Pattern: Check SQLite cache
+			const sqliteCacheKey = `quote_${src}_${p}`;
+			const cachedResults: any[] = [...ramResults];
+			let apiFetchTickers: string[] = [...missingTickers];
+
+			try {
+				if (missingTickers.length > 0) {
+					const sqliteStart = performance.now();
+					// logger.debug(`Checking SQLite for ${missingTickers.length} missing tickers...`);
+
+					const promises = missingTickers.map(async (ticker) => {
+						const cached = await sqliteService.getSymbolCache(ticker, sqliteCacheKey, 5);
+						if (cached) {
+							overviewDataCache.set(`${ticker}:${src}:${p}`, cached);
+							return cached;
+						}
+						return null;
+					});
+
+					const results = await Promise.all(promises);
+					const found = results.filter((r) => r !== null);
+
+					if (found.length > 0) {
+						const batchedQuotes = new Map(quotes.value);
+						const foundSet = new Set<string>();
+						found.forEach((q: any) => {
+							const key = `${q.ticker}:${src}`;
+							const basePrice = q.price != null && q.change != null ? q.price - q.change : undefined;
+							batchedQuotes.set(key, {
+								...q,
+								source: src,
+								period: p, // Track period for reactivity context
+								periodBasePrice: basePrice,
+							});
+							foundSet.add(q.ticker);
+						});
+
+						const reactStart = performance.now();
+						quotes.value = batchedQuotes;
+						logger.info(`[Perf] SQLite Reactivity Update: ${Math.round(performance.now() - reactStart)}ms`);
+
+						cachedResults.push(...found);
+						apiFetchTickers = missingTickers.filter((t) => !foundSet.has(t));
+
+						// Fix: If we fulfilled everything from SQLite, mark this batch as fresh in RAM
+						if (apiFetchTickers.length === 0) {
+							overviewFetchTimestamps.set(requestKey, Date.now());
+						}
+					}
+					logger.info(
+						`[Perf] SQLite Check: Found ${found.length}, Missing ${apiFetchTickers.length}. Took ${Math.round(performance.now() - sqliteStart)}ms`,
+					);
+				}
+			} catch (cacheErr) {
+				logger.warn("Cache read failed", cacheErr);
+			}
+
+			if (apiFetchTickers.length === 0) {
+				logger.info(`[Perf] Fetch Done (RAM+SQLite): Total ${Math.round(performance.now() - startTotal)}ms`);
+				return cachedResults;
+			}
+
+			// 3. Fetch fresh data from API
+			const apiStart = performance.now();
+			logger.info(`[Perf] API Fetching ${apiFetchTickers.length} items...`);
+
+			const response = await api.post("/market/overview", { tickers: apiFetchTickers, period: p, source: src });
 			if (response.data.success) {
 				const newQuotes = response.data.data || [];
+
+				const batchedQuotes = new Map(quotes.value);
+				const returnedTickers = new Set<string>();
+
 				newQuotes.forEach((q: any) => {
-					// Use ticker:source as key to prevent overwrites
 					const key = `${q.ticker}:${src}`;
-					quotes.value.set(key, { ...q, source: src });
+					const basePrice = q.price != null && q.change != null ? q.price - q.change : undefined;
+					batchedQuotes.set(key, {
+						...q,
+						source: src,
+						period: p,
+						periodBasePrice: basePrice,
+					});
+					overviewDataCache.set(`${q.ticker}:${src}:${p}`, q);
+					returnedTickers.add(q.ticker);
 				});
-				return newQuotes;
+
+				const reactStart = performance.now();
+				quotes.value = batchedQuotes; // Single trigger
+				logger.info(`[Perf] API Reactivity Update: ${Math.round(performance.now() - reactStart)}ms`);
+
+				// Update Negative Cache
+				apiFetchTickers.forEach((t) => {
+					if (!returnedTickers.has(t)) {
+						overviewNotFoundCache.add(`${t}:${src}:${p}`);
+					}
+				});
+
+				overviewFetchTimestamps.set(requestKey, Date.now());
+
+				// Background Save
+				(async () => {
+					for (const q of newQuotes) {
+						try {
+							await sqliteService.saveSymbolCache(q.ticker, sqliteCacheKey, q);
+						} catch {
+							/* ignore */
+						}
+					}
+				})();
+
+				logger.info(
+					`[Perf] API Done: Got ${newQuotes.length}. Total Fetch time ${Math.round(performance.now() - startTotal)}ms`,
+				);
+				return [...cachedResults, ...newQuotes];
 			}
-			return [];
+			return cachedResults.length > 0 ? cachedResults : [];
 		} catch (e) {
 			logger.error("Failed to fetch overview", e);
 			return [];
@@ -215,6 +570,21 @@ export const useMarketStore = defineStore("market", () => {
 	async function fetchHistory(ticker: string, interval = "1h", limit = 500, before?: string) {
 		try {
 			logger.debug(`Fetching history for ${ticker} (interval=${interval}, limit=${limit}, before=${before})`);
+			const cacheKey = `${ticker}:${interval}:${selectedSource.value}`;
+
+			// 0. RAM Cache Check (Instant Switch)
+			if (!before) {
+				const ramData = ohlcvCache.value.get(cacheKey);
+				if (ramData && ramData.length > 0) {
+					logger.debug(`[Cache] RAM Hit for ${cacheKey} (${ramData.length} items)`);
+					ohlcvData.value = ramData;
+					// Continue to SWR (Stale-While-Revalidate) with SQLite/Network
+				} else {
+					// No RAM cache: Clear data to show loading state (prevents mixing intervals)
+					ohlcvData.value = [];
+					historyLoading.value = true;
+				}
+			}
 
 			// === DEBUG: Log interval explicitly ===
 			logger.info(`🔍 [DEBUG] fetchHistory called with interval="${interval}"`);
@@ -285,13 +655,14 @@ export const useMarketStore = defineStore("market", () => {
 
 					console.time("OHLCV_Set_Cache");
 					ohlcvData.value = cachedData;
+					if (!before) ohlcvCache.value.set(cacheKey, cachedData); // Update RAM Cache
 					console.timeEnd("OHLCV_Set_Cache");
 					console.log(`[MarketStore] Set ${cachedData.length} candles from cache`);
-					loading.value = false; // Don't show loading spinner if we have cache
+					historyLoading.value = false; // Don't show loading spinner if we have cache
 				}
 			} else {
 				// If no cache and initial load, show loading
-				if (!before) loading.value = true;
+				if (!before) historyLoading.value = true;
 			}
 
 			// 2. Network Fetch (SWR if cache exists)
@@ -365,7 +736,9 @@ export const useMarketStore = defineStore("market", () => {
 										`[MarketStore] Merging network data. Preserving ${olderData.length} historical candles.`,
 									);
 									console.time("OHLCV_Merge_Network");
-									ohlcvData.value = [...olderData, ...newData];
+									const merged = [...olderData, ...newData];
+									ohlcvData.value = merged;
+									if (!before) ohlcvCache.value.set(cacheKey, merged); // Update RAM Cache
 									console.timeEnd("OHLCV_Merge_Network");
 									return ohlcvData.value;
 								}
@@ -373,6 +746,8 @@ export const useMarketStore = defineStore("market", () => {
 
 							console.time("OHLCV_Set_Network");
 							ohlcvData.value = newData;
+							if (!before) ohlcvCache.value.set(cacheKey, newData); // Update RAM Cache
+
 							console.timeEnd("OHLCV_Set_Network");
 							logger.debug(`History loaded (Network): ${ohlcvData.value.length} candles`);
 							return newData;
@@ -389,7 +764,7 @@ export const useMarketStore = defineStore("market", () => {
 					throw e; // Re-throw for awaiter if needed
 				} finally {
 					// Only unset loading if we were the ones setting it
-					if (!before && ohlcvData.value.length === 0) loading.value = false;
+					if (!before && ohlcvData.value.length === 0) historyLoading.value = false;
 					// If we had cache, loading was already false.
 				}
 			})();
@@ -409,7 +784,7 @@ export const useMarketStore = defineStore("market", () => {
 			if (!before && ohlcvData.value.length === 0) ohlcvData.value = [];
 		} finally {
 			// Ensure loading is false if we awaited
-			loading.value = false;
+			historyLoading.value = false;
 		}
 	}
 
@@ -566,9 +941,9 @@ export const useMarketStore = defineStore("market", () => {
 	 */
 	async function fetchQuote(ticker: string) {
 		try {
-			// Short Cache for Quote (5 mins)
+			// Short Cache for Quote (1 min) - keep short for accurate marketState
 			const cacheKey = `quote_${selectedSource.value}`;
-			const cached = await sqliteService.getSymbolCache(ticker, cacheKey, 5);
+			const cached = await sqliteService.getSymbolCache(ticker, cacheKey, 1);
 			if (cached) return cached;
 
 			logger.debug(`Fetching quote for ${ticker} (source=${selectedSource.value})`);
@@ -612,15 +987,35 @@ export const useMarketStore = defineStore("market", () => {
 		}
 	}
 
+	function updateQuote(key: string, update: Partial<MarketMover>) {
+		const existing = quotes.value.get(key);
+		// console.log(`%c[MarketStore] updateQuote: key=${key}, existing=${!!existing}, price=${update.price}`, 'color: #9C27B0; font-weight: bold');
+
+		if (existing) {
+			// Update existing entry
+			quotes.value.set(key, { ...existing, ...update });
+			// console.log(`%c[MarketStore] Updated existing, quotesVersion will be ${quotesVersion.value + 1}`, 'color: #4CAF50');
+		} else {
+			// Create new entry with minimal data (will be enriched by next fetch)
+			quotes.value.set(key, update as MarketMover);
+			console.log(`%c[MarketStore] Created new entry for ${key}`, "color: #FF9800");
+		}
+
+		quotesVersion.value++;
+		triggerRef(quotes);
+	}
+
 	return {
 		// State
 		symbols,
 		movers,
 		quotes,
+		quotesVersion, // Expose to computed dependencies
 		selectedSymbol,
 		selectedSource,
 		selectedStrategy,
 		loading,
+		historyLoading,
 		syncing,
 		analyzing,
 		ohlcvData,
@@ -635,6 +1030,7 @@ export const useMarketStore = defineStore("market", () => {
 		fetchSymbols,
 		fetchMovers,
 		fetchOverview,
+		fetchOverviewBatched,
 		fetchTrending,
 		searchSymbols,
 		fetchRecommendations,
@@ -652,5 +1048,6 @@ export const useMarketStore = defineStore("market", () => {
 		fetchEarnings,
 		fetchAnalyst,
 		fetchQuote,
+		updateQuote,
 	};
 });

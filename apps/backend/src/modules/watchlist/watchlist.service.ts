@@ -68,31 +68,35 @@ export class WatchlistService {
 			.where(eq(watchlistItems.watchlistId, watchlistId))
 			.orderBy(desc(watchlistItems.addedAt));
 
+		// Enrich items missing currency BEFORE returning
+		// This ensures users see correct currency on first load
+		const missingCurrency = items.filter((i) => !i.currency);
+		if (missingCurrency.length > 0) {
+			logger.info(`Enriching ${missingCurrency.length} symbols with missing currency...`);
+			const { marketService } = await import("../market/market.service");
+
+			// Enrich in parallel for speed
+			const enrichPromises = missingCurrency.map(async (item) => {
+				try {
+					const enriched = await marketService.enrichSymbol(item.ticker);
+					if (enriched?.currency) {
+						// Update the item in our response
+						item.currency = enriched.currency;
+					}
+				} catch (e) {
+					logger.warn(`Failed to enrich ${item.ticker}:`, e);
+				}
+			});
+
+			await Promise.all(enrichPromises);
+		}
+
 		const result = {
 			id: watchlist.id,
 			name: watchlist.name,
 			isDefault: watchlist.isDefault,
 			items,
 		};
-
-		// Background: Check for missing metadata (currency) and enrich if needed
-		// We don't await this to keep the response fast
-		(async () => {
-			try {
-				const missingData = items.filter((i) => !i.currency);
-				if (missingData.length > 0) {
-					logger.debug(`Triggering background enrichment for ${missingData.length} incomplete symbols`);
-					const { marketService } = await import("../market/market.service");
-					for (const item of missingData) {
-						await marketService
-							.enrichSymbol(item.ticker)
-							.catch((e) => logger.error(`Background enrichment failed for ${item.ticker}`, e));
-					}
-				}
-			} catch (err) {
-				logger.error("Error in background enrichment task", err);
-			}
-		})();
 
 		return result;
 	}
@@ -197,12 +201,27 @@ export class WatchlistService {
 		// Find symbol in DB first
 		let [symbol] = await db.select().from(symbols).where(eq(symbols.ticker, ticker.toUpperCase())).limit(1);
 
+		const { marketService } = await import("../market/market.service");
+
 		// If not found, auto-register
 		if (!symbol) {
 			logger.info(`Symbol ${ticker} not in DB. Auto-registering...`);
-			const { marketService } = await import("../market/market.service");
 			const symbolType = type ?? (ticker.includes("-") ? "CRYPTO" : "STOCK");
 			symbol = await marketService.ensureSymbol(ticker.toUpperCase(), symbolType);
+		}
+
+		// Ensure symbol has currency data before adding to watchlist
+		// This ensures user sees correct currency on first load
+		if (!symbol.currency) {
+			logger.info(`Symbol ${ticker} missing currency. Enriching before add...`);
+			try {
+				const enriched = await marketService.enrichSymbol(ticker.toUpperCase());
+				if (enriched) {
+					symbol = enriched;
+				}
+			} catch (err) {
+				logger.warn(`Failed to enrich ${ticker} currency, will continue with null currency`, err);
+			}
 		}
 
 		// Add to watchlist with SOURCE

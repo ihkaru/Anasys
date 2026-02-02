@@ -25,11 +25,13 @@ import { useChart } from "../composables/useChart";
 import { useChartData } from "../composables/useChartData";
 import { useInfiniteScroll } from "../composables/useInfiniteScroll";
 import type { OHLCVData } from "../utils/chart-formatters";
+import ChartLegend from "./ChartLegend.vue";
 
 const props = defineProps<{
 	ohlcvData: OHLCVData[];
 	signals: Signal[];
 	loading?: boolean;
+	onLoadMore?: () => Promise<number>;
 }>();
 
 const emit = defineEmits<(e: "load-more") => void>();
@@ -49,17 +51,18 @@ const timezoneTooltip = computed(() => {
 
 const { chart, candleSeries, initChart, destroyChart, fitContent, resizeChart } = useChart(chartRef, isFullscreen);
 
-// When chart is initialized, we need to bind everything
-// Because useChart returns chart as a Ref<IChartApi | null>, useInfiniteScroll needs it.
-
 const { updateAll } = useChartData(candleSeries, toRef(props, "ohlcvData"), toRef(props, "signals"));
 
-// We need to wait until chart is created to subscribe, or handle null chart gracefully in composable
-// The composable handles null chart, but we must call subscribe AFTER init.
+// Fix: Explicitly define the return type to satisfy useInfiniteScroll
+const handleInfiniteLoad = async (): Promise<number | boolean | undefined> => {
+	if (props.onLoadMore) {
+		return await props.onLoadMore();
+	}
+	emit("load-more");
+	return undefined;
+};
 
-const { subscribe: subscribeScroll, unsubscribe: unsubscribeScroll } = useInfiniteScroll(chart, async () =>
-	emit("load-more"),
-);
+const { subscribe: subscribeScroll, unsubscribe: unsubscribeScroll } = useInfiniteScroll(chart, handleInfiniteLoad);
 
 onMounted(() => {
 	initChart();
@@ -78,10 +81,22 @@ onUnmounted(() => {
 	destroyChart();
 });
 
+import { formatOHLCVForChart } from "../utils/chart-formatters";
+
 // Expose methods to parent
+function updateCandle(candle: OHLCVData) {
+	if (candleSeries.value) {
+		const formatted = formatOHLCVForChart([candle], settingsStore.timezoneMode);
+		if (formatted.length > 0) {
+			candleSeries.value.update(formatted[0]);
+		}
+	}
+}
+
 defineExpose({
 	toggleFullscreen,
 	fitContent,
+	updateCandle,
 });
 </script>
 

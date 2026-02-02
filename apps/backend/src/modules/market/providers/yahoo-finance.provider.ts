@@ -14,7 +14,7 @@ export interface QuoteResult {
 	low52Week?: number;
 	updatedAt: Date;
 	currency?: string;
-	marketState?: "PRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
+	marketState?: "PRE" | "PREPRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
 	preMarketPrice?: number;
 	preMarketChange?: number;
 	preMarketChangePercent?: number;
@@ -44,19 +44,28 @@ export class YahooFinanceProvider implements IDataProvider {
 	}
 
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
-		const result = await this.client.chart(ticker, options);
-		if (!result || !result.quotes) return [];
+		// Sanitize options: remove 'exchange' as it causes InvalidOptionsError in yahoo-finance2
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { exchange, ...yahooOptions } = options;
 
-		return result.quotes
-			.map((q: any) => ({
-				timestamp: new Date(q.date),
-				open: q.open ?? 0,
-				high: q.high ?? 0,
-				low: q.low ?? 0,
-				close: q.close ?? 0,
-				volume: q.volume || 0,
-			}))
-			.filter((c: UnifiedCandle) => c.open !== null && c.close !== null);
+		try {
+			const result = await this.client.chart(ticker, yahooOptions);
+			if (!result || !result.quotes) return [];
+
+			return result.quotes
+				.map((q: any) => ({
+					timestamp: new Date(q.date),
+					open: q.open ?? 0,
+					high: q.high ?? 0,
+					low: q.low ?? 0,
+					close: q.close ?? 0,
+					volume: q.volume || 0,
+				}))
+				.filter((c: UnifiedCandle) => c.open !== null && c.close !== null);
+		} catch (e) {
+			console.warn(`Chart fetch failed for ${ticker}:`, (e as Error).message);
+			return [];
+		}
 	}
 
 	async fetchQuoteSummary(ticker: string, modules: string[]): Promise<any> {
@@ -182,6 +191,13 @@ export class YahooFinanceProvider implements IDataProvider {
 				low52Week: quote.fiftyTwoWeekLow,
 				updatedAt: new Date(),
 				currency: quote.currency,
+				marketState: quote.marketState,
+				preMarketPrice: quote.preMarketPrice,
+				preMarketChange: quote.preMarketChange,
+				preMarketChangePercent: quote.preMarketChangePercent,
+				postMarketPrice: quote.postMarketPrice,
+				postMarketChange: quote.postMarketChange,
+				postMarketChangePercent: quote.postMarketChangePercent,
 			}));
 	}
 

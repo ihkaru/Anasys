@@ -22,7 +22,7 @@ from tradingview_scraper.symbols.utils import save_json_file, save_csv_file
 from tradingview_scraper.symbols.exceptions import DataNotFoundError
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 
@@ -185,9 +185,11 @@ class ExtendedStreamer:
     def get_data(self):
         """Continuously receives data from the TradingView server."""
         try:
+            # Set timeout to prevent hanging forever if no data received
+            self.stream_obj.ws.settimeout(5)
             while True:
                 try:
-                    sleep(1)
+                    # sleep(1) - Removed to improve performance
                     result = self.stream_obj.ws.recv()
                     if re.match(r"~m~\d+~m~~h~\d+$", result):
                         self.stream_obj.ws.recv()
@@ -203,6 +205,10 @@ class ExtendedStreamer:
                     logging.error("WebSocket connection closed.")
                     break
                 except Exception as e:
+                    # Check for timeout
+                    if "timed out" in str(e) or isinstance(e, TimeoutError):
+                        logging.warning("WebSocket recv timed out.")
+                        break
                     logging.error("An error occurred: %s", str(e))
                     break
         finally:

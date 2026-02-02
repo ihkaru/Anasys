@@ -60,12 +60,16 @@ import { computed, ref } from "vue";
 
 const props = defineProps<{
 	earnings: any;
+	symbol?: string;
 }>();
 
 const viewMode = ref<"eps" | "revenue">("eps");
 
 const hasData = computed(() => {
-	return props.earnings && (props.earnings.earningsHistory?.length || props.earnings.revenueHistory?.length);
+	return (
+		props.earnings &&
+		(props.earnings.earningsHistory?.length || props.earnings.revenueHistory?.length || props.earnings.nextEarningsDate)
+	);
 });
 
 const sortedHistory = computed(() => {

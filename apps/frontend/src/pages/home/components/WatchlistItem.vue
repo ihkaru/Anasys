@@ -22,18 +22,24 @@
                 </div>
                 <div class="price-col">
                     <div class="main-price-row">
-                        <span v-if="primaryDisplay.isExtended" class="ext-badge">{{ primaryDisplay.label }}</span>
+                        <!-- Reserve space for badge to prevent layout shift -->
+                        <span class="ext-badge" :class="{ 'ext-badge-hidden': !primaryDisplay.isExtended }">
+                            {{ primaryDisplay.isExtended ? primaryDisplay.label : '—' }}
+                        </span>
                         <span class="price-text">{{ formatPrice(primaryDisplay.price, item.currency) }}</span>
                     </div>
                     <span :class="['change-badge', (primaryDisplay.changePercent) >= 0 ? 'positive' : 'negative']">
                         {{ formatPercent(primaryDisplay.changePercent) }}
                     </span>
-                    <!-- Secondary Display (Regular Close if Extended is active) -->
-                    <span v-if="secondaryDisplay" class="secondary-info">
-                        Reg: {{ formatPrice(secondaryDisplay.price, item.currency) }}
-                        <span :class="secondaryDisplay.changePercent >= 0 ? 'sec-up' : 'sec-down'">
-                            ({{ formatPercent(secondaryDisplay.changePercent) }})
-                        </span>
+                    <!-- Secondary Display - always reserve space to prevent layout shift -->
+                    <span class="secondary-info" :class="{ 'secondary-hidden': !secondaryDisplay }">
+                        <template v-if="secondaryDisplay">
+                            Reg: {{ formatPrice(secondaryDisplay.price, item.currency) }}
+                            <span :class="secondaryDisplay.changePercent >= 0 ? 'sec-up' : 'sec-down'">
+                                ({{ formatPercent(secondaryDisplay.changePercent) }})
+                            </span>
+                        </template>
+                        <template v-else>&nbsp;</template>
                     </span>
                 </div>
             </div>
@@ -54,51 +60,82 @@ import { useLongPress } from "../composables/useLongPress";
 import AssetLogo from "./AssetLogo.vue";
 
 interface Props {
-    item: any; // Using any for now matching original structure, ideally strictly typed
+	item: any; // Using any for now matching original structure, ideally strictly typed
+	period?: string;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-    (e: "click", item: any): void;
-    (e: "remove", ticker: string): void;
-    (e: "hold", item: any): void;
+	(e: "click", item: any): void;
+	(e: "remove", ticker: string): void;
+	(e: "hold", item: any): void;
 }>();
 
 const longPress = useLongPress((item) => {
-    emit("hold", item);
+	emit("hold", item);
 });
 
 // Compute extended hours info
 const extendedHours = computed(() => getExtendedHoursInfo(props.item));
 
+// DEBUG: Log whenever props.item changes
+import { watch } from "vue";
+watch(
+	() => props.item.price,
+	(newPrice, oldPrice) => {
+		// console.log(`%c[WatchlistItem] ${props.item.ticker} price changed: ${oldPrice} -> ${newPrice}`, 'color: #E91E63; font-weight: bold');
+	},
+);
+
 // Determine Primary Display (Extended takes priority if available)
+// Determine Primary Display (Extended takes priority if available, UNLESS a specific period is selected)
 const primaryDisplay = computed(() => {
-    if (extendedHours.value) {
-        return {
-            price: extendedHours.value.price,
-            changePercent: extendedHours.value.changePercent,
-            label: extendedHours.value.label, // 'Pre' or 'After'
-            isExtended: true,
-        };
-    }
-    return {
-        price: props.item.price ?? 0,
-        changePercent: props.item.changePercent ?? 0,
-        label: "Reg",
-        isExtended: false,
-    };
+	// console.log(`%c[WatchlistItem] ${props.item.ticker} primaryDisplay RE-COMPUTING! price=${props.item.price}`, 'color: #00BCD4; font-weight: bold');
+
+	// If user explicitly selected a multi-day period (7d, 30d), show that period's change
+	// even if extended hours are active.
+	if (props.period && (props.period === "7d" || props.period === "30d" || props.period === "90d")) {
+		return {
+			price: props.item.price,
+			changePercent: props.item.changePercent ?? 0,
+			label: props.period.toUpperCase(),
+			isExtended: false,
+		};
+	}
+
+	// Otherwise (default 1d/24h), show Extended Hours if available
+	if (extendedHours.value) {
+		return {
+			price: extendedHours.value.price,
+			changePercent: extendedHours.value.changePercent,
+			label: extendedHours.value.label, // 'Pre' or 'After'
+			isExtended: true,
+		};
+	}
+
+	return {
+		price: props.item.price, // Allow undefined/null
+		changePercent: props.item.changePercent ?? 0,
+		label: "Reg",
+		isExtended: false,
+	};
 });
 
 // Determine Secondary Display (Regular Close if Extended is active)
+// Hide secondary display if we are in a multi-day view, as 'changePercent' reflects that period, not the daily 'Reg' change.
 const secondaryDisplay = computed(() => {
-    if (extendedHours.value) {
-        return {
-            price: props.item.price ?? 0,
-            changePercent: props.item.changePercent ?? 0,
-        };
-    }
-    return null;
+	if (props.period && (props.period === "7d" || props.period === "30d" || props.period === "90d")) {
+		return null;
+	}
+
+	if (extendedHours.value) {
+		return {
+			price: props.item.price ?? 0,
+			changePercent: props.item.changePercent ?? 0,
+		};
+	}
+	return null;
 });
 </script>
 
@@ -128,6 +165,8 @@ const secondaryDisplay = computed(() => {
     flex-direction: column;
     align-items: flex-end;
     gap: 2px;
+    min-width: 90px;
+    /* Ensure alignment */
 }
 
 .main-price-row {
@@ -151,6 +190,12 @@ const secondaryDisplay = computed(() => {
     background: var(--f7-theme-color);
     color: #fff;
     opacity: 0.8;
+    min-width: 28px;
+    text-align: center;
+}
+
+.ext-badge-hidden {
+    visibility: hidden;
 }
 
 .change-badge {
@@ -202,6 +247,13 @@ const secondaryDisplay = computed(() => {
     color: var(--f7-text-color);
     opacity: 0.5;
     margin-top: 1px;
+    min-height: 14px;
+    /* Reserve space even when empty */
+    display: block;
+}
+
+.secondary-hidden {
+    visibility: hidden;
 }
 
 .secondary-info .sec-up {
