@@ -37,8 +37,14 @@ export interface TrendingResult {
 }
 
 export class YahooFinanceProvider implements IDataProvider {
+	private client: any;
+
+	constructor() {
+		this.client = new (yahooFinance as any)();
+	}
+
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
-		const result = await yahooFinance.chart(ticker, options);
+		const result = await this.client.chart(ticker, options);
 		if (!result || !result.quotes) return [];
 
 		return result.quotes
@@ -54,7 +60,7 @@ export class YahooFinanceProvider implements IDataProvider {
 	}
 
 	async fetchQuoteSummary(ticker: string, modules: string[]): Promise<any> {
-		return await yahooFinance.quoteSummary(ticker, { modules });
+		return await this.client.quoteSummary(ticker, { modules });
 	}
 
 	async fetchQuotes(tickers: string[]): Promise<QuoteResult[]> {
@@ -62,7 +68,7 @@ export class YahooFinanceProvider implements IDataProvider {
 
 		for (const ticker of tickers) {
 			try {
-				const quote: any = await yahooFinance.quote(ticker);
+				const quote: any = await this.client.quote(ticker);
 				if (quote) {
 					results.push({
 						ticker: quote.symbol,
@@ -96,7 +102,7 @@ export class YahooFinanceProvider implements IDataProvider {
 
 	async search(query: string, limit = 10): Promise<SearchResult[]> {
 		try {
-			const result: any = await yahooFinance.search(query, {
+			const result: any = await this.client.search(query, {
 				newsCount: 0,
 				quotesCount: limit,
 			});
@@ -118,7 +124,7 @@ export class YahooFinanceProvider implements IDataProvider {
 
 	async fetchTrending(region = "US", count = 10): Promise<TrendingResult[]> {
 		try {
-			const result: any = await yahooFinance.trendingSymbols(region, { count });
+			const result: any = await this.client.trendingSymbols(region, { count });
 
 			return (result.quotes || []).map((q: any) => ({
 				ticker: q.symbol,
@@ -132,7 +138,7 @@ export class YahooFinanceProvider implements IDataProvider {
 
 	async fetchRecommendations(ticker: string): Promise<string[]> {
 		try {
-			const result: any = await yahooFinance.recommendationsBySymbol(ticker);
+			const result: any = await this.client.recommendationsBySymbol(ticker);
 			return (result.recommendedSymbols || []).map((r: any) => r.symbol);
 		} catch (e) {
 			console.error(`Recommendations fetch failed for ${ticker}:`, (e as Error).message);
@@ -142,7 +148,7 @@ export class YahooFinanceProvider implements IDataProvider {
 
 	async fetchDailyGainers(count = 10): Promise<QuoteResult[]> {
 		try {
-			const result: any = await yahooFinance.screener({ scrIds: "day_gainers", count, region: "US", lang: "en-US" });
+			const result: any = await this.client.screener({ scrIds: "day_gainers", count, region: "US", lang: "en-US" });
 			return this.mapQuotes(result.quotes || []);
 		} catch (e) {
 			console.error("Daily Gainers fetch failed:", (e as Error).message);
@@ -152,7 +158,7 @@ export class YahooFinanceProvider implements IDataProvider {
 
 	async fetchDailyLosers(count = 10): Promise<QuoteResult[]> {
 		try {
-			const result: any = await yahooFinance.screener({ scrIds: "day_losers", count, region: "US", lang: "en-US" });
+			const result: any = await this.client.screener({ scrIds: "day_losers", count, region: "US", lang: "en-US" });
 			return this.mapQuotes(result.quotes || []);
 		} catch (e) {
 			console.error("Daily Losers fetch failed:", (e as Error).message);

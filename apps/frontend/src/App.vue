@@ -26,7 +26,7 @@ const authStore = useAuthStore();
 const themeStore = useThemeStore();
 const initialized = ref(false);
 
-const _f7params = ref({
+const f7params = ref({
 	name: "Finance App",
 	theme: "auto",
 	darkMode: false, // Disable auto dark mode detection by F7, we handle it manually
