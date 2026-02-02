@@ -29,7 +29,7 @@ import { useMarketData } from "../composables/useMarketData";
 const { marketOverview, loading, fetchMarketOverview } = useMarketData();
 
 onMounted(() => {
-    fetchMarketOverview();
+	fetchMarketOverview();
 });
 </script>
 

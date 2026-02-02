@@ -28,10 +28,10 @@
 import { formatCurrency, formatPercent } from "../../../utils/formatters";
 
 defineProps<{
-    totalValue: number;
-    changeAmount: number;
-    changePercent: number;
-    showBalance: boolean;
+	totalValue: number;
+	changeAmount: number;
+	changePercent: number;
+	showBalance: boolean;
 }>();
 
 defineEmits<(e: "toggle-balance") => void>();

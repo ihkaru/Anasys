@@ -41,15 +41,15 @@ import { useMarketStore } from "../../../stores/market";
 import AssetLogo from "./AssetLogo.vue";
 
 interface Props {
-    opened: boolean;
-    watchlistId: number | null;
+	opened: boolean;
+	watchlistId: number | null;
 }
 
 const props = defineProps<Props>();
 
 const emit = defineEmits<{
-    (e: "close"): void;
-    (e: "add", asset: any): void;
+	(e: "close"): void;
+	(e: "add", asset: any): void;
 }>();
 
 const marketStore = useMarketStore();
@@ -59,56 +59,56 @@ const loading = ref(false);
 
 // Debounced search to backend
 const debouncedSearch = useDebounceFn(async (query: string) => {
-    if (!query || query.length < 2) {
-        searchResults.value = [];
-        loading.value = false;
-        return;
-    }
+	if (!query || query.length < 2) {
+		searchResults.value = [];
+		loading.value = false;
+		return;
+	}
 
-    loading.value = true;
-    try {
-        const results = await marketStore.searchSymbols(query, 20);
-        console.log("[AddAssetSheet] Raw search results:", results);
+	loading.value = true;
+	try {
+		const results = await marketStore.searchSymbols(query, 20);
+		console.log("[AddAssetSheet] Raw search results:", results);
 
-        // Map to simple display format
-        searchResults.value = results
-            .filter((r: any) => r.symbol || r.ticker)
-            .map((r: any) => ({
-                ticker: r.symbol || r.ticker,
-                name: r.name,
-                type: r.type === "CRYPTOCURRENCY" ? "CRYPTO" : "STOCK",
-                source: r.source,
-                exchange: r.exchange,
-                iconUrl: undefined,
-                website: undefined,
-            }));
-    } catch (e) {
-        console.error("Search failed", e);
-        searchResults.value = [];
-    } finally {
-        loading.value = false;
-    }
+		// Map to simple display format
+		searchResults.value = results
+			.filter((r: any) => r.symbol || r.ticker)
+			.map((r: any) => ({
+				ticker: r.symbol || r.ticker,
+				name: r.name,
+				type: r.type === "CRYPTOCURRENCY" ? "CRYPTO" : "STOCK",
+				source: r.source,
+				exchange: r.exchange,
+				iconUrl: undefined,
+				website: undefined,
+			}));
+	} catch (e) {
+		console.error("Search failed", e);
+		searchResults.value = [];
+	} finally {
+		loading.value = false;
+	}
 }, 300);
 
 function onSearch(_: any, query: string) {
-    searchQuery.value = query;
-    if (query && query.length >= 2) {
-        loading.value = true;
-        debouncedSearch(query);
-    } else {
-        searchResults.value = [];
-    }
+	searchQuery.value = query;
+	if (query && query.length >= 2) {
+		loading.value = true;
+		debouncedSearch(query);
+	} else {
+		searchResults.value = [];
+	}
 }
 
 // Reset search when sheet opens
 watch(
-    () => props.opened,
-    (isOpen) => {
-        if (isOpen) {
-            searchQuery.value = "";
-            searchResults.value = [];
-        }
-    },
+	() => props.opened,
+	(isOpen) => {
+		if (isOpen) {
+			searchQuery.value = "";
+			searchResults.value = [];
+		}
+	},
 );
 </script>
 

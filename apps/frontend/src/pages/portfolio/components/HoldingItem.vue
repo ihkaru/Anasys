@@ -1,6 +1,6 @@
 <template>
-    <f7-list-item :footer="`${holding.shares} shares @ ${formatCurrency(holding.avgCost)}`"
-        swipeout class="no-swipe-panel" :class="{ 'item-holding': isHolding }" @click="$emit('click', holding)"
+    <f7-list-item :footer="`${holding.shares} shares @ ${formatCurrency(holding.avgCost)}`" swipeout
+        class="no-swipe-panel" :class="{ 'item-holding': isHolding }" @click="$emit('click', holding)"
         @contextmenu.prevent @touchstart.passive="startHold" @touchend="endHold" @touchmove="cancelHold"
         @mousedown="startHold" @mouseup="endHold" @mouseleave="cancelHold">
         <template #title>
@@ -43,24 +43,27 @@
 </template>
 
 <script setup lang="ts">
+import SparklineChart from "../../../components/SparklineChart.vue";
+import { formatCurrency, formatPercent } from "../../../utils/formatters";
+import AssetLogo from "../../home/components/AssetLogo.vue";
 import { useLongPress } from "../../home/composables/useLongPress"; // Reusing from home, better to move to shared but this works for now
 
 const props = defineProps<{
-	holding: any; // Using any for now to avoid strict type dependency if Holding interface is in store
+    holding: any; // Using any for now to avoid strict type dependency if Holding interface is in store
 }>();
 
 const emit = defineEmits<{
-	(e: "click", holding: any): void;
-	(e: "edit", holding: any): void;
-	(e: "delete", holding: any): void;
-	(e: "hold", holding: any): void;
+    (e: "click", holding: any): void;
+    (e: "edit", holding: any): void;
+    (e: "delete", holding: any): void;
+    (e: "hold", holding: any): void;
 }>();
 
 const {
-	isHolding,
-	start: startHold,
-	cancel: cancelHold,
-	end: endHold,
+    isHolding,
+    start: startHold,
+    cancel: cancelHold,
+    end: endHold,
 } = useLongPress(() => emit("hold", props.holding), 600);
 </script>
 

@@ -21,24 +21,27 @@
 </template>
 
 <script setup lang="ts">
+import SparklineChart from "../../../components/SparklineChart.vue";
+import AssetLogo from "../../home/components/AssetLogo.vue";
+
 interface TrendingItem {
-	ticker: string;
-	name?: string;
-	changePercent: number;
-	sparkline?: number[];
-	iconUrl?: string;
-	website?: string;
-	type?: string;
+    ticker: string;
+    name?: string;
+    changePercent: number;
+    sparkline?: number[];
+    iconUrl?: string;
+    website?: string;
+    type?: string;
 }
 
 defineProps<{
-	items: TrendingItem[];
+    items: TrendingItem[];
 }>();
 
 defineEmits<(e: "click", item: TrendingItem) => void>();
 
 function isPositive(item: TrendingItem): boolean {
-	return item.changePercent >= 0;
+    return item.changePercent >= 0;
 }
 </script>
 
