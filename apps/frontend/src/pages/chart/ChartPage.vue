@@ -88,7 +88,7 @@ import FinancialsSection from "./components/FinancialsSection.vue";
 import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
-import TradingChart from "./components/TradingChart.vue";
+import type TradingChart from "./components/TradingChart.vue";
 
 const props = defineProps<{
 	ticker?: string;
