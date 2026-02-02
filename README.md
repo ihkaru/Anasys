@@ -24,10 +24,13 @@ We built Anasys because existing self-hosted finance tools were either too slow,
 
 | Feature | Description |
 | :--- | :--- |
+| **Multi-Source Data** |  Aggregates data from **Yahoo Finance** and **TradingView** for maximum coverage. |
 | **Real-time Feeds** | WebSocket-powered updates for Stocks, Crypto, and Forex markets. |
 | **Portfolio Tracker** | Unified view of your holdings, P/L, and cost basis calculations. |
 | **Advanced Charts** | Interactive candle, line, and sparkline charts optimized for heavy datasets. |
 | **Smart Watchlists** | "Hold-to-Delete" gestures and drag-and-drop organization. |
+| **Self-Healing Data** | Automatically detects and repairs missing symbols, currencies (IDR/USD), and metadata in the background. |
+| **Multi-Currency** | Native support for global assets (IDR, USD, etc.) with correct formatting. |
 | **Secure Auth** | Integrated Google OAuth2 with secure, stateless session management (JWT). |
 | **Mobile First** | Responsive design that feels native on iOS and Android. |
 
