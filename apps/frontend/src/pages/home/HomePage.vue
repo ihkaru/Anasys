@@ -74,8 +74,17 @@ function changePeriod(p: string) {
   if (sparklinePeriod.value === p) return;
   sparklinePeriod.value = p;
   if (watchlistStore.currentWatchlist?.items.length) {
-    const tickers = watchlistStore.currentWatchlist.items.map(i => i.ticker);
-    marketStore.fetchOverview(tickers, sparklinePeriod.value);
+    // Group items by source
+    const bySource = new Map<string, string[]>();
+    watchlistStore.currentWatchlist.items.forEach(item => {
+      const src = item.source || 'YAHOO';
+      if (!bySource.has(src)) bySource.set(src, []);
+      bySource.get(src)!.push(item.ticker);
+    });
+    // Fetch each source group separately
+    bySource.forEach((tickers, source) => {
+      marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
+    });
   }
 }
 
@@ -88,8 +97,10 @@ const currentWatchlistItems = computed(() => {
   if (!watchlistStore.currentWatchlist) return [];
 
   return watchlistStore.currentWatchlist.items.map(item => {
-    // Try to get price from market store quotes or movers
-    const quote = marketStore.quotes.get(item.ticker) ||
+    // Use ticker:source as key to get correct quote for this item's source
+    const src = item.source || 'YAHOO';
+    const quoteKey = `${item.ticker}:${src}`;
+    const quote = marketStore.quotes.get(quoteKey) ||
       [...marketStore.movers.trending, ...marketStore.movers.gainers, ...marketStore.movers.losers]
         .find(m => m.ticker === item.ticker);
 
@@ -99,6 +110,14 @@ const currentWatchlistItems = computed(() => {
         price: quote.price,
         changePercent: quote.changePercent,
         sparkline: quote.sparkline && quote.sparkline.length > 0 ? quote.sparkline : generateSparkline(quote.changePercent >= 0),
+        // Pass extended hours data
+        marketState: quote.marketState,
+        preMarketPrice: quote.preMarketPrice,
+        preMarketChange: quote.preMarketChange,
+        preMarketChangePercent: quote.preMarketChangePercent,
+        postMarketPrice: quote.postMarketPrice,
+        postMarketChange: quote.postMarketChange,
+        postMarketChangePercent: quote.postMarketChangePercent,
       };
     }
 
@@ -119,10 +138,19 @@ async function selectWatchlist(id: number) {
 watch(selectedWatchlistId, async (newId) => {
   if (newId) {
     await watchlistStore.fetchWatchlistWithItems(newId);
-    // Fetch fresh prices for this watchlist
+    // Fetch fresh prices for this watchlist, grouped by source
     if (watchlistStore.currentWatchlist?.items.length) {
-      const tickers = watchlistStore.currentWatchlist.items.map(i => i.ticker);
-      marketStore.fetchOverview(tickers, sparklinePeriod.value);
+      // Group items by source
+      const bySource = new Map<string, string[]>();
+      watchlistStore.currentWatchlist.items.forEach(item => {
+        const src = item.source || 'YAHOO';
+        if (!bySource.has(src)) bySource.set(src, []);
+        bySource.get(src)!.push(item.ticker);
+      });
+      // Fetch each source group separately
+      bySource.forEach((tickers, source) => {
+        marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
+      });
     }
   }
 });
@@ -130,15 +158,32 @@ watch(selectedWatchlistId, async (newId) => {
 // Also watch for items changes to fetch new added items
 watch(() => watchlistStore.currentWatchlist?.items, (newItems) => {
   if (newItems && newItems.length > 0) {
-    const tickers = newItems.map(i => i.ticker);
-    // optimization: filter out those we already have fresh quotes for? 
-    // For now just fetch all to be safe and simple
-    marketStore.fetchOverview(tickers, sparklinePeriod.value);
+    // Group items by source
+    const bySource = new Map<string, string[]>();
+    newItems.forEach(item => {
+      const src = item.source || 'YAHOO';
+      if (!bySource.has(src)) bySource.set(src, []);
+      bySource.get(src)!.push(item.ticker);
+    });
+    // Fetch each source group separately
+    bySource.forEach((tickers, source) => {
+      marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
+    });
   }
 }, { deep: true });
 
 function openAssetDetail(item: any) {
-  logger.debug('Open asset detail:', item.ticker);
+  logger.debug('Open asset detail:', item.ticker, item.source);
+  marketStore.selectSymbol(item.ticker);
+  if (item.source) {
+    marketStore.selectSource(item.source);
+  } else {
+    // If no source is explicit, do NOT forcibly reset to YAHOO if it's already set correctly.
+    // BUT, for watchlist items, we usually know the source if we stored it.
+    // If we rely on stored data, we should probably default to 'YAHOO' if missing,
+    // to ensure we don't accidentally view a TV asset as Yahoo if previous state was TV.
+    marketStore.selectSource('YAHOO');
+  }
   f7.views.main.router.navigate('/chart/', { props: { ticker: item.ticker } });
 }
 
@@ -146,7 +191,7 @@ async function handleAddAsset(asset: any) {
   if (!selectedWatchlistId.value) return;
 
   try {
-    await watchlistStore.addSymbolToWatchlist(selectedWatchlistId.value, asset.ticker);
+    await watchlistStore.addSymbolToWatchlist(selectedWatchlistId.value, asset.ticker, asset.type, asset.source);
     addAssetSheetOpen.value = false;
     f7.toast.show({ text: `Added ${asset.ticker}`, closeTimeout: 2000 });
     // Will trigger watch above
@@ -197,9 +242,19 @@ onMounted(async () => {
 
   // Initial fetch for overview if we have a watchlist loaded
   if (selectedWatchlistId.value && watchlistStore.currentWatchlist) {
-    const tickers = watchlistStore.currentWatchlist.items.map(i => i.ticker);
-    if (tickers.length) {
-      marketStore.fetchOverview(tickers, sparklinePeriod.value);
+    const items = watchlistStore.currentWatchlist.items;
+    if (items.length) {
+      // Group items by source
+      const bySource = new Map<string, string[]>();
+      items.forEach(item => {
+        const src = item.source || 'YAHOO';
+        if (!bySource.has(src)) bySource.set(src, []);
+        bySource.get(src)!.push(item.ticker);
+      });
+      // Fetch each source group separately
+      bySource.forEach((tickers, source) => {
+        marketStore.fetchOverview(tickers, sparklinePeriod.value, source);
+      });
     }
   }
 

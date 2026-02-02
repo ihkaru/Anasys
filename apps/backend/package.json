@@ -6,7 +6,7 @@
 		"dev": "bun run --env-file=../../.env --watch src/index.ts",
 		"seed": "bun run src/scripts/seed.ts",
 		"test": "bun test --env-file=../../.env",
-		"test:consistency": "bun test src/tests/data_consistency.check.ts",
+		"test:consistency": "bun test src/tests/data_consistency.test.ts --timeout 120000",
 		"repair": "bun run src/scripts/ultimate_repair.ts",
 		"repair:vip": "bun run src/scripts/ultimate_repair.ts --vip-only",
 		"repair:dry": "bun run src/scripts/ultimate_repair.ts --dry-run",

@@ -122,13 +122,14 @@ export const watchlistController = new Elysia({ prefix: "/watchlists" })
     })
     // ADD symbol to watchlist (auto-registers new symbols from Yahoo Finance)
     .post("/:id/symbols", async ({ params, body, user }: any) => {
-        logger.info(`POST /watchlists/${params.id}/symbols - ${body.ticker} (${body.type || 'auto'})`);
+        logger.info(`POST /watchlists/${params.id}/symbols - ${body.ticker} (${body.source || 'YAHOO'})`);
         try {
             const result = await watchlistService.addSymbolToWatchlist(
                 parseInt(params.id),
                 user.id,
                 body.ticker,
-                body.type // Optional: 'STOCK' | 'CRYPTO'
+                body.type,
+                body.source || 'YAHOO'
             );
             return { success: true, symbol: result.symbol };
         } catch (e) {
@@ -138,7 +139,8 @@ export const watchlistController = new Elysia({ prefix: "/watchlists" })
     }, {
         body: t.Object({
             ticker: t.String(),
-            type: t.Optional(t.Union([t.Literal('STOCK'), t.Literal('CRYPTO')]))
+            type: t.Optional(t.Union([t.Literal('STOCK'), t.Literal('CRYPTO')])),
+            source: t.Optional(t.String())
         })
     })
     // REMOVE symbol from watchlist

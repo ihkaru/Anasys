@@ -1,6 +1,7 @@
 import { useElementSize } from '@vueuse/core';
 import { CandlestickSeries, createChart, type IChartApi } from 'lightweight-charts';
 import { onUnmounted, shallowRef, watch, type Ref } from 'vue';
+import { useSettingsStore } from '../../../stores/settings';
 import { useThemeStore } from '../../../stores/theme';
 import { DARK_THEME, getCandlestickSeriesOptions, getChartOptions, LIGHT_THEME, type ChartTheme } from '../utils/chart-config';
 
@@ -8,6 +9,7 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
   const chart = shallowRef<IChartApi | null>(null);
   const candleSeries = shallowRef<any>(null);
   const themeStore = useThemeStore();
+  const settingsStore = useSettingsStore(); // Access settings
   
   const { width, height } = useElementSize(containerRef);
   
@@ -15,10 +17,16 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
     return themeStore.isDark ? DARK_THEME : LIGHT_THEME;
   }
   
-  function updateChartTheme() {
+  function updateChartOptions() {
     if (chart.value) {
       chart.value.applyOptions(
-        getChartOptions(getTheme(), width.value, height.value, isFullscreen.value)
+        getChartOptions(
+            getTheme(), 
+            width.value, 
+            height.value, 
+            isFullscreen.value,
+            settingsStore.timezoneMode === 'local' ? 'local' : 'America/New_York'
+        )
       );
     }
   }
@@ -28,7 +36,13 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
     
     chart.value = createChart(
       containerRef.value,
-      getChartOptions(getTheme(), width.value, height.value, isFullscreen.value)
+      getChartOptions(
+          getTheme(), 
+          width.value, 
+          height.value, 
+          isFullscreen.value,
+          settingsStore.timezoneMode === 'local' ? 'local' : 'America/New_York'
+      )
     );
     
     candleSeries.value = chart.value.addSeries(
@@ -47,9 +61,7 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
   
   function resizeChart() {
     if (chart.value && width.value && height.value) {
-        chart.value.applyOptions(
-            getChartOptions(getTheme(), width.value, height.value, isFullscreen.value)
-        );
+        updateChartOptions();
     }
   }
   
@@ -62,9 +74,14 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
      resizeChart();
   });
   
-  // Watch theme store for changes (manual toggle or system change)
+  // Watch theme store for changes
   watch(() => themeStore.isDark, () => {
-    updateChartTheme();
+    updateChartOptions();
+  });
+
+  // Watch timezone settings
+  watch(() => settingsStore.timezoneMode, () => {
+      updateChartOptions();
   });
   
   onUnmounted(destroyChart);

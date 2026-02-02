@@ -434,6 +434,110 @@ describe("📊 Comprehensive Data Consistency Tests", () => {
     });
 
     // ============================================
+    // TEST 9: Zero Volume Detection
+    // ============================================
+    describe("9️⃣  Zero Volume Detection", () => {
+        it("should have no stock candles with zero volume during market hours", async () => {
+            const result = await db.execute(sql`
+                SELECT s.ticker, s.type, m.interval, COUNT(*) as count,
+                       MIN(m.timestamp) as sample_timestamp,
+                       'Zero volume during market hours' as details
+                FROM market_data m
+                JOIN symbols s ON m.symbol_id = s.id
+                WHERE s.type = 'STOCK'
+                  AND m.volume = 0
+                  AND m.interval = '1h'
+                  AND EXTRACT(HOUR FROM m.timestamp AT TIME ZONE 'America/New_York') BETWEEN 9 AND 16
+                GROUP BY s.ticker, s.type, m.interval
+                ORDER BY count DESC
+                LIMIT 20
+            `);
+            
+            if (result.length > 0) {
+                console.log(`   ⚠️  Found ${result.length} stocks with zero-volume candles`);
+                result.slice(0, 5).forEach((r: any) => {
+                    console.log(`      ${r.ticker} (${r.interval}): ${r.count} records`);
+                    anomalies.push({ ...r, anomaly_type: 'ZERO_VOLUME' });
+                });
+            } else {
+                console.log(`   ✅ All stock candles have valid volume`);
+            }
+            // Warning only - some legitimate cases exist (halt days)
+        });
+    });
+
+    // ============================================
+    // TEST 10: Flat Candle Detection
+    // ============================================
+    describe("🔟 Flat Candle Detection", () => {
+        it("should have no candles where O=H=L=C (placeholder data)", async () => {
+            const result = await db.execute(sql`
+                SELECT s.ticker, s.type, m.interval, COUNT(*) as count,
+                       MIN(m.timestamp) as sample_timestamp,
+                       'O=H=L=C flat candle' as details
+                FROM market_data m
+                JOIN symbols s ON m.symbol_id = s.id
+                WHERE m.open = m.high AND m.high = m.low AND m.low = m.close
+                  AND m.open > 0
+                GROUP BY s.ticker, s.type, m.interval
+                HAVING COUNT(*) > 5
+                ORDER BY count DESC
+                LIMIT 20
+            `);
+            
+            if (result.length > 0) {
+                console.log(`   ⚠️  Found ${result.length} symbols with flat candles (O=H=L=C)`);
+                result.slice(0, 5).forEach((r: any) => {
+                    console.log(`      ${r.ticker} (${r.interval}): ${r.count} flat candles`);
+                    anomalies.push({ ...r, anomaly_type: 'FLAT_CANDLE' });
+                });
+            } else {
+                console.log(`   ✅ No symbols have excessive flat candles`);
+            }
+            // Warning only - some after-hours data may be flat
+        });
+    });
+
+    // ============================================
+    // TEST 11: Inter-Candle Gap Detection
+    // ============================================
+    describe("1️⃣1️⃣ Inter-Candle Gap Detection", () => {
+        it("should have no suspicious price gaps (>50%) between consecutive candles", async () => {
+            const result = await db.execute(sql`
+                WITH gaps AS (
+                    SELECT 
+                        s.ticker, s.type, m.interval, m.timestamp, m.open, m.close,
+                        LAG(m.close) OVER (PARTITION BY m.symbol_id, m.interval ORDER BY m.timestamp) as prev_close,
+                        ABS(m.open - LAG(m.close) OVER (PARTITION BY m.symbol_id, m.interval ORDER BY m.timestamp)) 
+                            / NULLIF(LAG(m.close) OVER (PARTITION BY m.symbol_id, m.interval ORDER BY m.timestamp), 0) as gap_ratio
+                    FROM market_data m
+                    JOIN symbols s ON m.symbol_id = s.id
+                    WHERE m.interval = '1h'
+                )
+                SELECT ticker, type, interval, COUNT(*) as count,
+                       MIN(timestamp) as sample_timestamp,
+                       MAX(gap_ratio * 100)::int || '% max gap' as details
+                FROM gaps
+                WHERE gap_ratio > 0.5
+                GROUP BY ticker, type, interval
+                ORDER BY count DESC
+                LIMIT 20
+            `);
+            
+            if (result.length > 0) {
+                console.log(`   ⚠️  Found ${result.length} symbols with large price gaps (>50%)`);
+                result.slice(0, 5).forEach((r: any) => {
+                    console.log(`      ${r.ticker} (${r.interval}): ${r.count} gaps - ${r.details}`);
+                    anomalies.push({ ...r, anomaly_type: 'LARGE_GAP' });
+                });
+            } else {
+                console.log(`   ✅ No suspicious price gaps detected`);
+            }
+            expect(result.length).toBe(0);
+        });
+    });
+
+    // ============================================
     // FINAL SUMMARY
     // ============================================
     describe("📋 Final Summary", () => {

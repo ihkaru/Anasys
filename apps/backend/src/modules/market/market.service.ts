@@ -2,6 +2,8 @@
 import { db } from "../../db";
 import { Logger } from "../../utils/logger";
 import { CacheService } from "./cache/cache.service";
+import { DataProviderFactory } from "./providers/provider.factory";
+import { TradingViewPythonProvider } from "./providers/tradingview-python.provider";
 import { YahooFinanceProvider } from "./providers/yahoo-finance.provider";
 import { MarketDataRepository } from "./repositories/market-data.repository";
 import { SymbolRepository } from "./repositories/symbol.repository";
@@ -21,13 +23,15 @@ const logger = new Logger('MarketService');
 const symbolRepo = new SymbolRepository(db);
 const marketDataRepo = new MarketDataRepository(db);
 const dataProvider = new YahooFinanceProvider();
+const providerFactory = new DataProviderFactory();
 const cacheService = new CacheService();
+const tvProvider = new TradingViewPythonProvider();
 
 const symbolService = new SymbolService(symbolRepo, dataProvider, logger);
-const syncService = new SyncService(symbolService, marketDataRepo, dataProvider, logger);
+const syncService = new SyncService(symbolService, marketDataRepo, providerFactory, logger);
 const candleService = new CandleService(symbolService, syncService, marketDataRepo, logger);
 const overviewService = new OverviewService(symbolRepo, marketDataRepo, logger);
-const quoteService = new QuoteService(symbolRepo, marketDataRepo, dataProvider, cacheService, logger);
+const quoteService = new QuoteService(symbolRepo, marketDataRepo, dataProvider, tvProvider, cacheService, logger);
 const moversService = new MoversService(quoteService, cacheService, logger);
 const financialsService = new FinancialsService(dataProvider);
 
@@ -51,13 +55,13 @@ export class MarketService {
     }
     
     // Delegate to SyncService
-    async syncSymbolData(ticker: string, type: 'STOCK' | 'CRYPTO', interval: string = '1h', endDate?: Date) {
-        return syncService.syncSymbolData(ticker, type, interval, endDate);
+    async syncSymbolData(ticker: string, type: 'STOCK' | 'CRYPTO', interval: string = '1h', endDate?: Date, source: string = 'YAHOO') {
+        return syncService.syncSymbolData(ticker, type, interval, endDate, source);
     }
     
     // Delegate to CandleService
-    async getOHLCV(ticker: string, interval: string, limit: number, before?: string) {
-        return candleService.getOHLCV(ticker, interval, limit, before);
+    async getOHLCV(ticker: string, interval: string, limit: number, before?: string, source: string = 'YAHOO') {
+        return candleService.getOHLCV(ticker, interval, limit, before, source);
     }
     
     async getDownsampledCandles(ticker: string, resolution: string, limit: number) {
@@ -80,8 +84,8 @@ export class MarketService {
      * Get real-time quotes for multiple tickers
      * Uses caching to avoid rate limiting
      */
-    async getQuotes(tickers: string[], period: string = '7d') {
-        return quoteService.getQuotes(tickers, period);
+    async getQuotes(tickers: string[], period: string = '7d', source: string = 'YAHOO') {
+        return quoteService.getQuotes(tickers, period, source);
     }
 
     /**
@@ -89,6 +93,45 @@ export class MarketService {
      */
     async searchSymbols(query: string, limit: number = 15) {
         return quoteService.search(query, limit);
+    }
+
+    /**
+     * Search for symbols across multiple sources (Yahoo + TradingView)
+     * Returns aggregated results with source labels
+     */
+    async searchSymbolsMultiSource(query: string, limit: number = 15): Promise<any[]> {
+        logger.debug(`Multi-source search for: ${query}`);
+        
+        // Query both sources in parallel
+        const [yahooResults, tvResults] = await Promise.allSettled([
+            quoteService.search(query, limit),
+            tvProvider.search(query, limit)
+        ]);
+
+        const results: any[] = [];
+        
+        // Process Yahoo results
+        if (yahooResults.status === 'fulfilled' && yahooResults.value) {
+            const yahooMapped = yahooResults.value.map((r: any) => ({
+                symbol: r.ticker || r.symbol, // Handle both just in case
+                name: r.name || r.longName || r.shortName,
+                type: r.type || r.quoteType,
+                exchange: r.exchange || r.exchDisp,
+                currency: r.currency,
+                source: 'YAHOO'
+            }));
+            results.push(...yahooMapped);
+        }
+        
+        // Process TradingView results
+        if (tvResults.status === 'fulfilled' && tvResults.value) {
+            results.push(...tvResults.value);
+        } else if (tvResults.status === 'rejected') {
+            logger.warn('TradingView search failed, continuing with Yahoo only');
+        }
+        
+        logger.debug(`Multi-source search returned ${results.length} total results`);
+        return results;
     }
 
     /**

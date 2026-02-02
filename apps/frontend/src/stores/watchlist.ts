@@ -17,10 +17,13 @@ export interface WatchlistItem {
     ticker: string;
     name: string | null;
     type: string;
+    source: string;
     addedAt: string;
     // Logo support
     website?: string | null;
     iconUrl?: string | null;
+    currency?: string;
+    exchange?: string;
     // Extended with market data (client-side enrichment)
     price?: number;
     changePercent?: number;
@@ -135,10 +138,10 @@ export const useWatchlistStore = defineStore("watchlist", () => {
         }
     }
 
-    async function addSymbolToWatchlist(watchlistId: number, ticker: string) {
+    async function addSymbolToWatchlist(watchlistId: number, ticker: string, type?: string, source?: string) {
         try {
-            logger.info(`Adding ${ticker} to watchlist ${watchlistId}`);
-            const response = await api.post(`/watchlists/${watchlistId}/symbols`, { ticker });
+            logger.info(`Adding ${ticker} (${source}) to watchlist ${watchlistId}`);
+            const response = await api.post(`/watchlists/${watchlistId}/symbols`, { ticker, type, source });
             if (!response.data.success) {
                 throw new Error(response.data.error);
             }

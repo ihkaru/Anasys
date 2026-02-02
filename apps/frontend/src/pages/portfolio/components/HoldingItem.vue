@@ -1,8 +1,16 @@
 <template>
-    <f7-list-item :title="holding.ticker" :footer="`${holding.shares} shares @ ${formatCurrency(holding.avgCost)}`"
+    <f7-list-item :footer="`${holding.shares} shares @ ${formatCurrency(holding.avgCost)}`"
         swipeout class="no-swipe-panel" :class="{ 'item-holding': isHolding }" @click="$emit('click', holding)"
         @contextmenu.prevent @touchstart.passive="startHold" @touchend="endHold" @touchmove="cancelHold"
         @mousedown="startHold" @mouseup="endHold" @mouseleave="cancelHold">
+        <template #title>
+            <div class="item-title-row">
+                <span>{{ holding.ticker }}</span>
+                <span v-if="holding.source" class="badge-source" :class="holding.source.toLowerCase()">
+                    {{ holding.source === 'YAHOO' ? 'Y' : 'TV' }}
+                </span>
+            </div>
+        </template>
         <template #media>
             <AssetLogo :ticker="holding.ticker" :icon-url="holding.iconUrl" :website="holding.website"
                 :type="holding.type" size="medium" />
@@ -115,5 +123,30 @@ const { isHolding, start: startHold, cancel: cancelHold, end: endHold } = useLon
     background-color: var(--f7-list-bg-color);
     filter: brightness(0.95);
     transition: all 0.2s ease-out;
+}
+
+.item-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.badge-source {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--f7-text-color);
+    opacity: 0.7;
+}
+
+.badge-source.yahoo {
+    background: rgba(103, 58, 183, 0.1);
+    color: #673ab7;
+}
+
+.badge-source.tradingview {
+    background: rgba(255, 152, 0, 0.1);
+    color: #ff9800;
 }
 </style>

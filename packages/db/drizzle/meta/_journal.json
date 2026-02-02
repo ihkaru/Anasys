@@ -22,6 +22,13 @@
       "when": 1769618530948,
       "tag": "0002_cheerful_puck",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1769852930209,
+      "tag": "0003_blue_black_panther",
+      "breakpoints": true
     }
   ]
 }

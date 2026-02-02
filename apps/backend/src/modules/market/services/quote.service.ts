@@ -11,7 +11,17 @@ export interface QuoteWithSparkline extends QuoteResult {
     type: 'STOCK' | 'CRYPTO';
     iconUrl?: string;
     website?: string;
+    // Extended hours data (inherited from QuoteResult, but explicit here for clarity if needed)
+    marketState?: 'PRE' | 'REGULAR' | 'POST' | 'POSTPOST' | 'CLOSED';
+    preMarketPrice?: number;
+    preMarketChange?: number;
+    preMarketChangePercent?: number;
+    postMarketPrice?: number;
+    postMarketChange?: number;
+    postMarketChangePercent?: number;
 }
+
+import { TradingViewPythonProvider } from "../providers/tradingview-python.provider";
 
 export class QuoteService {
     private readonly QUOTE_CACHE_TTL = 60 * 1000; // 1 minute cache for quotes
@@ -22,6 +32,7 @@ export class QuoteService {
         private symbolRepo: SymbolRepository,
         private marketDataRepo: MarketDataRepository,
         private dataProvider: YahooFinanceProvider,
+        private tvProvider: TradingViewPythonProvider,
         private cacheService: CacheService,
         private logger: Logger
     ) {}
@@ -30,18 +41,18 @@ export class QuoteService {
      * Get real-time quotes for multiple tickers
      * Uses cache to avoid hitting Yahoo too often
      */
-    async getQuotes(tickers: string[], period: string = '1d'): Promise<QuoteWithSparkline[]> {
+    async getQuotes(tickers: string[], period: string = '1d', source: string = 'YAHOO'): Promise<QuoteWithSparkline[]> {
         if (!tickers.length) return [];
 
-        this.logger.debug(`Getting quotes for ${tickers.length} tickers (period=${period})`);
+        this.logger.debug(`Getting quotes for ${tickers.length} tickers (period=${period}, source=${source})`);
         
         const results: QuoteWithSparkline[] = [];
         const tickersToFetch: string[] = [];
         
         // Check cache first
-        // Cache key must include period!
+        // Cache key must include period AND source!
         for (const ticker of tickers) {
-            const cacheKey = `quote:${ticker}:${period}`;
+            const cacheKey = `quote:${ticker}:${period}:${source}`;
             const cached = this.cacheService.get<QuoteWithSparkline>(cacheKey);
             if (cached) {
                 results.push(cached);
@@ -55,24 +66,33 @@ export class QuoteService {
             return results;
         }
         
-        this.logger.debug(`Fetching ${tickersToFetch.length} quotes from Yahoo`);
+        this.logger.debug(`Fetching ${tickersToFetch.length} quotes from ${source}`);
         
-        // Fetch from Yahoo with rate limiting (batch in groups of 5 with delay)
+        // Fetch from Provider
         const BATCH_SIZE = 5;
-        const DELAY_MS = 500; // 0.5s between batches to be safe
+        const DELAY_MS = 500; 
         
         for (let i = 0; i < tickersToFetch.length; i += BATCH_SIZE) {
             const batch = tickersToFetch.slice(i, i + BATCH_SIZE);
             
             try {
-                const quotes = await this.dataProvider.fetchQuotes(batch);
+                let quotes;
+                if (source === 'TRADINGVIEW') {
+                    // Use TradingView Provider
+                     quotes = await this.tvProvider.fetchQuotes(batch);
+                } else {
+                    // Default to Yahoo
+                    quotes = await this.dataProvider.fetchQuotes(batch);
+                }
                 
-                // Enrich with symbol data and sparkline
+                // Enrich and Cache
                 for (const quote of quotes) {
+                    // Debug: log raw quote from provider
+                    this.logger.debug(`[DEBUG] Raw ${source} quote for ${quote.ticker}: price=${quote.price}, change=${quote.change}`);
                     const enriched = await this.enrichQuote(quote, period);
                     if (enriched) {
                         // Cache it
-                        this.cacheService.set(`quote:${quote.ticker}:${period}`, enriched, this.QUOTE_CACHE_TTL);
+                        this.cacheService.set(`quote:${quote.ticker}:${period}:${source}`, enriched, this.QUOTE_CACHE_TTL);
                         results.push(enriched);
                     }
                 }

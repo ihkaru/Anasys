@@ -25,22 +25,27 @@
             :color="themeStore.isDark ? 'purple' : 'orange'"></f7-icon>
         </template>
       </f7-list-item>
-      <f7-list-item title="Default Currency" :after="currency" link="#" @click="showCurrencyPicker">
+      <f7-list-item title="Default Currency" :after="settingsStore.currency" link="#" @click="showCurrencyPicker">
         <template #media>
           <f7-icon ios="f7:dollarsign_circle_fill" md="material:attach_money" color="green"></f7-icon>
         </template>
       </f7-list-item>
-      <f7-list-item title="Notifications" :after="notifications ? 'Enabled' : 'Disabled'">
+      <f7-list-item title="Notifications" :after="settingsStore.notifications ? 'Enabled' : 'Disabled'">
         <template #media>
           <f7-icon ios="f7:bell_fill" md="material:notifications" color="orange"></f7-icon>
         </template>
         <template #after>
-          <f7-toggle :checked="notifications" @toggle:change="toggleNotifications"></f7-toggle>
+          <f7-toggle :checked="settingsStore.notifications" @toggle:change="toggleNotifications"></f7-toggle>
         </template>
       </f7-list-item>
-      <f7-list-item title="Default Interval" :after="defaultInterval" link="#" @click="showIntervalPicker">
+      <f7-list-item title="Default Interval" :after="settingsStore.defaultInterval" link="#" @click="showIntervalPicker">
         <template #media>
           <f7-icon ios="f7:clock_fill" md="material:schedule" color="blue"></f7-icon>
+        </template>
+      </f7-list-item>
+      <f7-list-item title="Chart Timezone" :after="timezoneDisplayLabel" link="#" @click="showTimezonePicker">
+        <template #media>
+          <f7-icon ios="f7:globe" md="material:public" color="teal"></f7-icon>
         </template>
       </f7-list-item>
     </f7-list>
@@ -115,21 +120,27 @@
 
 <script setup lang="ts">
 import { f7 } from "framework7-vue";
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { api } from "../../api/client";
 import { sqliteService } from "../../services/sqlite";
 import { useAuthStore } from "../../stores/auth";
+import { useSettingsStore } from "../../stores/settings";
 import { useThemeStore } from "../../stores/theme";
 import { createLogger } from '../../utils/logger';
 
 const auth = useAuthStore();
 const themeStore = useThemeStore();
+const settingsStore = useSettingsStore();
 const logger = createLogger('SettingsPage');
 
 const appVersion = ref('1.0.0');
-const currency = ref('USD');
-const notifications = ref(true);
-const defaultInterval = ref('1h');
+
+// Computed labels
+const timezoneDisplayLabel = computed(() => {
+  return settingsStore.timezoneMode === 'local' 
+    ? `Local (${settingsStore.timezoneLabel})`
+    : `Exchange (${settingsStore.timezoneLabel})`;
+});
 
 function showThemePicker() {
   f7.dialog.create({
@@ -164,7 +175,7 @@ function showThemePicker() {
 }
 
 function toggleNotifications(value: boolean) {
-  notifications.value = value;
+  settingsStore.setNotifications(value);
   f7.toast.show({ text: `Notifications ${value ? 'enabled' : 'disabled'}`, closeTimeout: 1500 });
 }
 
@@ -172,10 +183,10 @@ function showCurrencyPicker() {
   f7.dialog.create({
     title: 'Select Currency',
     buttons: [
-      { text: 'USD ($)', onClick: () => { currency.value = 'USD'; } },
-      { text: 'EUR (€)', onClick: () => { currency.value = 'EUR'; } },
-      { text: 'GBP (£)', onClick: () => { currency.value = 'GBP'; } },
-      { text: 'IDR (Rp)', onClick: () => { currency.value = 'IDR'; } },
+      { text: 'USD ($)', onClick: () => { settingsStore.setCurrency('USD'); } },
+      { text: 'EUR (€)', onClick: () => { settingsStore.setCurrency('EUR'); } },
+      { text: 'GBP (£)', onClick: () => { settingsStore.setCurrency('GBP'); } },
+      { text: 'IDR (Rp)', onClick: () => { settingsStore.setCurrency('IDR'); } },
       { text: 'Cancel', color: 'gray' },
     ],
     verticalButtons: true,
@@ -186,9 +197,34 @@ function showIntervalPicker() {
   f7.dialog.create({
     title: 'Default Chart Interval',
     buttons: [
-      { text: '1 Hour', onClick: () => { defaultInterval.value = '1h'; } },
-      { text: '1 Day', onClick: () => { defaultInterval.value = '1d'; } },
-      { text: '1 Week', onClick: () => { defaultInterval.value = '1w'; } },
+      { text: '1 Hour', onClick: () => { settingsStore.setDefaultInterval('1h'); } },
+      { text: '1 Day', onClick: () => { settingsStore.setDefaultInterval('1d'); } },
+      { text: '1 Week', onClick: () => { settingsStore.setDefaultInterval('1w'); } },
+      { text: 'Cancel', color: 'gray' },
+    ],
+    verticalButtons: true,
+  }).open();
+}
+
+function showTimezonePicker() {
+  f7.dialog.create({
+    title: 'Chart Timezone',
+    text: 'Choose how times are displayed on charts',
+    buttons: [
+      { 
+        text: '🌍 Local Time', 
+        onClick: () => { 
+          settingsStore.setTimezoneMode('local'); 
+          f7.toast.show({ text: 'Using local timezone', closeTimeout: 1500 });
+        } 
+      },
+      { 
+        text: '🏛️ Exchange Time (EST)', 
+        onClick: () => { 
+          settingsStore.setTimezoneMode('exchange'); 
+          f7.toast.show({ text: 'Using US market timezone (EST)', closeTimeout: 1500 });
+        } 
+      },
       { text: 'Cancel', color: 'gray' },
     ],
     verticalButtons: true,

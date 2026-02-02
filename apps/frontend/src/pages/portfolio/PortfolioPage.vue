@@ -24,6 +24,7 @@
 import { f7 } from 'framework7-vue';
 import { computed, onMounted, ref } from 'vue';
 import { useHoldingsStore, type Holding } from '../../stores/holdings';
+import { useMarketStore } from '../../stores/market';
 import { createLogger } from '../../utils/logger';
 import AddHoldingSheet, { type HoldingFormData } from './components/AddHoldingSheet.vue';
 import AllocationChart from './components/AllocationChart.vue';
@@ -32,6 +33,7 @@ import PortfolioSummaryCard from './components/PortfolioSummaryCard.vue';
 
 const logger = createLogger('PortfolioPage');
 const holdingsStore = useHoldingsStore();
+const marketStore = useMarketStore();
 
 onMounted(async () => {
   logger.debug('PortfolioPage Mounted');
@@ -114,7 +116,8 @@ async function handleSave(formData: HoldingFormData) {
     const result = await holdingsStore.addHolding(
       formData.ticker.toUpperCase(),
       formData.shares,
-      formData.avgCost
+      formData.avgCost,
+      formData.source
     );
 
     if (result.success) {
@@ -149,7 +152,13 @@ function handleHold(holding: Holding) {
 }
 
 function openHoldingDetail(holding: Holding) {
-  logger.debug('Open holding detail:', holding.ticker);
+  logger.debug('Open holding detail:', holding.ticker, holding.source);
+  marketStore.selectSymbol(holding.ticker);
+  if (holding.source) {
+    marketStore.selectSource(holding.source);
+  } else {
+    marketStore.selectSource('YAHOO');
+  }
   f7.views.main.router.navigate('/chart/', { props: { ticker: holding.ticker } });
 }
 </script>

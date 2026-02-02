@@ -64,14 +64,14 @@ export const marketController = new Elysia({ prefix: "/market" })
     })
     // Market Overview (POST) - dynamic tickers (NEW!)
     .post("/overview", async ({ body }) => {
-        logger.debug(`POST /overview for ${body.tickers?.length || 0} tickers (period=${body.period})`);
+        logger.debug(`POST /overview for ${body.tickers?.length || 0} tickers (period=${body.period}, source=${body.source})`);
         try {
             const tickers = body.tickers || [];
             if (tickers.length === 0) {
                 return { success: true, data: [] };
             }
             // Use real-time quotes service instead of DB-based overview
-            const quotes = await marketService.getQuotes(tickers, body.period || '7d');
+            const quotes = await marketService.getQuotes(tickers, body.period || '7d', body.source || 'YAHOO');
             return { success: true, data: quotes };
         } catch (e) {
             logger.error("Failed to get quotes", e);
@@ -80,7 +80,8 @@ export const marketController = new Elysia({ prefix: "/market" })
     }, {
         body: t.Object({
             tickers: t.Array(t.String()),
-            period: t.Optional(t.String())
+            period: t.Optional(t.String()),
+            source: t.Optional(t.String())
         })
     })
     // Real-time quotes for single or multiple tickers
@@ -117,7 +118,7 @@ export const marketController = new Elysia({ prefix: "/market" })
         }
         
         try {
-            const results = await marketService.searchSymbols(q, limit);
+            const results = await marketService.searchSymbolsMultiSource(q, limit);
             return { success: true, data: results };
         } catch (e) {
             logger.error("Failed to search symbols", e);
@@ -181,7 +182,13 @@ export const marketController = new Elysia({ prefix: "/market" })
         const { body, user } = context;
         logger.info(`SYNC ${body.ticker} requested by ${user?.email || 'Unknown'}`);
         try {
-            const result = await marketService.syncSymbolData(body.ticker, body.type as 'STOCK' | 'CRYPTO', body.interval || '1d');
+            const result = await marketService.syncSymbolData(
+                body.ticker, 
+                body.type as 'STOCK' | 'CRYPTO', 
+                body.interval || '1d', 
+                undefined, // endDate
+                body.source || 'YAHOO'
+            );
             return { success: true, ...result };
         } catch (e) {
             logger.error(`SYNC failed for ${body.ticker}`, e);
@@ -191,7 +198,8 @@ export const marketController = new Elysia({ prefix: "/market" })
         body: t.Object({
             ticker: t.String(),
             type: t.Union([t.Literal('STOCK'), t.Literal('CRYPTO')]),
-            interval: t.Optional(t.String())
+            interval: t.Optional(t.String()),
+            source: t.Optional(t.String())
         })
     })
     .get("/history/:ticker", async ({ params, query }) => {
@@ -202,7 +210,8 @@ export const marketController = new Elysia({ prefix: "/market" })
                 params.ticker, 
                 query.interval || '1d', 
                 limit, 
-                query.before // Pass the before timestamp
+                query.before, // Pass the before timestamp
+                query.source || 'YAHOO'
             );
             return { success: true, data };
         } catch (e) {
@@ -213,7 +222,8 @@ export const marketController = new Elysia({ prefix: "/market" })
         query: t.Object({
             limit: t.Optional(t.String()),
             interval: t.Optional(t.String()),
-            before: t.Optional(t.String()) // ISO timestamp
+            before: t.Optional(t.String()), // ISO timestamp
+            source: t.Optional(t.String())
         })
     })
     // GET SINGLE SYMBOL with on-demand enrichment
@@ -293,12 +303,12 @@ export const marketController = new Elysia({ prefix: "/market" })
         }
     })
     // Single ticker quote (convenience endpoint)
-    .get("/quote/:ticker", async ({ params }) => {
+    .get("/quote/:ticker", async ({ params, query }) => {
         const ticker = params.ticker.toUpperCase();
-        logger.debug(`GET /quote/${ticker}`);
+        logger.debug(`GET /quote/${ticker} source=${query.source}`);
         
         try {
-            const quotes = await marketService.getQuotes([ticker]);
+            const quotes = await marketService.getQuotes([ticker], '1d', query.source || 'YAHOO');
             if (!quotes || quotes.length === 0) {
                 return { success: false, error: "Quote not found" };
             }
@@ -307,5 +317,9 @@ export const marketController = new Elysia({ prefix: "/market" })
             logger.error(`GET /quote/${ticker} failed`, e);
             return { success: false, error: (e as Error).message };
         }
+    }, {
+        query: t.Object({
+            source: t.Optional(t.String())
+        })
     });
 

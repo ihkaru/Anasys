@@ -45,7 +45,7 @@ const DEFAULT_CONFIG: ValidationConfig = {
     maxVolatilityCrypto: 0.60,
     maxPriceChangeStock: 0.20,
     maxPriceChangeCrypto: 0.50,
-    maxWickRatio: 5.0,
+    maxWickRatio: 200.0, // Increased to 200.0 to handle extreme Dojis
     flashCrashThreshold: 0.20,
     minPrice: 0.0001
 };
@@ -131,10 +131,15 @@ export class DataValidator {
         const body = Math.abs(candle.open - candle.close);
         const upperWick = candle.high - Math.max(candle.open, candle.close);
         const lowerWick = Math.min(candle.open, candle.close) - candle.low;
+        const maxWick = Math.max(upperWick, lowerWick);
         
         if (body > 0) {
-            const wickRatio = Math.max(upperWick, lowerWick) / body;
-            if (wickRatio > this.config.maxWickRatio) {
+            const wickRatio = maxWick / body;
+            
+            // Only flag if ratio is huge AND the wick itself is significant (> 0.5% of price)
+            const isSignificantWick = maxWick > (candle.open * 0.005);
+
+            if (wickRatio > this.config.maxWickRatio && isSignificantWick) {
                 return {
                     isValid: false,
                     reason: `Extreme wick ratio: ${wickRatio.toFixed(1)}x body`,

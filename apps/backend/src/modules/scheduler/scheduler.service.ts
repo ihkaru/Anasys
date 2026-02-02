@@ -9,11 +9,11 @@ const logger = new Logger('SchedulerService');
 export class SchedulerService {
     private syncIntervalId: Timer | null = null;
     private pruneIntervalId: Timer | null = null;
-    private readonly SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 Hour
+    private readonly SYNC_INTERVAL_MS = 15 * 60 * 1000; // 15 Minutes (Faster updates for trading)
     private readonly PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 Hours
 
     start() {
-        logger.info('Scheduler started. Sync: 1h (VIP only)');
+        logger.info('Scheduler started. Sync: 15m (VIP only)');
         
         // Run sync after short delay
         setTimeout(() => this.runSyncJob(), 5000);
@@ -55,7 +55,7 @@ export class SchedulerService {
             const vipSymbols = await db.select().from(symbols)
                 .where(inArray(symbols.id, vipSymbolIds))
                 .orderBy(asc(symbols.lastSyncedAt))
-                .limit(20); // Max 20 per hour to respect rate limits
+                .limit(30); // Max 30 per 15 min cycle = 120/hr (Very Safe)
 
             logger.info(`Syncing ${vipSymbols.length} VIP symbols (of ${vipSymbolIds.length} total)`);
 

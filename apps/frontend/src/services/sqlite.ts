@@ -6,7 +6,7 @@ export const sqliteConnection = new SQLiteConnection(CapacitorSQLite);
 
 export class SQLiteService {
     db: SQLiteDBConnection | null = null;
-    dbName = 'finance_db_v3'; // Bump version to force fresh DB
+    dbName = 'finance_db_v4'; // Bump version to force fresh DB for multi-source support
     private logger = createLogger('SQLite');
 
     constructor() {
@@ -78,9 +78,10 @@ export class SQLiteService {
                 low REAL,
                 close REAL,
                 volume REAL,
-                PRIMARY KEY (symbol, interval, timestamp)
+                source TEXT NOT NULL DEFAULT 'YAHOO',
+                PRIMARY KEY (symbol, interval, timestamp, source)
             );
-            CREATE INDEX IF NOT EXISTS idx_ohlcv_query ON ohlcv(symbol, interval, timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_ohlcv_query ON ohlcv(symbol, interval, source, timestamp DESC);
 
             CREATE TABLE IF NOT EXISTS symbol_cache (
                 symbol TEXT NOT NULL,
@@ -100,8 +101,9 @@ export class SQLiteService {
 
         // Use transaction for batch insert
         const statements = data.map(d => {
-            return `INSERT OR REPLACE INTO ohlcv (symbol, interval, timestamp, open, high, low, close, volume) 
-                    VALUES ('${symbol}', '${interval}', ${new Date(d.timestamp).getTime()}, ${d.open}, ${d.high}, ${d.low}, ${d.close}, ${d.volume});`;
+            const source = d.source || 'YAHOO';
+            return `INSERT OR REPLACE INTO ohlcv (symbol, interval, timestamp, open, high, low, close, volume, source) 
+                    VALUES ('${symbol}', '${interval}', ${new Date(d.timestamp).getTime()}, ${d.open}, ${d.high}, ${d.low}, ${d.close}, ${d.volume}, '${source}');`;
         }).join('\n');
         
         await this.db?.execute(statements);
@@ -111,10 +113,10 @@ export class SQLiteService {
         }
     }
 
-    async getOHLCV(symbol: string, interval: string, limit: number, before?: number) {
+    async getOHLCV(symbol: string, interval: string, limit: number, before?: number, source: string = 'YAHOO') {
         if(!this.db) await this.init();
-        let sql = `SELECT * FROM ohlcv WHERE symbol = ? AND interval = ?`;
-        const params: any[] = [symbol, interval];
+        let sql = `SELECT * FROM ohlcv WHERE symbol = ? AND interval = ? AND source = ?`;
+        const params: any[] = [symbol, interval, source];
         
         if (before) {
             sql += ` AND timestamp < ?`;
@@ -123,9 +125,22 @@ export class SQLiteService {
         
         sql += ` ORDER BY timestamp DESC LIMIT ?;`;
         params.push(limit);
+        
+        // === DEBUG ===
+        this.logger.info(`🔍 [SQLite] getOHLCV query for symbol="${symbol}", interval="${interval}"`);
 
         const res = await this.db?.query(sql, params);
         if (res?.values) {
+            // === DEBUG: Log what SQLite returns ===
+            this.logger.info(`🔍 [SQLite] Found ${res.values.length} rows`);
+            if (res.values.length > 0) {
+                const sample = res.values.slice(0, 3);
+                sample.forEach((v, i) => {
+                    const ts = new Date(v.timestamp);
+                    this.logger.info(`   SQLite[${i}]: ts=${v.timestamp} -> ${ts.toISOString()} minute=${ts.getMinutes()} interval="${v.interval}"`);
+                });
+            }
+            
             // DB returns DESC (Newest first) because of LIMIT
             // But Chart needs ASC (Oldest first)
             // So we map then reverse
@@ -142,7 +157,8 @@ export class SQLiteService {
     }
 
     // Symbol Data Cache (Financials, Earnings, etc)
-    async saveSymbolCache(symbol: string, type: 'financials' | 'earnings' | 'analyst' | 'recommendations' | 'quote' | 'symbol_details', data: any) {
+    // Note: type accepts string to allow dynamic keys like 'quote_YAHOO', 'quote_TRADINGVIEW'
+    async saveSymbolCache(symbol: string, type: string, data: any) {
         if(!this.db) await this.init();
         // Don't save null/undefined data
         if (data === null || data === undefined) {

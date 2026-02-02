@@ -57,6 +57,13 @@ export interface MarketMover extends Symbol {
     price: number;
     changePercent: number;
     sparkline?: number[];
+    marketState?: 'PRE' | 'REGULAR' | 'POST' | 'POSTPOST' | 'CLOSED';
+    preMarketPrice?: number;
+    preMarketChange?: number;
+    preMarketChangePercent?: number;
+    postMarketPrice?: number;
+    postMarketChange?: number;
+    postMarketChangePercent?: number;
 }
 
 export const useMarketStore = defineStore("market", () => {
@@ -71,6 +78,7 @@ export const useMarketStore = defineStore("market", () => {
     const quotes = ref<Map<string, MarketMover>>(new Map());
     
     const selectedSymbol = useLocalStorage<string>("selected_symbol", "AAPL");
+    const selectedSource = useLocalStorage<string>("selected_source", "YAHOO");
     const selectedStrategy = useLocalStorage<string>("selected_strategy", "SMA_CROSSOVER");
     
     const loading = ref(false);
@@ -101,15 +109,18 @@ export const useMarketStore = defineStore("market", () => {
         }
     }
 
-    async function fetchOverview(tickers: string[], period?: string): Promise<any[]> {
+    async function fetchOverview(tickers: string[], period?: string, source?: string): Promise<any[]> {
         try {
-            logger.debug(`Fetching overview for ${tickers.map(t => t).join(',')} (period=${period})`);
+            const src = source || 'YAHOO';
+            logger.debug(`Fetching overview for ${tickers.map(t => t).join(',')} (period=${period}, source=${src})`);
             if (tickers.length === 0) return [];
-            const response = await api.post("/market/overview", { tickers, period });
+            const response = await api.post("/market/overview", { tickers, period, source: src });
             if (response.data.success) {
                  const newQuotes = response.data.data || [];
                  newQuotes.forEach((q: any) => {
-                     quotes.value.set(q.ticker, q);
+                     // Use ticker:source as key to prevent overwrites
+                     const key = `${q.ticker}:${src}`;
+                     quotes.value.set(key, { ...q, source: src });
                  });
                  return newQuotes;
             }
@@ -183,7 +194,11 @@ export const useMarketStore = defineStore("market", () => {
             logger.info("Syncing symbol:", ticker);
             syncing.value = true;
             error.value = null;
-            const response = await api.post("/market/sync", { ticker, type });
+            const response = await api.post("/market/sync", { 
+                ticker, 
+                type, 
+                source: selectedSource.value 
+            });
             if (!response.data.success) {
                 throw new Error(response.data.error);
             }
@@ -202,11 +217,24 @@ export const useMarketStore = defineStore("market", () => {
         try {
             logger.debug(`Fetching history for ${ticker} (interval=${interval}, limit=${limit}, before=${before})`);
             
+            // === DEBUG: Log interval explicitly ===
+            logger.info(`🔍 [DEBUG] fetchHistory called with interval="${interval}"`);
+            
             // 1. Try Cache First
             let cachedData: any[] = [];
             try {
                 const beforeTs = before ? new Date(before).getTime() : undefined;
-                cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs);
+                cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs, selectedSource.value);
+                
+                // === DEBUG: Check cache data timestamps ===
+                if (cachedData.length > 0) {
+                    logger.info(`🔍 [DEBUG] Cache returned ${cachedData.length} candles for interval="${interval}"`);
+                    const sample = cachedData.slice(0, 3);
+                    sample.forEach((c, i) => {
+                        const ts = new Date(c.timestamp);
+                        logger.info(`   Cache[${i}]: ${c.timestamp} minute=${ts.getMinutes()}`);
+                    });
+                }
             } catch (err) {
                 logger.warn('SQLite Cache Read Failed', err);
             }
@@ -272,15 +300,28 @@ export const useMarketStore = defineStore("market", () => {
                         params: { 
                             limit: String(limit),
                             interval: interval,
-                            before: before
+                            before: before,
+                            source: selectedSource.value
                         }
                     });
                     
                     if (response.data.success) {
                         const newData = response.data.data || [];
                         
+                        // === DEBUG: Check network data timestamps ===
+                        if (newData.length > 0) {
+                            logger.info(`🔍 [DEBUG] Network returned ${newData.length} candles for interval="${interval}"`);
+                            const sample = newData.slice(0, 3);
+                            sample.forEach((c: any, i: number) => {
+                                const ts = new Date(c.timestamp);
+                                logger.info(`   Network[${i}]: ${c.timestamp} minute=${ts.getMinutes()}`);
+                            });
+                        }
+                        
                          // Save to Cache (Fire and Forget)
-                        sqliteService.saveOHLCV(ticker, interval, newData).catch(e => logger.error('Cache Save Failed', e));
+                        // Inject source into data for SQLite storage
+                        const dataToSave = newData.map((d: any) => ({ ...d, source: selectedSource.value }));
+                        sqliteService.saveOHLCV(ticker, interval, dataToSave).catch(e => logger.error('Cache Save Failed', e));
 
                         if (before) {
                             if (newData.length > 0) {
@@ -400,6 +441,12 @@ export const useMarketStore = defineStore("market", () => {
         selectedStrategy.value = strategyId;
     }
 
+    function selectSource(source: string) {
+        selectedSource.value = source;
+        // Clear data to trigger refresh
+        ohlcvData.value = []; 
+    }
+
     // ===== NEW: Search, Trending, Recommendations =====
     
     async function searchSymbols(query: string, limit: number = 15) {
@@ -512,14 +559,17 @@ export const useMarketStore = defineStore("market", () => {
      */
     async function fetchQuote(ticker: string) {
         try {
-             // Short Cache for Quote (5 mins) to allow quick switching
-            const cached = await sqliteService.getSymbolCache(ticker, 'quote', 5);
+             // Short Cache for Quote (5 mins)
+            const cacheKey = `quote_${selectedSource.value}`;
+            const cached = await sqliteService.getSymbolCache(ticker, cacheKey, 5);
             if (cached) return cached;
 
-            logger.debug(`Fetching quote for ${ticker}`);
-            const response = await api.get(`/market/quote/${ticker}`);
+            logger.debug(`Fetching quote for ${ticker} (source=${selectedSource.value})`);
+            const response = await api.get(`/market/quote/${ticker}`, {
+                params: { source: selectedSource.value }
+            });
             if (response.data.success) {
-                await sqliteService.saveSymbolCache(ticker, 'quote', response.data.data);
+                await sqliteService.saveSymbolCache(ticker, cacheKey, response.data.data);
                 return response.data.data;
             }
             return null;
@@ -563,6 +613,7 @@ export const useMarketStore = defineStore("market", () => {
         movers,
         quotes,
         selectedSymbol,
+        selectedSource,
         selectedStrategy,
         loading,
         syncing,
@@ -588,6 +639,7 @@ export const useMarketStore = defineStore("market", () => {
         selectSymbol,
         fetchSymbolDetails,
         selectStrategy,
+        selectSource,
         selectedSymbolData,
         
         // NEW: Financial data actions

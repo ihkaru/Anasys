@@ -10,6 +10,7 @@ export interface CreateHoldingInput {
     ticker: string;
     shares: number;
     avgCost: number;
+    source?: string;
 }
 
 export interface UpdateHoldingInput {
@@ -30,6 +31,7 @@ export interface HoldingWithDetails {
     pnlPercent: number;
     website: string | null;
     iconUrl: string | null;
+    source: string;
     sparkline?: number[];
 }
 
@@ -50,6 +52,7 @@ export class HoldingsService {
             type: symbols.type,
             website: symbols.website,
             iconUrl: symbols.iconUrl,
+            source: holdings.source,
         })
             .from(holdings)
             .innerJoin(symbols, eq(holdings.symbolId, symbols.id))
@@ -66,7 +69,10 @@ export class HoldingsService {
             })
                 .from(marketData)
                 .where(
-                    eq(marketData.symbolId, holding.symbolId)
+                    and(
+                        eq(marketData.symbolId, holding.symbolId),
+                        eq(marketData.source, holding.source)
+                    )
                 )
                 .orderBy(desc(marketData.timestamp))
                 .limit(14); // 14 days of history
@@ -93,6 +99,7 @@ export class HoldingsService {
                 pnlPercent,
                 website: holding.website,
                 iconUrl: holding.iconUrl,
+                source: holding.source,
                 sparkline,
             });
         }
@@ -114,12 +121,15 @@ export class HoldingsService {
             return { success: false, error: "Symbol not found" };
         }
         
-        // Check if user already has this holding
+        const source = input.source || 'YAHOO';
+        
+        // Check if user already has this holding with same source
         const [existing] = await db.select()
             .from(holdings)
             .where(and(
                 eq(holdings.userId, input.userId),
-                eq(holdings.symbolId, symbol.id)
+                eq(holdings.symbolId, symbol.id),
+                eq(holdings.source, source)
             ))
             .limit(1);
         
@@ -149,6 +159,7 @@ export class HoldingsService {
                 symbolId: symbol.id,
                 shares: input.shares,
                 avgCost: input.avgCost,
+                source: source,
             })
             .returning();
         

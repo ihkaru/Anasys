@@ -2,7 +2,8 @@
 import { getDataValidator } from "../../../utils/data-validator";
 import { Logger } from "../../../utils/logger";
 import { getYahooRateLimiter } from "../../../utils/rate-limiter";
-import { IDataProvider } from "../providers/data-provider.interface";
+import { UnifiedCandle } from "../providers/data-provider.interface";
+import { DataProviderFactory } from "../providers/provider.factory";
 import { MarketDataRepository } from "../repositories/market-data.repository";
 import { SymbolService } from "./symbol.service";
 
@@ -19,14 +20,15 @@ export class SyncService {
     constructor(
         private symbolService: SymbolService,
         private marketDataRepo: MarketDataRepository,
-        private dataProvider: IDataProvider,
+        private providerFactory: DataProviderFactory,
         private logger: Logger
     ) {}
 
-    async syncSymbolData(ticker: string, type: 'STOCK' | 'CRYPTO', interval: string = '1h', endDate?: Date): Promise<SyncResult> {
+    async syncSymbolData(ticker: string, type: 'STOCK' | 'CRYPTO', interval: string = '1h', endDate?: Date, source: string = 'YAHOO'): Promise<SyncResult> {
         try {
-            this.logger.info(`Sync started for ${ticker} (${interval})` + (endDate ? ` until ${endDate.toISOString()}` : ''));
+            this.logger.info(`Sync started for ${ticker} (${interval}) via ${source}` + (endDate ? ` until ${endDate.toISOString()}` : ''));
             const symbol = await this.symbolService.ensureSymbol(ticker, type);
+            const provider = this.providerFactory.getProvider(source);
             
             const queryOptions = await this.determineQueryOptions(symbol.id, interval, endDate);
             
@@ -42,33 +44,37 @@ export class SyncService {
                 chartOptions.period2 = queryOptions.period2;
             }
             
+            // Enable Pre/Post market data to match TradingView and fix alignment gaps
+            chartOptions.includePrePost = true;
+            
             this.logger.debug(`Fetching ${ticker} (${interval}) range: ${queryOptions.period1} -> ${queryOptions.period2 || 'now'}`);
 
             // Use rate limiter with exponential backoff
             const startFetch = Date.now();
             const result = await this.rateLimiter.execute(
-                () => this.dataProvider.fetchChart(ticker, chartOptions),
+                () => provider.fetchChart(ticker, chartOptions),
                 `chart:${ticker}`
             );
-            this.logger.debug(`[SyncService] Yahoo API Fetch took ${Date.now() - startFetch}ms`);
+            this.logger.debug(`[SyncService] API Fetch (${source}) took ${Date.now() - startFetch}ms`);
 
-            if (!result || !result.quotes || result.quotes.length === 0) {
-                 this.logger.warn(`No data found for ${ticker}`);
+            if (!result || result.length === 0) {
+                 this.logger.warn(`No data found for ${ticker} on ${source}`);
                  return { count: 0, status: 'empty' };
             }
 
             // Use enhanced validation
             const isCrypto = type === 'CRYPTO';
             const { values, rejected } = this.validateAndCleanCandlesEnhanced(
-                result.quotes, 
+                result, 
                 symbol.id, 
                 interval,
                 isCrypto,
-                ticker
+                ticker,
+                source
             );
 
             if (values.length === 0) {
-                this.logger.warn(`All ${result.quotes.length} candles rejected for ${ticker}`);
+                this.logger.warn(`All ${result.length} candles rejected for ${ticker}`);
                 return { count: 0, status: 'empty', rejected };
             }
 
@@ -104,57 +110,77 @@ export class SyncService {
     }
 
     private validateAndCleanCandlesEnhanced(
-        candles: any[], 
+        candles: UnifiedCandle[], 
         symbolId: number, 
         interval: string,
         isCrypto: boolean,
-        ticker: string
+        ticker: string,
+        source: string
     ): { values: any[]; rejected: number } {
         let rejected = 0;
-        const seen = new Set<string>(); // Deduplicate by normalized timestamp
+        // Use Map to handle collisions (e.g. 14:00 pre-market and 14:30 open both mapping to 14:00)
+        // Strategy: "Last Write Wins" (or merge logic could be added)
+        // Since Yahoo returns sorted data, the later candle (14:30) is usually the "Main" session one
+        const candleMap = new Map<number, any>();
 
-        const values = candles
-            .map((candle: any) => {
-                // Normalize timestamp to interval boundary
-                const rawDate = new Date(candle.date);
-                const normalizedDate = this.normalizeTimestamp(rawDate, interval);
-                
-                return {
-                    symbolId: symbolId,
-                    timestamp: normalizedDate,
-                    open: candle.open,
-                    high: candle.high,
-                    low: candle.low,
-                    close: candle.close,
-                    volume: candle.volume,
-                    interval: interval
-                };
-            })
-            .filter((c: any) => {
-                // Basic null check
-                if (c.open === null || c.close === null || c.high === null || c.low === null) {
-                    rejected++;
-                    return false;
+        candles.forEach((candle: any) => {
+            // Basic null check
+            if (candle.open === null || candle.close === null || candle.high === null || candle.low === null) {
+                rejected++;
+                return;
+            }
+
+            // Normalize timestamp to interval boundary
+            const rawDate = candle.timestamp;
+            const normalizedDate = this.normalizeTimestamp(rawDate, interval);
+            
+            // === GUARDRAIL: Strict Time-Windowing ===
+            // Enforce that 1h candles are strictly hour-aligned
+            if (interval === '1h' && normalizedDate.getMinutes() !== 0) {
+                this.logger.warn(`[Guardrail] 1h candle normalization failed for ${ticker} at ${rawDate.toISOString()} -> ${normalizedDate.toISOString()}`);
+                normalizedDate.setMinutes(0, 0, 0); 
+            }
+
+            const timestamp = normalizedDate.getTime();
+            const newCandleValue = {
+                symbolId: symbolId,
+                timestamp: normalizedDate,
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+                volume: candle.volume,
+                interval: interval,
+                source: source
+            };
+
+            // Collision Resolution Strategy
+            if (candleMap.has(timestamp)) {
+                const existing = candleMap.get(timestamp);
+                // If existing was low volume (e.g. pre-market 0 vol) and new is high volume, definitely take new
+                if ((existing.volume || 0) === 0 && (newCandleValue.volume || 0) > 0) {
+                     this.logger.debug(`[${ticker}] Overwriting zero-vol candle at ${normalizedDate.toISOString()} with high-vol candle`);
+                     candleMap.set(timestamp, newCandleValue);
+                } 
+                // Default: Overwrite (Last Wins) - usually 14:30 overwrites 14:00
+                else {
+                    candleMap.set(timestamp, newCandleValue); 
                 }
+            } else {
+                candleMap.set(timestamp, newCandleValue);
+            }
+        });
 
-                // Deduplicate: only keep first occurrence of each normalized timestamp
-                const key = `${c.timestamp.getTime()}`;
-                if (seen.has(key)) {
-                    this.logger.debug(`[${ticker}] Skipping duplicate at ${c.timestamp.toISOString()}`);
-                    return false;
-                }
-                seen.add(key);
-
-                // Use comprehensive validator
-                const result = this.dataValidator.validateCandle(c, isCrypto);
-                if (!result.isValid) {
-                    this.logger.debug(`[${ticker}] Rejected candle at ${c.timestamp.toISOString()}: ${result.reason}`);
-                    rejected++;
-                    return false;
-                }
-
-                return true;
-            });
+        const values = Array.from(candleMap.values()).filter(c => {
+             // Use comprehensive validator
+             const result = this.dataValidator.validateCandle(c, isCrypto);
+             if (!result.isValid) {
+                 this.logger.debug(`[${ticker}] Rejected candle at ${c.timestamp.toISOString()}: ${result.reason}`);
+                 rejected++;
+                 return false;
+             }
+             return true;
+        });
 
         return { values, rejected };
     }

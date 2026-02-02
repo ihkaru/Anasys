@@ -19,13 +19,16 @@ export const strategies = pgTable("strategies", {
 import { boolean, doublePrecision, integer, pgEnum, primaryKey } from "drizzle-orm/pg-core";
 
 export const assetTypeEnum = pgEnum('asset_type', ['STOCK', 'CRYPTO']);
+export const dataSourceEnum = pgEnum('data_source', ['YAHOO', 'TRADINGVIEW', 'CCXT']);
 
 export const symbols = pgTable("symbols", {
     id: serial("id").primaryKey(),
     ticker: text("ticker").notNull().unique(), // e.g. "AAPL", "BTC/USDT"
     name: text("name"),
     type: assetTypeEnum("type").notNull(),
-    provider: text("provider").default('yahoo'), // 'yahoo' or 'ccxt'
+    provider: text("provider").default('yahoo'), // 'yahoo' or 'ccxt' (Primary metadata provider)
+    exchange: text("exchange"), // e.g. "NASDAQ", "NYSE", "BINANCE"
+    currency: text("currency"), // e.g. "USD", "IDR"
     isActive: boolean("is_active").default(true),
     iconUrl: text("icon_url"),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
@@ -66,10 +69,11 @@ export const watchlists = pgTable("watchlists", {
 export const watchlistItems = pgTable("watchlist_items", {
     watchlistId: integer("watchlist_id").references(() => watchlists.id, { onDelete: 'cascade' }).notNull(),
     symbolId: integer("symbol_id").references(() => symbols.id, { onDelete: 'cascade' }).notNull(),
+    source: text("source").default('YAHOO').notNull(),
     addedAt: timestamp("added_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => {
     return {
-        pk: primaryKey({ columns: [table.watchlistId, table.symbolId] }),
+        pk: primaryKey({ columns: [table.watchlistId, table.symbolId, table.source] }),
     };
 });
 
@@ -81,10 +85,11 @@ export const marketData = pgTable("market_data", {
     low: doublePrecision("low").notNull(),
     close: doublePrecision("close").notNull(),
     volume: doublePrecision("volume").notNull(),
+    source: text("source").default('YAHOO').notNull(),
     interval: text("interval").default("1d").notNull(),
 }, (table) => {
     return {
-        pk: primaryKey({ columns: [table.symbolId, table.timestamp, table.interval] }),
+        pk: primaryKey({ columns: [table.symbolId, table.timestamp, table.interval, table.source] }),
     };
 });
 
@@ -93,6 +98,7 @@ export const holdings = pgTable("holdings", {
     id: serial("id").primaryKey(),
     userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
     symbolId: integer("symbol_id").references(() => symbols.id, { onDelete: 'cascade' }).notNull(),
+    source: text("source").default('YAHOO').notNull(),
     shares: doublePrecision("shares").notNull(), // Number of shares/units
     avgCost: doublePrecision("avg_cost").notNull(), // Average purchase price
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

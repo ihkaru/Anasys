@@ -22,10 +22,11 @@ export class MarketDataRepository {
         return await this.db.execute(query);
     }
 
-    async getRawCandles(symbolId: number, interval: string, limit: number, before?: Date): Promise<any[]> {
+    async getRawCandles(symbolId: number, interval: string, limit: number, before?: Date, source: string = 'YAHOO'): Promise<any[]> {
         const whereClause = [
             eq(marketData.symbolId, symbolId),
-            eq(marketData.interval, interval)
+            eq(marketData.interval, interval),
+            eq(marketData.source, source)
         ];
         
         if (before) {
@@ -57,10 +58,10 @@ export class MarketDataRepository {
         return await this.db.execute(query);
     }
 
-    async getLastTimestamp(symbolId: number, interval: string): Promise<Date | null> {
+    async getLastTimestamp(symbolId: number, interval: string, source: string = 'YAHOO'): Promise<Date | null> {
          const [lastEntry] = await this.db.execute(sql`
             SELECT timestamp FROM market_data 
-            WHERE symbol_id = ${symbolId} AND interval = ${interval}
+            WHERE symbol_id = ${symbolId} AND interval = ${interval} AND source = ${source}
             ORDER BY timestamp DESC
             LIMIT 1
          `);

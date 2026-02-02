@@ -1,8 +1,19 @@
 <template>
     <f7-list class="asset-list">
-        <f7-list-item v-for="item in items" :key="item.ticker" :title="item.ticker"
+        <f7-list-item v-for="item in items" :key="item.ticker + (item.source || '') + (item.exchange || '')"
             :subtitle="showSubtitle ? item.name : undefined" :footer="!showSubtitle ? item.name : undefined"
             @click="$emit('click', item)">
+            <template #title>
+                <div class="title-row">
+                    <span class="ticker">{{ item.ticker }}</span>
+                    <div class="badges">
+                        <span v-if="item.exchange" class="badge exchange">{{ item.exchange }}</span>
+                        <span v-if="item.source" class="badge source" :class="item.source.toLowerCase()">
+                            {{ item.source === 'YAHOO' ? 'Y' : 'TV' }}
+                        </span>
+                    </div>
+                </div>
+            </template>
             <template #media>
                 <div class="asset-icon-wrapper">
                     <AssetLogo :ticker="item.ticker" :icon-url="item.iconUrl" :website="item.website" :type="item.type"
@@ -17,10 +28,17 @@
                             :height="20" />
                     </div>
                     <div class="price-col" v-if="showPrice">
-                        <span class="price-text">{{ formatPrice(item.price) }}</span>
+                        <span class="price-text">{{ formatPrice(item.price, item.currency) }}</span>
                         <span v-if="item.changePercent !== undefined"
                             :class="['change-badge', isPositive(item) ? 'positive' : 'negative']">
                             {{ isPositive(item) ? '+' : '' }}{{ item.changePercent.toFixed(2) }}%
+                        </span>
+                        <!-- Extended Hours Secondary Display -->
+                        <span v-if="getExtendedHours(item)" class="extended-hours">
+                            {{ getExtendedHours(item)?.label }}: {{ formatPrice(getExtendedHours(item)?.price || 0, item.currency) }}
+                            <span :class="(getExtendedHours(item)?.changePercent || 0) >= 0 ? 'ext-positive' : 'ext-negative'">
+                                {{ (getExtendedHours(item)?.changePercent || 0) >= 0 ? '+' : '' }}{{ (getExtendedHours(item)?.changePercent || 0).toFixed(2) }}%
+                            </span>
                         </span>
                     </div>
                 </div>
@@ -40,7 +58,7 @@
 
 <script setup lang="ts">
 import SparklineChart from '../../../components/SparklineChart.vue';
-import { formatPrice } from '../../../utils/formatters';
+import { formatPrice, getExtendedHoursInfo } from '../../../utils/formatters';
 import AssetLogo from '../../home/components/AssetLogo.vue';
 
 interface AssetItem {
@@ -52,6 +70,10 @@ interface AssetItem {
     iconUrl?: string;
     website?: string;
     type?: string;
+    // Multi-source fields
+    source?: string;
+    exchange?: string;
+    currency?: string;
 }
 
 const props = withDefaults(defineProps<{
@@ -72,6 +94,11 @@ defineEmits<{
 
 function isPositive(item: AssetItem): boolean {
     return (item.changePercent || 0) >= 0;
+}
+
+// Get extended hours info for an item
+function getExtendedHours(item: AssetItem) {
+    return getExtendedHoursInfo(item as any);
 }
 </script>
 
@@ -136,5 +163,60 @@ function isPositive(item: AssetItem): boolean {
 .no-results-content p {
     margin: 0;
     opacity: 0.6;
+}
+
+.title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ticker {
+    font-weight: 600;
+}
+
+.badges {
+    display: flex;
+    gap: 4px;
+}
+
+.badge {
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--f7-text-color);
+    text-transform: uppercase;
+}
+
+.badge.exchange {
+    background: rgba(33, 150, 243, 0.1);
+    color: #2196f3;
+}
+
+.badge.source.yahoo {
+    background: rgba(103, 58, 183, 0.1);
+    color: #673ab7;
+}
+
+.badge.source.tradingview {
+    background: rgba(255, 152, 0, 0.1);
+    color: #ff9800;
+}
+
+/* Extended Hours Styles */
+.extended-hours {
+    font-size: 10px;
+    color: var(--f7-text-color);
+    opacity: 0.65;
+    margin-top: 2px;
+}
+
+.extended-hours .ext-positive {
+    color: var(--positive-color, #10b981);
+}
+
+.extended-hours .ext-negative {
+    color: var(--negative-color, #ef4444);
 }
 </style>

@@ -1,6 +1,5 @@
-
 import yahooFinance from "yahoo-finance2";
-import { IDataProvider } from "./data-provider.interface";
+import { IDataProvider, UnifiedCandle } from "./data-provider.interface";
 
 export interface QuoteResult {
     ticker: string;
@@ -14,6 +13,15 @@ export interface QuoteResult {
     high52Week?: number;
     low52Week?: number;
     updatedAt: Date;
+    currency?: string;
+    // Extended Hours Data
+    marketState?: 'PRE' | 'REGULAR' | 'POST' | 'POSTPOST' | 'CLOSED';
+    preMarketPrice?: number;
+    preMarketChange?: number;
+    preMarketChangePercent?: number;
+    postMarketPrice?: number;
+    postMarketChange?: number;
+    postMarketChangePercent?: number;
 }
 
 export interface SearchResult {
@@ -36,8 +44,18 @@ export class YahooFinanceProvider implements IDataProvider {
         this.client = new (yahooFinance as any)();
     }
 
-    async fetchChart(ticker: string, options: any): Promise<any> {
-        return await this.client.chart(ticker, options);
+    async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
+        const result = await this.client.chart(ticker, options);
+        if (!result || !result.quotes) return [];
+
+        return result.quotes.map((q: any) => ({
+            timestamp: new Date(q.date),
+            open: q.open,
+            high: q.high,
+            low: q.low,
+            close: q.close,
+            volume: q.volume || 0
+        })).filter((c: UnifiedCandle) => c.open !== null && c.close !== null); // Basic null check
     }
     
     async fetchQuoteSummary(ticker: string, modules: string[]): Promise<any> {
@@ -68,6 +86,15 @@ export class YahooFinanceProvider implements IDataProvider {
                         high52Week: quote.fiftyTwoWeekHigh,
                         low52Week: quote.fiftyTwoWeekLow,
                         updatedAt: new Date(),
+                        currency: quote.currency,
+                        // Extended Hours Data
+                        marketState: quote.marketState,
+                        preMarketPrice: quote.preMarketPrice,
+                        preMarketChange: quote.preMarketChange,
+                        preMarketChangePercent: quote.preMarketChangePercent,
+                        postMarketPrice: quote.postMarketPrice,
+                        postMarketChange: quote.postMarketChange,
+                        postMarketChangePercent: quote.postMarketChangePercent,
                     });
                 }
             } catch (e) {
@@ -180,6 +207,7 @@ export class YahooFinanceProvider implements IDataProvider {
                 high52Week: quote.fiftyTwoWeekHigh,
                 low52Week: quote.fiftyTwoWeekLow,
                 updatedAt: new Date(),
+                currency: quote.currency,
             }));
     }
 

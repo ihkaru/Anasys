@@ -1,7 +1,16 @@
-
-export function formatPrice(price: number): string {
-  if (price === undefined || price === null) return '$0.00';
-  return '$' + price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export function formatPrice(price: number, currency: string | null = 'USD'): string {
+  const safeCurrency = currency || 'USD';
+  if (price === undefined || price === null) return new Intl.NumberFormat('en-US', { style: 'currency', currency: safeCurrency }).format(0);
+   try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: safeCurrency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(price);
+  } catch (e) {
+      return (safeCurrency === 'USD' ? '$' : safeCurrency + ' ') + price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
 }
 
 export function formatChangePercent(change: number): string {

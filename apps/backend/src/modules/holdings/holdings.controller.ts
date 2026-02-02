@@ -65,13 +65,14 @@ export const holdingsController = new Elysia({ prefix: "/holdings" })
     })
     // CREATE new holding
     .post("/", async ({ body, user }: any) => {
-        logger.info(`POST /holdings - ${body.ticker}`);
+        logger.info(`POST /holdings - ${body.ticker} (${body.source || 'YAHOO'})`);
         try {
             const result = await holdingsService.createHolding({
                 userId: user.id,
                 ticker: body.ticker,
                 shares: body.shares,
                 avgCost: body.avgCost,
+                source: body.source || 'YAHOO',
             });
             if (!result.success) {
                 return { success: false, error: result.error };
@@ -85,7 +86,8 @@ export const holdingsController = new Elysia({ prefix: "/holdings" })
         body: t.Object({
             ticker: t.String(),
             shares: t.Number(),
-            avgCost: t.Number()
+            avgCost: t.Number(),
+            source: t.Optional(t.String())
         })
     })
     // UPDATE holding

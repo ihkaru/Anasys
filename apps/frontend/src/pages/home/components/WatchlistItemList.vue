@@ -1,6 +1,6 @@
 <template>
     <f7-list class="watchlist-items">
-        <WatchlistItem v-for="item in items" :key="item.ticker" :item="item" @click="$emit('item-click', item)"
+        <WatchlistItem v-for="item in items" :key="item.ticker + (item.source || '')" :item="item" @click="$emit('item-click', item)"
             @remove="$emit('item-remove', item.ticker)" @hold="$emit('item-hold', item)" />
 
         <!-- Empty State -->

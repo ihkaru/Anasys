@@ -14,8 +14,16 @@
                 <f7-preloader />
             </div>
             <f7-list media-list v-else>
-                <f7-list-item v-for="asset in searchResults" :key="asset.ticker" :title="asset.ticker"
-                    :subtitle="asset.name" :after="asset.type" @click="$emit('add', asset)">
+            <f7-list-item v-for="asset in searchResults" :key="asset.ticker + (asset.source || '')" :title="asset.ticker"
+                    :subtitle="asset.name" @click="$emit('add', asset)">
+                    <template #after>
+                        <span class="badge-row">
+                            <span v-if="asset.exchange" class="badge exchange">{{ asset.exchange }}</span>
+                            <span v-if="asset.source" class="badge source" :class="asset.source.toLowerCase()">
+                                {{ asset.source === 'YAHOO' ? 'Y' : 'TV' }}
+                            </span>
+                        </span>
+                    </template>
                     <template #media>
                         <AssetLogo :ticker="asset.ticker" :type="asset.type" :website="asset.website"
                             :icon-url="asset.iconUrl" size="small" />
@@ -60,14 +68,20 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
   loading.value = true;
   try {
     const results = await marketStore.searchSymbols(query, 20);
+    console.log('[AddAssetSheet] Raw search results:', results);
+    
     // Map to simple display format
-    searchResults.value = results.map((r: any) => ({
-      ticker: r.ticker,
-      name: r.name,
-      type: r.type === 'CRYPTOCURRENCY' ? 'CRYPTO' : 'STOCK',
-      iconUrl: undefined, // Search doesn't return icons usually
-      website: undefined
-    }));
+    searchResults.value = results
+        .filter((r: any) => r.symbol || r.ticker)
+        .map((r: any) => ({
+            ticker: r.symbol || r.ticker,
+            name: r.name,
+            type: r.type === 'CRYPTOCURRENCY' ? 'CRYPTO' : 'STOCK',
+            source: r.source,
+            exchange: r.exchange,
+            iconUrl: undefined,
+            website: undefined
+        }));
   } catch (e) {
     console.error('Search failed', e);
     searchResults.value = [];
@@ -99,5 +113,34 @@ watch(() => props.opened, (isOpen) => {
 <style scoped>
 .add-asset-sheet {
     height: 80%;
+}
+
+.badge-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.1);
+    color: var(--f7-text-color);
+}
+
+.badge.exchange {
+    background: rgba(33, 150, 243, 0.1);
+    color: #2196f3;
+}
+
+.badge.source.yahoo {
+    background: rgba(103, 58, 183, 0.1);
+    color: #673ab7;
+}
+
+.badge.source.tradingview {
+    background: rgba(255, 152, 0, 0.1);
+    color: #ff9800;
 }
 </style>

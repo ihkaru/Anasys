@@ -1,5 +1,5 @@
 <template>
-    <div class="asset-icon-wrapper" :class="[size]">
+    <div v-if="ticker" class="asset-icon-wrapper" :class="[size]">
         <img v-if="!hasError && logoUrl" :src="logoUrl" :alt="ticker" class="asset-logo" @error="onLogoError"
             @load="onLogoLoad" />
         <div v-else class="asset-icon" :class="[size]" :style="{ backgroundColor: getColorForTicker(ticker) }">
@@ -38,6 +38,7 @@ const logoUrl = computed(() => {
     if (props.iconUrl) return props.iconUrl;
 
     // Stocks/ETFs - use symbol endpoint
+    if (!props.ticker) return '';
     const url = props.type === 'CRYPTO' || props.ticker.includes('-USD')
         ? `https://api.elbstream.com/logos/crypto/${props.ticker.split('-')[0].toUpperCase()}`
         : `https://api.elbstream.com/logos/symbol/${props.ticker}`;

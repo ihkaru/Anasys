@@ -111,8 +111,8 @@ export class SymbolService {
         const startTime = Date.now();
         const existing = await this.symbolRepo.findByTicker(ticker);
         
-        // Skip if recently enriched and has data
-        if (existing?.metadataUpdatedAt && !this.isStale(existing.metadataUpdatedAt)) {
+        // Skip if recently enriched and has data (and currency!)
+        if (existing?.metadataUpdatedAt && !this.isStale(existing.metadataUpdatedAt) && existing.currency) {
             this.logger.debug(`[${ticker}] Already fresh, skipping (${Date.now() - startTime}ms)`);
             
             // Still check for logo in background just in case it's missing physically
@@ -132,15 +132,21 @@ export class SymbolService {
         const cryptoFallback = CRYPTO_PROFILES[ticker];
         
         try {
-            const result = await this.dataProvider.fetchQuoteSummary(ticker, ['assetProfile', 'quoteType']);
+            const result = await this.dataProvider.fetchQuoteSummary(ticker, ['assetProfile', 'quoteType', 'price']);
             this.logger.debug(`[${ticker}] Yahoo API responded (${Date.now() - startTime}ms)`);
             const profile = result.assetProfile;
             const quoteType = result.quoteType;
+            const price = result.price;
 
             
             const updates: Record<string, any> = {
                 metadataUpdatedAt: new Date(),
             };
+            
+            // Currency (from price module)
+            if (price?.currency) {
+                updates.currency = price.currency;
+            }
             
             // Name from quoteType
             if (quoteType?.longName) updates.name = quoteType.longName;

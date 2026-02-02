@@ -124,13 +124,15 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
     const results = await marketStore.searchSymbols(query, 20);
     // Map to our expected format
     backendSearchResults.value = results.map((r: any) => ({
-      ticker: r.ticker,
+      ticker: r.symbol || r.ticker,
       name: r.name,
       type: r.type === 'CRYPTOCURRENCY' ? 'CRYPTO' : 'STOCK',
       price: 0, // Search doesn't return price
       changePercent: 0,
       sparkline: [],
       exchange: r.exchange,
+      source: r.source,
+      currency: r.currency,
     }));
   } catch (e) {
     logger.error('Search failed', e);
@@ -171,8 +173,13 @@ function onSearchClear() {
 }
 
 function openAsset(item: any) {
-  logger.debug('Open asset:', item.ticker);
+  logger.debug('Open asset:', item.ticker, item.source);
   marketStore.selectSymbol(item.ticker);
+  if (item.source) {
+    marketStore.selectSource(item.source);
+  } else {
+    marketStore.selectSource('YAHOO'); // Default
+  }
   f7.views.main.router.navigate('/chart/', { props: { ticker: item.ticker } });
 }
 </script>

@@ -116,6 +116,7 @@ export class RateLimiter {
 
                     this.logger.warn(
                         `Rate limit hit for ${context}. ` +
+                        `Error: ${error.message}. ` +
                         `Attempt ${attempt}/${this.config.maxRetries}. ` +
                         `Backing off for ${this.currentBackoff}ms`
                     );

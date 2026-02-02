@@ -10,6 +10,7 @@ export interface Holding {
     ticker: string;
     name: string | null;
     type: string;
+    source: string;
     shares: number;
     avgCost: number;
     currentPrice: number;
@@ -83,10 +84,10 @@ export const useHoldingsStore = defineStore("holdings", () => {
         }
     }
 
-    async function addHolding(ticker: string, shares: number, avgCost: number) {
+    async function addHolding(ticker: string, shares: number, avgCost: number, source?: string) {
         try {
-            logger.info(`Adding holding: ${ticker}`);
-            const response = await api.post("/holdings", { ticker, shares, avgCost });
+            logger.info(`Adding holding: ${ticker} (${source})`);
+            const response = await api.post("/holdings", { ticker, shares, avgCost, source });
             if (response.data.success) {
                 // Refresh data
                 await fetchHoldings();

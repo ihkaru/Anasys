@@ -1,5 +1,4 @@
-
-import { ColorType } from 'lightweight-charts';
+import { ColorType, TickMarkType } from 'lightweight-charts';
 
 export interface ChartTheme {
   background: string;
@@ -9,6 +8,7 @@ export interface ChartTheme {
   upColor: string;
   downColor: string;
 }
+
 
 export const DARK_THEME: ChartTheme = {
   background: '#0f0f23',
@@ -39,7 +39,35 @@ export function getSystemChartTheme(): ChartTheme {
   return DARK_THEME; // Default fallback
 }
 
-export function getChartOptions(theme: ChartTheme, width: number, height: number, isFullscreen: boolean) {
+export function getChartOptions(theme: ChartTheme, width: number, height: number, isFullscreen: boolean, timezone: string = 'local') {
+  const timeOption = timezone === 'local' ? undefined : timezone;
+  
+  // Create tailored formatters for different needs
+  // 1. Full Date+Time for Crosshair
+  const fullFormatter = new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+      timeZone: timeOption
+  });
+
+  // 2. Time Only for Intraday Ticks
+  const timeFormatter = new Intl.DateTimeFormat('en-US', {
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+      timeZone: timeOption
+  });
+
+  // 3. Date Only for Daily Ticks
+  const dateFormatter = new Intl.DateTimeFormat('en-US', {
+      day: 'numeric',
+      month: 'short',
+      timeZone: timeOption
+  });
+
   return {
     layout: {
       background: { type: ColorType.Solid, color: theme.background },
@@ -58,7 +86,29 @@ export function getChartOptions(theme: ChartTheme, width: number, height: number
       borderColor: theme.borderColor,
       timeVisible: true,
       secondsVisible: false,
+      tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => {
+          const date = new Date(time * 1000);
+          switch (tickMarkType) {
+              case TickMarkType.Year:
+                  return date.getFullYear().toString();
+              case TickMarkType.Month:
+                  return date.toLocaleDateString('en-US', { month: 'short', timeZone: timeOption });
+              case TickMarkType.DayOfMonth:
+                  return dateFormatter.format(date);
+              case TickMarkType.Time:
+              case TickMarkType.TimeWithSeconds:
+                  return timeFormatter.format(date);
+              default:
+                  return "";
+          }
+      }
     },
+    localization: {
+        // Crosshair always shows full context
+        timeFormatter: (timestamp: number) => {
+            return fullFormatter.format(new Date(timestamp * 1000));
+        }
+    }
   };
 }
 

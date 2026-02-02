@@ -13,6 +13,12 @@
             <f7-block-title large>{{ editing ? 'Edit' : 'Add' }} Holding</f7-block-title>
 
             <f7-list no-hairlines-md>
+                <f7-list-input label="Source" type="select" :value="form.source"
+                    @change="form.source = ($event.target as HTMLSelectElement).value" :disabled="!!editing">
+                    <option value="YAHOO">Yahoo Finance</option>
+                    <option value="TRADINGVIEW">TradingView</option>
+                </f7-list-input>
+
                 <f7-list-input label="Ticker" type="text" placeholder="e.g. AAPL" :value="form.ticker"
                     @input="form.ticker = ($event.target as HTMLInputElement).value.toUpperCase()"
                     :disabled="!!editing"></f7-list-input>
@@ -37,6 +43,7 @@ export interface HoldingFormData {
     ticker: string;
     shares: number;
     avgCost: number;
+    source: string;
 }
 
 const props = defineProps<{
@@ -53,6 +60,7 @@ const form = reactive<HoldingFormData>({
     ticker: '',
     shares: 0,
     avgCost: 0,
+    source: 'YAHOO',
 });
 
 // Watch for editing prop changes
@@ -61,6 +69,7 @@ watch(() => props.editing, (holding) => {
         form.ticker = holding.ticker;
         form.shares = holding.shares;
         form.avgCost = holding.avgCost;
+        form.source = holding.source || 'YAHOO';
     } else {
         resetForm();
     }
@@ -70,6 +79,7 @@ function resetForm() {
     form.ticker = '';
     form.shares = 0; // Ensure number
     form.avgCost = 0; // Ensure number
+    form.source = 'YAHOO';
 }
 
 function handleSave() {

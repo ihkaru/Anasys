@@ -19,6 +19,7 @@ export interface WatchlistWithItems {
         ticker: string;
         name: string | null;
         type: string;
+        source: string;
         addedAt: Date;
     }[];
 }
@@ -58,19 +59,43 @@ export class WatchlistService {
             type: symbols.type,
             website: symbols.website,
             iconUrl: symbols.iconUrl,
+            currency: symbols.currency,
+            exchange: symbols.exchange,
             addedAt: watchlistItems.addedAt,
+            source: watchlistItems.source, // Select source
         })
             .from(watchlistItems)
             .innerJoin(symbols, eq(watchlistItems.symbolId, symbols.id))
             .where(eq(watchlistItems.watchlistId, watchlistId))
             .orderBy(desc(watchlistItems.addedAt));
         
-        return {
+        const result = {
             id: watchlist.id,
             name: watchlist.name,
             isDefault: watchlist.isDefault,
             items,
         };
+        
+        // Background: Check for missing metadata (currency) and enrich if needed
+        // We don't await this to keep the response fast
+        (async () => {
+            try {
+                const missingData = items.filter(i => !i.currency);
+                if (missingData.length > 0) {
+                    logger.debug(`Triggering background enrichment for ${missingData.length} incomplete symbols`);
+                    const { marketService } = await import("../market/market.service");
+                    for (const item of missingData) {
+                        await marketService.enrichSymbol(item.ticker).catch(e => 
+                            logger.error(`Background enrichment failed for ${item.ticker}`, e)
+                        );
+                    }
+                }
+            } catch (err) {
+                logger.error("Error in background enrichment task", err);
+            }
+        })();
+        
+        return result;
     }
 
     // Create new watchlist
@@ -160,8 +185,8 @@ export class WatchlistService {
     }
 
     // Add symbol to watchlist
-    async addSymbolToWatchlist(watchlistId: number, userId: number, ticker: string, type?: 'STOCK' | 'CRYPTO') {
-        logger.info(`Adding ${ticker} to watchlist ${watchlistId}`);
+    async addSymbolToWatchlist(watchlistId: number, userId: number, ticker: string, type?: 'STOCK' | 'CRYPTO', source: string = 'YAHOO') {
+        logger.info(`Adding ${ticker} (${source}) to watchlist ${watchlistId}`);
         
         // Verify watchlist ownership
         const [watchlist] = await db.select()
@@ -182,27 +207,23 @@ export class WatchlistService {
             .where(eq(symbols.ticker, ticker.toUpperCase()))
             .limit(1);
         
-        // If not found, auto-register from Yahoo Finance!
+        // If not found, auto-register
         if (!symbol) {
             logger.info(`Symbol ${ticker} not in DB. Auto-registering...`);
-            
-            // Import dynamically to avoid circular dependency
             const { marketService } = await import("../market/market.service");
-            
-            // Determine type: use provided type, or default based on ticker format
             const symbolType = type ?? (ticker.includes('-') ? 'CRYPTO' : 'STOCK');
-            
             symbol = await marketService.ensureSymbol(ticker.toUpperCase(), symbolType);
-            logger.info(`Symbol ${ticker} auto-registered with type ${symbolType}`);
         }
         
-        // Add to watchlist (ignore if already exists)
+        // Add to watchlist with SOURCE
         await db.insert(watchlistItems)
             .values({
                 watchlistId,
                 symbolId: symbol.id,
+                source: source, // Save source
             })
-            .onConflictDoNothing()
+            // Update conflict handling to do nothing if (watchlistId, symbolId, source) matches
+            .onConflictDoNothing() 
             .execute();
         
         return { success: true, symbol };

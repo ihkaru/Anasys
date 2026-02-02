@@ -2,6 +2,12 @@
     <div ref="chartContainerRef" class="chart-container" :class="{ 'fullscreen': isFullscreen }">
         <div ref="chartRef" class="chart-element"></div>
 
+        <!-- Timezone Indicator -->
+        <div class="timezone-badge" :title="timezoneTooltip">
+            <span class="tz-icon">🕒</span>
+            <span class="tz-label">{{ settingsStore.timezoneLabel }}</span>
+        </div>
+
         <div v-if="loading" class="chart-loading">
             <f7-preloader></f7-preloader>
         </div>
@@ -14,6 +20,7 @@
 import { useFullscreen } from '@vueuse/core';
 import { computed, onMounted, onUnmounted, ref, toRef } from 'vue';
 import { type Signal } from '../../../stores/market';
+import { useSettingsStore } from '../../../stores/settings';
 import { useChart } from '../composables/useChart';
 import { useChartData } from '../composables/useChartData';
 import { useInfiniteScroll } from '../composables/useInfiniteScroll';
@@ -32,9 +39,16 @@ const emit = defineEmits<{
 
 const chartRef = ref<HTMLDivElement | null>(null);
 const chartContainerRef = ref<HTMLDivElement | null>(null);
+const settingsStore = useSettingsStore();
 
 const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(chartContainerRef);
 const hasSignals = computed(() => props.signals.length > 0);
+
+const timezoneTooltip = computed(() => {
+    return settingsStore.timezoneMode === 'local'
+        ? 'Displaying times in your local timezone'
+        : 'Displaying times in US market timezone (EST/EDT)';
+});
 
 const { chart, candleSeries, initChart, destroyChart, fitContent, resizeChart } = useChart(chartRef, isFullscreen);
 
@@ -114,5 +128,32 @@ defineExpose({
     left: 50%;
     transform: translate(-50%, -50%);
     z-index: 10;
+}
+
+.timezone-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    z-index: 5;
+    cursor: help;
+    backdrop-filter: blur(4px);
+}
+
+.timezone-badge .tz-icon {
+    font-size: 12px;
+}
+
+.timezone-badge .tz-label {
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 </style>

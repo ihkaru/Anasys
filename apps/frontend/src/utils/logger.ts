@@ -39,7 +39,7 @@ export class Logger {
         // Actually, usually if no modules specified, we enable all, unless LOG_LEVEL is stricter.
         // Let's say: if LOG_MODULES is set, only those are allowed. If NOT set, everyone is allowed.
         if (allowList) {
-            const modules = allowList.split(',').map(m => m.trim().toLowerCase());
+            const modules = allowList.split(',').map((m: string) => m.trim().toLowerCase());
             if (!modules.includes('*') && !modules.includes(moduleName.toLowerCase())) {
                 this.enabled = false;
             }

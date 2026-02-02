@@ -12,7 +12,7 @@ export class CandleService {
         private logger: Logger
     ) {}
 
-    async getOHLCV(ticker: string, interval = '1d', limit = 100, before?: string) {
+    async getOHLCV(ticker: string, interval = '1d', limit = 100, before?: string, source: string = 'YAHOO') {
         // this.logger.debug(`[getOHLCV] Request: ${ticker} (${interval}) before=${before || 'now'}`);
         // Auto-register symbol if not in DB (supports On-Demand Discovery from Yahoo search)
         const type = ticker.includes('-') ? 'CRYPTO' : 'STOCK' as const;
@@ -22,13 +22,13 @@ export class CandleService {
 
         // Smart Stale Check (Only if getting LATEST data i.e. !before)
         if (!beforeDate) {
-            const lastTimestamp = await this.marketDataRepo.getLastTimestamp(symbol.id, interval);
+            const lastTimestamp = await this.marketDataRepo.getLastTimestamp(symbol.id, interval, source);
             const isStale = this.isStale(lastTimestamp, interval);
             
             if (isStale) {
-                this.logger.info(`[getOHLCV] Data stale for ${ticker} (${interval}). Last: ${lastTimestamp?.toISOString() || 'NEVER'}. Syncing...`);
+                this.logger.info(`[getOHLCV] Data stale for ${ticker} (${interval}) via ${source}. Last: ${lastTimestamp?.toISOString() || 'NEVER'}. Syncing...`);
                 try {
-                    await this.syncService.syncSymbolData(ticker, symbol.type, interval);
+                    await this.syncService.syncSymbolData(ticker, symbol.type, interval, undefined, source);
                 } catch (e) {
                      // Rate limit or API error shouldn't block returning existing data
                     this.logger.warn(`[getOHLCV] Auto-sync failed, returning stale data`, e);
@@ -36,25 +36,27 @@ export class CandleService {
             }
         }
 
-        let candles = await this.marketDataRepo.getRawCandles(symbol.id, interval, limit, beforeDate);
+        let candles = await this.marketDataRepo.getRawCandles(symbol.id, interval, limit, beforeDate, source);
+        
+        this.logger.info(`[getOHLCV] Query DB for ${ticker} (${interval}) via ${source} returned ${candles.length} candles` + (beforeDate ? ` (before ${beforeDate.toISOString()})` : ' (latest)'));
 
         if (candles.length === 0 && beforeDate ) {
              // Try backfilling if historical data requested but missing
-             this.logger.info(`[getOHLCV] Historical data missing for ${ticker}, backfilling...`);
+             this.logger.info(`[getOHLCV] Historical data missing for ${ticker} (${source}), backfilling...`);
              const startBackfill = Date.now();
              try {
-                await this.syncService.syncSymbolData(ticker, symbol.type, interval, beforeDate);
+                await this.syncService.syncSymbolData(ticker, symbol.type, interval, beforeDate, source);
                 this.logger.info(`[getOHLCV] Backfill sync took ${Date.now() - startBackfill}ms`);
                 
                 const startQuery = Date.now();
-                candles = await this.marketDataRepo.getRawCandles(symbol.id, interval, limit, beforeDate);
-                this.logger.info(`[getOHLCV] Backfill query took ${Date.now() - startQuery}ms`);
+                candles = await this.marketDataRepo.getRawCandles(symbol.id, interval, limit, beforeDate, source);
+                this.logger.info(`[getOHLCV] Backfill query took ${Date.now() - startQuery}ms. Retrieved ${candles.length} candles.`);
              } catch (e) {
                 this.logger.error(`[getOHLCV] Backfill failed`, e);
              }
         }
 
-        return candles.reverse().map(c => ({
+        const result = candles.reverse().map(c => ({
             timestamp: c.timestamp,
             open: Number(c.open),
             high: Number(c.high),
@@ -62,6 +64,8 @@ export class CandleService {
             close: Number(c.close),
             volume: Number(c.volume)
         }));
+        
+        return result;
     }
 
     private isStale(lastDate: Date | null, interval: string): boolean {
