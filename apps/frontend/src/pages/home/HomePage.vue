@@ -64,6 +64,21 @@ const marketStore = useMarketStore();
 const watchlistStore = useWatchlistStore();
 const logger = createLogger("HomePage");
 
+// ==================== Sparkline Cache ====================
+// Cache sparklines by ticker:source to preserve array references
+// This prevents SparklineChart from re-rendering when values haven't changed
+const sparklineCache = new Map<string, number[]>();
+
+// Utility: Compare two number arrays for equality
+function arraysEqual(a: number[], b: number[]): boolean {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) {
+		// Use small epsilon for floating point comparison
+		if (Math.abs(a[i] - b[i]) > 0.0001) return false;
+	}
+	return true;
+}
+
 const loaded = ref(false);
 const addAssetSheetOpen = ref(false);
 const selectedWatchlistId = ref<number | null>(null);
@@ -137,10 +152,12 @@ watch(
 
 		// Subscribe per source
 		for (const [source, symbols] of bySource) {
+			/*
 			console.log(
 				`%c[HomePage] 📡 Subscribing ${symbols.length} symbols (source=${source}): ${symbols.join(", ")}`,
 				"color: #2196F3",
 			);
+			*/
 			// Wrap callback with closure to pass source
 			const unsub = subscribeQuotes(symbols, (update) => handleQuoteUpdate(update, source), source);
 			unsubscribeFunctions.push(unsub);
@@ -248,13 +265,45 @@ const currentWatchlistItems = computed(() => {
 		// console.log(`%c[HomePage] Mapping ${item.ticker}: key=${quoteKey}, found=${!!quote}, price=${quote?.price || 'N/A'}`, 'color: #FF5722; font-weight: bold');
 
 		if (quote) {
+			// SPARKLINE LOGIC (Fixed: cache-first to prevent random regeneration)
+			// 1. Check if quote has real sparkline data from backend
+			const hasRealSparkline = quote.sparkline && quote.sparkline.length > 0;
+
+			// 2. Check cache first
+			const cachedSparkline = sparklineCache.get(quoteKey);
+
+			let sparkline: number[];
+
+			if (hasRealSparkline) {
+				// Quote has real data from backend (sparkline is guaranteed to exist here)
+				const realSparkline = quote.sparkline!;
+				if (cachedSparkline && arraysEqual(cachedSparkline, realSparkline)) {
+					// Real data matches cache - use cached reference
+					sparkline = cachedSparkline;
+				} else {
+					// Real data is new/changed - update cache
+					sparklineCache.set(quoteKey, [...realSparkline]);
+					sparkline = sparklineCache.get(quoteKey)!;
+				}
+			} else {
+				// No real sparkline from backend
+				if (cachedSparkline) {
+					// Use existing cached (even if generated) - DON'T regenerate!
+					sparkline = cachedSparkline;
+				} else {
+					// No cache exists - generate once and cache
+					const generated = generateSparkline(quote.changePercent >= 0);
+					sparklineCache.set(quoteKey, generated);
+					sparkline = sparklineCache.get(quoteKey)!;
+				}
+			}
+
 			return {
 				...item,
 				price: quote.price,
 				change: quote.change,
 				changePercent: quote.changePercent,
-				sparkline:
-					quote.sparkline && quote.sparkline.length > 0 ? quote.sparkline : generateSparkline(quote.changePercent >= 0),
+				sparkline,
 				marketState: quote.marketState,
 				preMarketPrice: quote.preMarketPrice,
 				preMarketChange: quote.preMarketChange,

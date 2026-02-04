@@ -58,7 +58,9 @@ const PING_INTERVAL_MS = 30000;
  */
 function getWsUrl(): string {
 	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-	const host = import.meta.env.DEV ? "localhost:3000" : window.location.host;
+	// In preview (production build served locally), we still want to connect to local backend
+	// window.location.host would point to 4173 (preview port)
+	const host = import.meta.env.DEV ? "localhost:3000" : "localhost:3000";
 	return `${protocol}//${host}/ws/market`;
 }
 
@@ -102,7 +104,7 @@ function connect() {
 	ws.onmessage = (event) => {
 		try {
 			const message: ServerMessage = JSON.parse(event.data);
-			console.log("%c[WS] 📨 Received:", "color: #9C27B0", message);
+			// console.log("%c[WS] 📨 Received:", "color: #9C27B0", message);
 			handleMessage(message);
 		} catch (e) {
 			logger.error("Failed to parse message", e);
@@ -132,18 +134,20 @@ function connect() {
 function handleMessage(message: ServerMessage) {
 	switch (message.type) {
 		case "connected":
-			console.log("%c[WS] 🤝 Server acknowledged connection", "color: #4CAF50");
+			// console.log("%c[WS] 🤝 Server acknowledged connection", "color: #4CAF50");
 			logger.debug("Server acknowledged connection");
 			break;
 
 		case "quote":
 			if (message.data) {
 				const update = message.data as QuoteUpdate;
-				const timeStr = new Date(update.timestamp).toLocaleTimeString();
+				const _timeStr = new Date(update.timestamp).toLocaleTimeString();
+				/*
 				console.log(
 					`%c[WS] 💰 QUOTE UPDATE: ${update.symbol} = $${update.price} (${update.changePercent >= 0 ? "+" : ""}${update.changePercent.toFixed(2)}%) Vol:${update.volume} Time:${timeStr}`,
 					`color: ${update.changePercent >= 0 ? "#4CAF50" : "#F44336"}; font-weight: bold`,
 				);
+				*/
 				const callbacks = quoteCallbacks.get(update.symbol);
 				if (callbacks) {
 					for (const cb of callbacks) {

@@ -106,12 +106,18 @@ export class Logger {
 		const timestamp = new Date().toISOString();
 
 		if (this.isProd) {
+			let safeMeta = meta;
+			try {
+				JSON.stringify(meta);
+			} catch {
+				safeMeta = "[Circular/Unserializable]";
+			}
 			return JSON.stringify({
 				timestamp,
 				level,
 				module: this.module,
 				message,
-				...(meta && { meta }),
+				...(meta && { meta: safeMeta }),
 			});
 		}
 
@@ -123,7 +129,12 @@ export class Logger {
 				...(meta as any),
 			};
 		}
-		const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
+		let metaStr = "";
+		try {
+			metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
+		} catch (_e) {
+			metaStr = " [Circular/Unserializable]";
+		}
 
 		if (useColors && isTTY) {
 			const colors = {

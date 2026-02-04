@@ -36,8 +36,12 @@ const financialsService = new FinancialsService(dataProvider);
 
 export class MarketService {
 	// Delegate to SymbolService
-	async ensureSymbol(ticker: string, type: "STOCK" | "CRYPTO") {
-		return symbolService.ensureSymbol(ticker, type);
+	async ensureSymbol(
+		ticker: string,
+		type: "STOCK" | "CRYPTO",
+		metadata?: { provider?: string; exchange?: string; currency?: string; name?: string },
+	) {
+		return symbolService.ensureSymbol(ticker, type, metadata);
 	}
 
 	async getSymbols() {

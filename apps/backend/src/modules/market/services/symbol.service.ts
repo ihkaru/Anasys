@@ -76,20 +76,35 @@ export class SymbolService {
 		private logger: Logger,
 	) {}
 
-	async ensureSymbol(ticker: string, type: "STOCK" | "CRYPTO") {
+	async ensureSymbol(
+		ticker: string,
+		type: "STOCK" | "CRYPTO",
+		metadata?: { provider?: string; exchange?: string; currency?: string; name?: string },
+	) {
 		this.logger.debug(`Ensuring symbol exists: ${ticker} (${type})`);
 
 		const existing = await this.symbolRepo.findByTicker(ticker);
-		if (existing) return existing;
+		if (existing) {
+			// Optional: Update metadata if missing? For now, just return.
+			return existing;
+		}
+
+		// Determine provider from metadata or default based on type
+		let provider = metadata?.provider?.toLowerCase();
+		if (!provider) {
+			provider = type === "CRYPTO" ? "ccxt" : "yahoo";
+		}
 
 		const newSym = await this.symbolRepo.create({
 			ticker,
 			type,
-			provider: "yahoo",
-			name: ticker,
+			provider,
+			exchange: metadata?.exchange,
+			currency: metadata?.currency,
+			name: metadata?.name || ticker,
 		});
 
-		this.logger.info(`New symbol created: ${ticker}`);
+		this.logger.info(`New symbol created: ${ticker} (Provider: ${provider})`);
 		return newSym;
 	}
 

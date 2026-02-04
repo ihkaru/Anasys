@@ -6,9 +6,12 @@
         <template #title>
             <div class="item-title-row">
                 <span>{{ item.ticker }}</span>
-                <span v-if="item.source" class="badge-source" :class="item.source.toLowerCase()">
-                    {{ item.source === 'YAHOO' ? 'Y' : 'TV' }}
-                </span>
+                <div class="badges">
+                    <span v-if="item.exchange" class="badge-exchange">{{ item.exchange }}</span>
+                    <span v-if="item.source" class="badge-source" :class="item.source.toLowerCase()">
+                        {{ item.source === 'YAHOO' ? 'Y' : 'TV' }}
+                    </span>
+                </div>
             </div>
         </template>
         <template #media>
@@ -18,7 +21,7 @@
             <div class="after-content">
                 <div class="sparkline-wrapper">
                     <SparklineChart :data="item.sparkline" :positive="(primaryDisplay.changePercent) >= 0" :width="60"
-                        :height="20" />
+                        :height="20" :limit="period === '24h' ? 24 : 7" />
                 </div>
                 <div class="price-col">
                     <div class="main-price-row">
@@ -78,15 +81,6 @@ const longPress = useLongPress((item) => {
 
 // Compute extended hours info
 const extendedHours = computed(() => getExtendedHoursInfo(props.item));
-
-// DEBUG: Log whenever props.item changes
-import { watch } from "vue";
-watch(
-	() => props.item.price,
-	(newPrice, oldPrice) => {
-		// console.log(`%c[WatchlistItem] ${props.item.ticker} price changed: ${oldPrice} -> ${newPrice}`, 'color: #E91E63; font-weight: bold');
-	},
-);
 
 // Determine Primary Display (Extended takes priority if available)
 // Determine Primary Display (Extended takes priority if available, UNLESS a specific period is selected)
@@ -220,6 +214,25 @@ const secondaryDisplay = computed(() => {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
+}
+
+.badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.badge-exchange {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--f7-text-color);
+    opacity: 0.6;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .badge-source {

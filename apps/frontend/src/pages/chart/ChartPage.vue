@@ -61,8 +61,9 @@
 			</f7-list>
 		</f7-popover>
 
-		<TradingChart ref="chartRef" :key="marketStore.selectedSymbol" :ohlcv-data="marketStore.ohlcvData"
-			:signals="marketStore.signals" :loading="marketStore.historyLoading" :on-load-more="handleLoadMore" />
+		<TradingChart ref="chartRef" :key="marketStore.selectedSymbol + '-' + marketStore.selectedSource"
+			:ohlcv-data="marketStore.ohlcvData" :signals="marketStore.signals" :loading="marketStore.historyLoading"
+			:on-load-more="handleLoadMore" />
 
 		<div class="controls-row">
 			<TimeframeSelector v-model="selectedTimeframe" @update:model-value="handleTimeframeChange" />
@@ -100,6 +101,10 @@ import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
 import type TradingChart from "./components/TradingChart.vue";
+
+// Throttle helper for chart updates
+let lastChartUpdate = 0;
+const CHART_UPDATE_THROTTLE_MS = 100; // Max 10 updates per second
 
 const props = defineProps<{
 	ticker?: string;
@@ -154,9 +159,15 @@ function setupRealtimeSubscriptions(ticker: string, interval: string, source: st
 				changePercent: update.changePercent,
 				volume: update.volume,
 			};
-			console.log(`[ChartPage RT] Quote: ${ticker} $${update.price}`);
+			// console.log(`[ChartPage RT] Quote: ${ticker} $${update.price}`);
 
-			// Update Chart Candle from Quote
+			// Update Chart Candle from Quote (THROTTLED to prevent UI blocking)
+			const now = Date.now();
+			if (now - lastChartUpdate < CHART_UPDATE_THROTTLE_MS) {
+				return; // Skip this update, too soon
+			}
+			lastChartUpdate = now;
+
 			// Since stocks (Yahoo/TradingView polled) don't send OHLCV updates, drive it from Quotes
 			const data = marketStore.ohlcvData;
 			if (data.length > 0) {
@@ -164,19 +175,17 @@ function setupRealtimeSubscriptions(ticker: string, interval: string, source: st
 				const lastCandle = data[lastIndex];
 
 				// Simple update: assumes the quote belongs to the current last candle interval
-				// Ideally we check timestamps, but for immediate feedback let's update the active candle
 				const newCandle = {
 					...lastCandle,
 					close: update.price,
 					high: Math.max(lastCandle.high, update.price),
 					low: Math.min(lastCandle.low, update.price),
-					// Don't update volume from quote as it is usually daily cumulative for stocks
 				};
 
-				// Update store data (for persistence/switching) - Note: shallowRef index update won't trigger prop watcher
+				// Update store data
 				marketStore.ohlcvData[lastIndex] = newCandle;
 
-				// Imperatively update the chart for performance and to bypass shallowRef limitation
+				// Imperatively update the chart for performance
 				if (chartRef.value) {
 					chartRef.value.updateCandle(newCandle);
 				}
@@ -190,40 +199,50 @@ function setupRealtimeSubscriptions(ticker: string, interval: string, source: st
 		ticker,
 		interval,
 		(update) => {
-			// Update the last candle in ohlcvData or append if new
-			const data = [...marketStore.ohlcvData];
-
+			// OPTIMIZED: Direct mutation + imperative chart update
+			// Avoids spread copy and full reactivity cascade
+			const data = marketStore.ohlcvData;
 			if (data.length === 0) return;
 
-			const lastCandle = data[data.length - 1];
+			const lastIndex = data.length - 1;
+			const lastCandle = data[lastIndex];
 			const updateTime = new Date(update.timestamp).getTime();
 			const lastTime = new Date(lastCandle.timestamp).getTime();
 
 			if (updateTime === lastTime) {
-				// Update existing candle
-				data[data.length - 1] = {
+				// Update existing candle - direct mutation
+				const newCandle = {
 					timestamp: lastCandle.timestamp,
-					open: lastCandle.open, // Keep original open
+					open: lastCandle.open,
 					high: Math.max(lastCandle.high, update.high),
 					low: Math.min(lastCandle.low, update.low),
 					close: update.close,
 					volume: update.volume,
 				};
+				data[lastIndex] = newCandle;
+
+				// Imperatively update chart (no reactivity cascade)
+				if (chartRef.value) {
+					chartRef.value.updateCandle(newCandle);
+				}
 			} else if (updateTime > lastTime && update.isClosed) {
-				// Append new candle if it's closed
-				data.push({
+				// Append new candle - need to trigger reactivity
+				const newCandle = {
 					timestamp: new Date(update.timestamp).toISOString(),
 					open: update.open,
 					high: update.high,
 					low: update.low,
 					close: update.close,
 					volume: update.volume,
-				});
-			}
+				};
+				data.push(newCandle);
 
-			// Update store with new data
-			marketStore.ohlcvData = data;
-			console.log(`[ChartPage RT] OHLCV: ${ticker} candle updated/appended`);
+				// Imperatively update chart
+				if (chartRef.value) {
+					chartRef.value.updateCandle(newCandle);
+				}
+			}
+			// console.log(`[ChartPage RT] OHLCV: ${ticker} candle updated/appended`);
 		},
 		source,
 	);

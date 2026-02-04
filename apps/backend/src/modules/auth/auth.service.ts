@@ -5,11 +5,20 @@ import { db } from "../../db";
 
 import { Logger } from "../../utils/logger";
 
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const logger = new Logger("AuthService");
+
+if (!process.env.GOOGLE_CLIENT_ID) {
+	logger.warn("⚠️ GOOGLE_CLIENT_ID is not set in environment variables. Google Login will fail.");
+}
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export class AuthService {
 	async verifyGoogleToken(token: string) {
+		if (!process.env.GOOGLE_CLIENT_ID) {
+			logger.error("GOOGLE_CLIENT_ID is missing. Cannot verify token.");
+			throw new Error("Server configuration error: Missing Google Client ID");
+		}
 		logger.debug("Verifying Google Token...");
 		try {
 			// Try as ID Token first

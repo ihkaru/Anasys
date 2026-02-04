@@ -1,5 +1,5 @@
-import { Capacitor } from "@capacitor/core";
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from "@capacitor-community/sqlite";
+import { Capacitor } from "@capacitor/core";
 import { createLogger } from "../utils/logger";
 
 export const sqliteConnection = new SQLiteConnection(CapacitorSQLite);
@@ -93,25 +93,48 @@ export class SQLiteService {
 		await this.db.execute(schema);
 	}
 
-	// OHLCV Cache
+	// Debounced saveToStore to prevent blocking on every write
+	private saveToStoreTimeout: ReturnType<typeof setTimeout> | null = null;
+	private debouncedSaveToStore() {
+		if (this.saveToStoreTimeout) {
+			clearTimeout(this.saveToStoreTimeout);
+		}
+		this.saveToStoreTimeout = setTimeout(async () => {
+			if (!Capacitor.isNativePlatform()) {
+				await sqliteConnection.saveToStore(this.dbName);
+			}
+		}, 1000); // Debounce 1 second
+	}
+
+	// OHLCV Cache - OPTIMIZED with batching
 	async saveOHLCV(symbol: string, interval: string, data: any[]) {
 		if (!this.db) await this.init();
 		if (data.length === 0) return;
 
-		// Use transaction for batch insert
-		const statements = data
-			.map((d) => {
+		console.time("[SQLite] saveOHLCV TOTAL");
+		const BATCH_SIZE = 50; // Process in smaller batches
+		const batches: string[][] = [];
+
+		// Split into batches
+		for (let i = 0; i < data.length; i += BATCH_SIZE) {
+			const batch = data.slice(i, i + BATCH_SIZE);
+			const statements = batch.map((d) => {
 				const source = d.source || "YAHOO";
 				return `INSERT OR REPLACE INTO ohlcv (symbol, interval, timestamp, open, high, low, close, volume, source) 
                     VALUES ('${symbol}', '${interval}', ${new Date(d.timestamp).getTime()}, ${d.open}, ${d.high}, ${d.low}, ${d.close}, ${d.volume}, '${source}');`;
-			})
-			.join("\n");
-
-		await this.db?.execute(statements);
-
-		if (!Capacitor.isNativePlatform()) {
-			await sqliteConnection.saveToStore(this.dbName);
+			});
+			batches.push(statements);
 		}
+
+		// Execute batches with yielding to main thread
+		for (let i = 0; i < batches.length; i++) {
+			await this.db?.execute(batches[i].join("\n"));
+			// Yield to main thread between batches
+			await new Promise((resolve) => setTimeout(resolve, 0));
+		}
+
+		// Debounced save to store (non-blocking)
+		this.debouncedSaveToStore();
 	}
 
 	async getOHLCV(symbol: string, interval: string, limit: number, before?: number, source: string = "YAHOO") {

@@ -64,11 +64,65 @@ const handleInfiniteLoad = async (): Promise<number | boolean | undefined> => {
 
 const { subscribe: subscribeScroll, unsubscribe: unsubscribeScroll } = useInfiniteScroll(chart, handleInfiniteLoad);
 
+// FPS Monitor for detecting jank
+let frameCount = 0;
+let lastFpsTime = performance.now();
+let fpsMonitorId: number | null = null;
+
+function measureFPS() {
+	frameCount++;
+	const now = performance.now();
+	if (now - lastFpsTime >= 1000) {
+		const fps = Math.round((frameCount * 1000) / (now - lastFpsTime));
+		if (fps < 50) {
+			console.log(`%c[FPS] ⚠️ Low FPS detected: ${fps}`, "color: #FF5722; font-weight: bold");
+		}
+		frameCount = 0;
+		lastFpsTime = now;
+	}
+	fpsMonitorId = requestAnimationFrame(measureFPS);
+}
+
+// Long Task Observer - detects tasks blocking main thread > 50ms
+let longTaskObserver: PerformanceObserver | null = null;
+function startLongTaskObserver() {
+	if ("PerformanceObserver" in window) {
+		try {
+			longTaskObserver = new PerformanceObserver((list) => {
+				for (const entry of list.getEntries()) {
+					// @ts-expect-error - attribution is available on PerformanceLongTaskTiming
+					const attribution = entry.attribution?.[0];
+					const details = attribution
+						? {
+								name: attribution.name,
+								containerName: attribution.containerName,
+								containerSrc: attribution.containerSrc,
+								containerId: attribution.containerId,
+							}
+						: "no attribution";
+					console.log(
+						`%c[LongTask] ⚠️ Blocking task: ${entry.duration.toFixed(1)}ms`,
+						"color: #E91E63; font-weight: bold",
+						details,
+					);
+				}
+			});
+			longTaskObserver.observe({ entryTypes: ["longtask"] });
+		} catch (e) {
+			// longtask not supported
+		}
+	}
+}
+
 onMounted(() => {
 	initChart();
 	// Now chart.value is set inside useChart
 	subscribeScroll();
 	updateAll();
+
+	// Start FPS monitoring
+	measureFPS();
+	startLongTaskObserver();
 
 	// Initial fit (small delay to ensure rendering)
 	setTimeout(() => {
@@ -79,17 +133,28 @@ onMounted(() => {
 onUnmounted(() => {
 	unsubscribeScroll();
 	destroyChart();
+
+	// Stop FPS monitoring
+	if (fpsMonitorId) {
+		cancelAnimationFrame(fpsMonitorId);
+	}
+	if (longTaskObserver) {
+		longTaskObserver.disconnect();
+	}
 });
 
-import { formatOHLCVForChart } from "../utils/chart-formatters";
-
-// Expose methods to parent
+// Expose methods to parent - OPTIMIZED: avoid full format for single candle
 function updateCandle(candle: OHLCVData) {
 	if (candleSeries.value) {
-		const formatted = formatOHLCVForChart([candle], settingsStore.timezoneMode);
-		if (formatted.length > 0) {
-			candleSeries.value.update(formatted[0]);
-		}
+		// Direct update without full formatOHLCVForChart overhead
+		const time = new Date(candle.timestamp).getTime() / 1000;
+		candleSeries.value.update({
+			time,
+			open: candle.open,
+			high: candle.high,
+			low: candle.low,
+			close: candle.close,
+		});
 	}
 }
 
@@ -109,7 +174,7 @@ defineExpose({
     border-radius: 12px;
     margin: 8px 0;
     overflow: hidden;
-    transition: all 0.3s ease;
+    /* Removed: transition: all 0.3s ease; - causes jank during zoom/pan */
 }
 
 .chart-container.fullscreen {

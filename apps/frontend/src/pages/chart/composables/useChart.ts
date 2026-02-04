@@ -25,6 +25,7 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
 
 	function updateChartOptions() {
 		if (chart.value) {
+			// console.log(`%c[Chart] updateChartOptions called`, 'color: #2196F3');
 			chart.value.applyOptions(
 				getChartOptions(
 					getTheme(),
@@ -64,6 +65,7 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
 
 	function resizeChart() {
 		if (chart.value && width.value && height.value) {
+			// console.log(`%c[Chart] resizeChart called: ${width.value}x${height.value}`, 'color: #4CAF50');
 			updateChartOptions();
 		}
 	}

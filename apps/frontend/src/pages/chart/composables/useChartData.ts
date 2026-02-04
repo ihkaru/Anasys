@@ -12,9 +12,6 @@ export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>
 	function updateData() {
 		if (!candleSeries.value || ohlcvData.value.length === 0) return;
 
-		// Debug: log data summary
-		logger.debug(`Updating chart with ${ohlcvData.value.length} candles`);
-
 		if (ohlcvData.value.length > 0) {
 			const first = ohlcvData.value[0];
 			const last = ohlcvData.value[ohlcvData.value.length - 1];
@@ -22,6 +19,7 @@ export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>
 		}
 
 		const chartData = formatOHLCVForChart(ohlcvData.value, settingsStore.timezoneMode);
+
 		candleSeries.value.setData(chartData);
 	}
 
@@ -37,9 +35,16 @@ export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>
 		updateMarkers();
 	}
 
-	// Auto-update on data changes
-	watch(ohlcvData, updateData, { deep: true });
-	watch(signals, updateMarkers, { deep: true });
+	// Auto-update on data changes with DEBOUNCE to prevent blocking
+	// NOTE: { flush: 'post' } defers execution until after DOM updates
+	let updateTimeout: ReturnType<typeof setTimeout> | null = null;
+	function debouncedUpdateData() {
+		if (updateTimeout) clearTimeout(updateTimeout);
+		updateTimeout = setTimeout(updateData, 16); // ~1 frame (60fps)
+	}
+
+	watch(ohlcvData, debouncedUpdateData, { flush: "post" });
+	watch(signals, updateMarkers, { deep: true, flush: "post" });
 
 	// Re-render when timezone setting changes
 	watch(

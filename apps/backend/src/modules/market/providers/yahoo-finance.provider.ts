@@ -1,40 +1,11 @@
 import yahooFinance from "yahoo-finance2";
-import type { IDataProvider, UnifiedCandle } from "./data-provider.interface";
-
-export interface QuoteResult {
-	ticker: string;
-	name: string;
-	price: number;
-	previousClose: number;
-	change: number;
-	changePercent: number;
-	volume: number;
-	marketCap?: number;
-	high52Week?: number;
-	low52Week?: number;
-	updatedAt: Date;
-	currency?: string;
-	marketState?: "PRE" | "PREPRE" | "REGULAR" | "POST" | "POSTPOST" | "CLOSED";
-	preMarketPrice?: number;
-	preMarketChange?: number;
-	preMarketChangePercent?: number;
-	postMarketPrice?: number;
-	postMarketChange?: number;
-	postMarketChangePercent?: number;
-}
-
-export interface SearchResult {
-	ticker: string;
-	name: string;
-	type: string;
-	exchange: string;
-	score?: number;
-}
-
-export interface TrendingResult {
-	ticker: string;
-	name?: string;
-}
+import type {
+	IDataProvider,
+	QuoteResult,
+	SearchResult,
+	TrendingResult,
+	UnifiedCandle,
+} from "./data-provider.interface";
 
 export class YahooFinanceProvider implements IDataProvider {
 	private client: any;
@@ -99,6 +70,8 @@ export class YahooFinanceProvider implements IDataProvider {
 						postMarketPrice: quote.postMarketPrice,
 						postMarketChange: quote.postMarketChange,
 						postMarketChangePercent: quote.postMarketChangePercent,
+						source: "YAHOO",
+						exchange: quote.exchange,
 					});
 				}
 			} catch (e) {
@@ -123,6 +96,7 @@ export class YahooFinanceProvider implements IDataProvider {
 					name: q.shortname || q.longname || q.symbol,
 					type: q.quoteType || "EQUITY",
 					exchange: q.exchange || "",
+					source: "YAHOO",
 					score: q.score,
 				}));
 		} catch (e) {
@@ -198,6 +172,8 @@ export class YahooFinanceProvider implements IDataProvider {
 				postMarketPrice: quote.postMarketPrice,
 				postMarketChange: quote.postMarketChange,
 				postMarketChangePercent: quote.postMarketChangePercent,
+				source: "YAHOO",
+				exchange: quote.exchange,
 			}));
 	}
 

@@ -5,7 +5,7 @@
                 <div class="title-col">
                     <h2 class="asset-name">{{ asset.name }}</h2>
                     <span class="asset-ticker">
-                        {{ asset.ticker }} · {{ asset.type }}
+                        {{ asset.ticker }} · {{ asset.exchange || asset.type }}
                     </span>
                 </div>
                 <AssetLogo v-if="asset" :ticker="asset.ticker" :icon-url="asset.iconUrl" :type="asset.type" size="large"
@@ -57,6 +57,8 @@ interface AssetDetails {
 	industry?: string;
 	description?: string;
 	website?: string;
+	provider?: string;
+	exchange?: string;
 }
 
 const props = defineProps<{
@@ -164,5 +166,18 @@ const isExpanded = ref(false);
 .actions-block {
     display: flex;
     gap: 12px;
+}
+
+.provider-badge {
+    display: inline-block;
+    background: var(--f7-theme-color);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    vertical-align: middle;
+    opacity: 0.9;
 }
 </style>

@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { Logger } from "../../../utils/logger";
-import type { IDataProvider, UnifiedCandle } from "./data-provider.interface";
+import type { IDataProvider, QuoteResult, SearchResult, UnifiedCandle } from "./data-provider.interface";
 
 /**
  * TradingView Data Provider (Python Bridge)
@@ -187,17 +187,11 @@ export class TradingViewPythonProvider implements IDataProvider {
 		return "REGULAR";
 	}
 
-	async fetchQuotes(tickers: string[]): Promise<any[]> {
-		if (tickers.length === 0) return [];
-		this.logger.debug(`Fetching quotes for ${tickers.join(",")} from TradingView`);
+	async fetchQuotes(tickers: string[]): Promise<QuoteResult[]> {
+		if (!tickers.length) return [];
+		this.logger.debug(`Fetching quotes for ${tickers.join(",")} from TradingView...`);
 
-		// Use clean tickers (no exchange prefix for search if possible, or handle inside python)
-		const cleanTickers = tickers.map((t) => {
-			if (t.includes(":")) return t.split(":")[1];
-			return t;
-		});
-
-		const raw = await this.executePython("quote", { tickers: cleanTickers });
+		const raw = await this.executePython("quote", { symbols: tickers });
 
 		// Map to format compatible with Yahoo QuoteResult
 		return raw.map((r: any) => {
@@ -235,16 +229,18 @@ export class TradingViewPythonProvider implements IDataProvider {
 				postMarketPrice: r.postmarket_close ? Number(r.postmarket_close) : undefined,
 				postMarketChange: r.postmarket_change_abs ? Number(r.postmarket_change_abs) : undefined,
 				postMarketChangePercent: r.postmarket_change ? Number(r.postmarket_change) : undefined,
+				source: "TRADINGVIEW",
+				exchange: r.exchange, // Maps from Python bridge
 			};
 		});
 	}
 
-	async search(query: string, limit: number = 20): Promise<any[]> {
+	async search(query: string, limit: number = 20): Promise<SearchResult[]> {
 		this.logger.debug(`Searching for ${query} on TradingView...`);
 		try {
 			const results = await this.executePython("search", { query, limit, scanner: "global" });
 			return results.map((r: any) => ({
-				symbol: r.name || r.symbol?.split(":")[1],
+				ticker: r.name || r.symbol?.split(":")[1],
 				name: r.description || r.name,
 				type: r.type,
 				exchange: r.exchange,

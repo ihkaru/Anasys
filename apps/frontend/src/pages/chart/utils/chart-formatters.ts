@@ -77,7 +77,8 @@ export function formatOHLCVForChart(data: OHLCVData[], timezoneMode: "local" | "
 	});
 
 	// Sort by time
-	return Array.from(dataMap.values()).sort((a, b) => a.time - b.time);
+	const result = Array.from(dataMap.values()).sort((a, b) => a.time - b.time);
+	return result;
 }
 
 export function formatSignalMarkers(signals: Signal[], timezoneMode: "local" | "exchange" = "local") {
