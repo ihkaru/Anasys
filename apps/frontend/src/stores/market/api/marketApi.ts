@@ -1,5 +1,5 @@
 import { api } from "../../../api/client";
-import type { MarketMover, OHLCV, Signal } from "../market.types";
+import type { MarketMover, Symbol as MarketSymbol, OHLCV, Signal } from "../market.types";
 
 export const marketApi = {
 	async fetchMovers() {
@@ -14,11 +14,11 @@ export const marketApi = {
 	},
 
 	async fetchSymbols() {
-		return api.get<{ success: boolean; data: Symbol[] }>("/market/symbols");
+		return api.get<{ success: boolean; data: MarketSymbol[] }>("/market/symbols");
 	},
 
 	async fetchSymbolDetails(ticker: string) {
-		return api.get<{ success: boolean; data: Symbol }>(`/market/symbols/${ticker}?enrich=true`);
+		return api.get<{ success: boolean; data: MarketSymbol }>(`/market/symbols/${ticker}?enrich=true`);
 	},
 
 	async syncSymbol(ticker: string, type: string, source: string) {
@@ -38,7 +38,7 @@ export const marketApi = {
 	},
 
 	async searchSymbols(query: string, limit: number) {
-		return api.get<{ success: boolean; data: Symbol[] }>("/market/search", {
+		return api.get<{ success: boolean; data: MarketSymbol[] }>("/market/search", {
 			params: { q: query, limit: String(limit) },
 		});
 	},

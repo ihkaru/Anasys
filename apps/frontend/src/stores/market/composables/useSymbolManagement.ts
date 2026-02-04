@@ -2,15 +2,15 @@ import { ref, type Ref } from "vue";
 import { sqliteService } from "../../../services/sqlite";
 import type { Logger } from "../../../utils/logger";
 import { marketApi } from "../api/marketApi";
-import type { MarketMover } from "../market.types";
+import type { MarketMover, Symbol as MarketSymbol } from "../market.types";
 
 export function useSymbolManagement(
 	logger: Logger,
 	selectedSource: Ref<string>,
 	movers: Ref<{ gainers: MarketMover[]; losers: MarketMover[]; trending: MarketMover[] }>,
 ) {
-	const symbols = ref<Symbol[]>([]);
-	const selectedSymbolData = ref<Symbol | null>(null);
+	const symbols = ref<MarketSymbol[]>([]);
+	const selectedSymbolData = ref<MarketSymbol | null>(null);
 	const loading = ref(false);
 	const syncing = ref(false);
 	const error = ref<string | null>(null);
