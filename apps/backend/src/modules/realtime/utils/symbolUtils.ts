@@ -59,15 +59,24 @@ export const CRYPTO_BASES = [
 	"CFX",
 	"ICP",
 	"APT",
+	"USDT",
+	"USDC",
+	"BUSD",
+	"DAI",
+	"TUSD",
+	"USDP",
+	"FDUSD",
 ];
 
 export function isCryptoSymbol(symbol: string): boolean {
-	const base = symbol
+	const cleaned = symbol.split(":").pop() || symbol;
+	const base = cleaned
 		.replace(/-USD$/, "")
 		.replace(/USDT$/, "")
-		.replace(/-PERP$/, "");
+		.replace(/-PERP$/, "")
+		.split("/")[0];
 
-	return CRYPTO_BASES.includes(base.toUpperCase());
+	return CRYPTO_BASES.includes(base.toUpperCase()) || symbol.includes("/USDT") || symbol.toLowerCase().endsWith("usdt");
 }
 
 export function toBinanceSymbol(symbol: string): string {

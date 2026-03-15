@@ -25,7 +25,8 @@ export class SubscriptionManager {
 		const source = msg.source || "YAHOO";
 
 		for (const symbol of msg.symbols) {
-			const subKey = channel === "ohlcv" ? `ohlcv:${symbol}:${interval}` : `quote:${symbol}`;
+			// Source-aware subscription key for quotes
+			const subKey = channel === "ohlcv" ? `ohlcv:${symbol}:${interval}` : `quote:${symbol}:${source}`;
 
 			state.subscriptions.add(subKey);
 
@@ -45,9 +46,11 @@ export class SubscriptionManager {
 
 		const channel = msg.channel || "quote";
 		const interval = msg.interval || "1m";
+		const source = msg.source || "YAHOO";
 
 		for (const symbol of msg.symbols) {
-			const subKey = channel === "ohlcv" ? `ohlcv:${symbol}:${interval}` : `quote:${symbol}`;
+			// Source-aware key for quotes
+			const subKey = channel === "ohlcv" ? `ohlcv:${symbol}:${interval}` : `quote:${symbol}:${source}`;
 
 			state.subscriptions.delete(subKey);
 
@@ -77,8 +80,9 @@ export class SubscriptionManager {
 				subs.delete(clientId);
 				if (subs.size === 0) {
 					this.subscriptions.delete(subKey);
-					// Extract symbol from key
-					const [_, symbol] = subKey.split(":");
+					// Extract symbol from key (format: quote:SYMBOL:SOURCE or ohlcv:SYMBOL:INTERVAL)
+					const parts = subKey.split(":");
+					const symbol = parts[1];
 					this.checkNoSubscribers(symbol);
 				}
 			}

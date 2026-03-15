@@ -83,7 +83,7 @@ schedulerService.start();
 
 if (import.meta.main) {
 	const port = process.env.PORT || 3000;
-	app.listen(port);
+	app.listen({ port, hostname: "0.0.0.0" });
 	console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
 	console.log(`📡 WebSocket available at ws://localhost:${port}/ws/market`);
 }

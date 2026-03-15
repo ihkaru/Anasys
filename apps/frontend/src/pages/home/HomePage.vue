@@ -398,11 +398,11 @@ async function handleAddAsset(asset: any) {
 	}
 }
 
-async function handleRemoveAsset(ticker: string) {
+async function handleRemoveAsset(item: { ticker: string; source?: string }) {
 	if (!selectedWatchlistId.value) return;
 	try {
-		await watchlistStore.removeSymbolFromWatchlist(selectedWatchlistId.value, ticker);
-		f7.toast.show({ text: `Removed ${ticker}`, closeTimeout: 2000 });
+		await watchlistStore.removeSymbolFromWatchlist(selectedWatchlistId.value, item.ticker, item.source);
+		f7.toast.show({ text: `Removed ${item.ticker}`, closeTimeout: 2000 });
 	} catch (_e) {
 		f7.toast.show({ text: "Failed to remove", closeTimeout: 2000 });
 	}
@@ -420,7 +420,7 @@ function onItemHold(item: any) {
 				{
 					text: "Remove",
 					color: "red",
-					onClick: () => handleRemoveAsset(item.ticker),
+					onClick: () => handleRemoveAsset(item),
 				},
 			],
 		})

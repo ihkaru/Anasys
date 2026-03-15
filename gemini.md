@@ -177,3 +177,9 @@ bun run test:consistency
 - **Critical**: User must run `bun install` in the root directory (via WSL) to bootstrap the project.
 - **Tools**: Use `wsl bash -lc "..."` to run commands if simple `wsl` fails to find PATH.
 - **Swipe Conflict**: Tab swipe disabled to allow horizontal scroll in trending/watchlist components.
+- **Dev Servers**: `dev.sh stop` was updated to use PID files instead of `pkill -f` to prevent accidentally terminating WSL/IDE background processes.
+
+### 2026-03-15
+* Fixed dev.ps1 to correctly handle bun execution in WSL by using ~/.bun/bin/bun instead of $HOME.
+* Fixed Vite 500 error by changing Elysia app.listen() binding from 127.0.0.1 to 0.0.0.0 in index.ts.
+* Fixed Google Login 400 Bad Request error by changing DATABASE_URL host from localhost to 127.0.0.1 in .env.

@@ -1,6 +1,7 @@
 import type { Logger } from "../../../utils/logger";
 import type { CacheService } from "../cache/cache.service";
-import type { QuoteResult, SearchResult, YahooFinanceProvider } from "../providers/yahoo-finance.provider";
+import type { QuoteResult, SearchResult } from "../providers/data-provider.interface";
+import type { YahooFinanceProvider } from "../providers/yahoo-finance.provider";
 import type { MarketDataRepository } from "../repositories/market-data.repository";
 import type { SymbolRepository } from "../repositories/symbol.repository";
 import { generateSparkline } from "../utils/sparkline.utils";
@@ -88,9 +89,12 @@ export class QuoteService {
 				for (const quote of quotes) {
 					const enriched = await this.enrichQuote(quote, period);
 					if (enriched) {
-						// Cache it
-						// Cache it
-						const ttl = source === "TRADINGVIEW" ? 250 : this.QUOTE_CACHE_TTL;
+						// Cache it with source-aware TTL
+						// Fast sources (TV, Crypto) get sub-second cache
+						const isCrypto = quote.ticker.includes("-USD") || quote.ticker.includes("-PERP") || enriched.type === "CRYPTO";
+						const isFastSource = source === "TRADINGVIEW" || isCrypto;
+						const ttl = isFastSource ? 1 : this.QUOTE_CACHE_TTL;
+
 						this.cacheService.set(`quote:${quote.ticker}:${period}:${source}`, enriched, ttl);
 						results.push(enriched);
 					}

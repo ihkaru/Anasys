@@ -153,16 +153,24 @@ export const useWatchlistStore = defineStore("watchlist", () => {
 		}
 	}
 
-	async function removeSymbolFromWatchlist(watchlistId: number, ticker: string) {
+	async function removeSymbolFromWatchlist(watchlistId: number, ticker: string, source?: string) {
 		try {
-			logger.info(`Removing ${ticker} from watchlist ${watchlistId}`);
-			const response = await api.delete(`/watchlists/${watchlistId}/symbols/${ticker}`);
+			logger.info(`Removing ${ticker} (source=${source || "any"}) from watchlist ${watchlistId}`);
+			const url = source
+				? `/watchlists/${watchlistId}/symbols/${ticker}?source=${source}`
+				: `/watchlists/${watchlistId}/symbols/${ticker}`;
+			const response = await api.delete(url);
 			if (!response.data.success) {
 				throw new Error(response.data.error);
 			}
-			// Update local state
+			// Update local state - filter by both ticker AND source if source is specified
 			if (currentWatchlist.value?.id === watchlistId) {
-				currentWatchlist.value.items = currentWatchlist.value.items.filter((item) => item.ticker !== ticker);
+				currentWatchlist.value.items = currentWatchlist.value.items.filter((item) => {
+					if (source) {
+						return !(item.ticker === ticker && item.source === source);
+					}
+					return item.ticker !== ticker;
+				});
 			}
 		} catch (e) {
 			logger.error("Failed to remove symbol", e);

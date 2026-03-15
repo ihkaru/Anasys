@@ -67,16 +67,24 @@ export class TradingViewStreamHandler {
 				try {
 					const parsed = JSON.parse(line);
 					if (parsed.type === "quote") {
+						const price = parsed.price || 0;
+
+						// Validate quote before broadcasting
+						if (price <= 0 || Number.isNaN(price)) {
+							logger.warn(`Skipping invalid TradingView quote for ${parsed.symbol}: price=${price}`);
+							continue;
+						}
+
 						const update: QuoteUpdate = {
 							symbol: parsed.symbol,
-							price: parsed.price || 0,
+							price: price,
 							change: parsed.change || 0,
 							changePercent: parsed.changePercent || 0,
 							volume: parsed.volume,
 							timestamp: parsed.timestamp ? parsed.timestamp * 1000 : Date.now(),
 						};
 						const baseSymbol = parsed.symbol.includes(":") ? parsed.symbol.split(":")[1] : parsed.symbol;
-						this.broadcaster.broadcastQuote(baseSymbol, update);
+						this.broadcaster.broadcastQuote(baseSymbol, update, "TRADINGVIEW");
 					}
 				} catch (_e) {
 					// Ignore parse errors
@@ -89,9 +97,9 @@ export class TradingViewStreamHandler {
 		});
 
 		this.process.on("close", (code: number) => {
-			logger.warn(`TradingView stream closed with code ${code}, restarting in 5s...`);
+			logger.warn(`TradingView stream closed with code ${code}, restarting in 2s...`);
 			this.process = null;
-			setTimeout(() => this.ensureStream(), 5000);
+			setTimeout(() => this.ensureStream(), 2000);
 		});
 	}
 

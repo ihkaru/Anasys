@@ -23,9 +23,8 @@
 
         <!-- Actual Items -->
         <template v-else>
-            <WatchlistItem v-for="item in items" :key="item.ticker + (item.source || '')"
-                :item="item" :period="period"
-                @click="$emit('item-click', item)" @remove="$emit('item-remove', item.ticker)"
+            <WatchlistItem v-for="item in items" :key="item.ticker + (item.source || '')" :item="item" :period="period"
+                @click="$emit('item-click', item)" @remove="$emit('item-remove', item)"
                 @hold="$emit('item-hold', item)" />
 
             <!-- Empty State -->
@@ -46,19 +45,19 @@
 import WatchlistItem from "./WatchlistItem.vue";
 
 interface Props {
-	items: any[];
-	loaded: boolean;
-	watchlistId: number | null;
-	period?: string;
+    items: any[];
+    loaded: boolean;
+    watchlistId: number | null;
+    period?: string;
 }
 
 defineProps<Props>();
 
 defineEmits<{
-	(e: "item-click", item: any): void;
-	(e: "item-remove", ticker: string): void;
-	(e: "item-hold", item: any): void;
-	(e: "add-asset"): void;
+    (e: "item-click", item: any): void;
+    (e: "item-remove", item: any): void;
+    (e: "item-hold", item: any): void;
+    (e: "add-asset"): void;
 }>();
 </script>
 

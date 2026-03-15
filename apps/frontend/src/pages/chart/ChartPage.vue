@@ -100,7 +100,7 @@ import FinancialsSection from "./components/FinancialsSection.vue";
 import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
-import type TradingChart from "./components/TradingChart.vue";
+import TradingChart from "./components/TradingChart.vue";
 
 // Throttle helper for chart updates
 let lastChartUpdate = 0;
@@ -112,8 +112,8 @@ const props = defineProps<{
 
 const marketStore = useMarketStore();
 const chartRef = ref<InstanceType<typeof TradingChart> | null>(null);
-const selectedTimeframe = ref("1M");
-const selectedInterval = ref("1h"); // Auto-derived from timeframe (1M = 1h)
+const selectedTimeframe = ref("1d");
+const selectedInterval = ref("1d"); // Default interval
 const isFullscreen = ref(false);
 const recommendations = ref<any[]>([]);
 const financials = ref<any>(null);
@@ -316,37 +316,23 @@ function switchSource(source: string) {
 	handleSourceChange(source);
 }
 
-// Professional timeframe-to-interval mapping
-// Based on US market trading hours: ~6.5h/day (9:30 AM - 4:00 PM EST)
-// ~22 trading days per month, ~252 trading days per year
-function getTimeframeConfig(timeframe: string): { interval: string; limit: number } {
-	switch (timeframe) {
-		case "1D":
-			return { interval: "5m", limit: 80 }; // 6.5h × 12 = 78 candles (1 trading day)
-		case "1W":
-			return { interval: "30m", limit: 70 }; // 6.5h × 2/h × 5 days ≈ 65 candles
-		case "1M":
-			return { interval: "1h", limit: 145 }; // 6.5h × 22 days ≈ 143 candles
-		case "3M":
-			return { interval: "4h", limit: 110 }; // ~66 trading days × ~1.6 candles/day
-		case "1Y":
-			return { interval: "1d", limit: 252 }; // 252 trading days
-		case "ALL":
-			return { interval: "1d", limit: 2000 }; // Max history
-		default:
-			return { interval: "1h", limit: 100 };
-	}
+function getIntervalLimit(interval: string): number {
+	// Standard limits for initial load to ensure a full chart view
+	if (interval === "1d" || interval === "1wk" || interval === "1mo") return 500;
+	if (interval === "15m" || interval === "30m" || interval === "1h" || interval === "4h") return 500;
+	return 500;
 }
 
-async function handleTimeframeChange(timeframe: string) {
+async function handleTimeframeChange(interval: string) {
 	if (!marketStore.selectedSymbol) return;
-	selectedTimeframe.value = timeframe;
+	selectedTimeframe.value = interval; // The UI selector now provides interval values directly
+	selectedInterval.value = interval;
 	lastLoadedTimestamp.value = null; // Reset for new timeframe
+	chartRef.value?.resetScroll(); // Reset infinite scroll history state
 
-	const config = getTimeframeConfig(timeframe);
-	selectedInterval.value = config.interval;
+	const limit = getIntervalLimit(interval);
 
-	await marketStore.fetchHistory(marketStore.selectedSymbol, config.interval, config.limit);
+	await marketStore.fetchHistory(marketStore.selectedSymbol, interval, limit);
 	chartRef.value?.fitContent();
 }
 
@@ -357,8 +343,9 @@ async function handleSourceChange(source: string) {
 
 	// Reload history with current timeframe config
 	lastLoadedTimestamp.value = null;
-	const config = getTimeframeConfig(selectedTimeframe.value);
-	await marketStore.fetchHistory(marketStore.selectedSymbol, config.interval, config.limit);
+	const interval = selectedInterval.value;
+	const limit = getIntervalLimit(interval);
+	await marketStore.fetchHistory(marketStore.selectedSymbol, interval, limit);
 	chartRef.value?.fitContent();
 
 	// Reload quote for the new source
@@ -403,12 +390,6 @@ async function handleLoadMore() {
 	}
 }
 
-function getIntervalLimit(interval: string): number {
-	if (interval === "1d" || interval === "1wk") return 365;
-	if (interval === "15m") return 200;
-	return 500;
-}
-
 async function loadInitialData(ticker: string) {
 	marketStore.selectSymbol(ticker);
 	marketStore.selectedSymbolData = null;
@@ -424,9 +405,13 @@ async function loadInitialData(ticker: string) {
 	// Optimize: Prioritize History (Chart) over Symbol Details (Metadata)
 	console.time("LoadHistory");
 	console.log("[ChartPage] Starting fetchHistory...");
-	const config = getTimeframeConfig(selectedTimeframe.value);
-	selectedInterval.value = config.interval;
-	await marketStore.fetchHistory(ticker, config.interval, config.limit);
+	
+	// The selector model holds the interval directly natively
+	const interval = selectedTimeframe.value; 
+	selectedInterval.value = interval;
+	const limit = getIntervalLimit(interval);
+
+	await marketStore.fetchHistory(ticker, interval, limit);
 	console.log("[ChartPage] fetchHistory done.");
 	console.timeEnd("LoadHistory");
 

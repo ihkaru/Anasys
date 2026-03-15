@@ -52,8 +52,11 @@ export class SyncService {
 				chartOptions.period2 = queryOptions.period2;
 			}
 
-			// Enable Pre/Post market data to match TradingView and fix alignment gaps
-			chartOptions.includePrePost = true;
+			// Enable Pre/Post market data for US stocks to match TradingView and fix alignment gaps
+			// Disable for IDX (.JK) stocks — IDX doesn't have meaningful pre/post market,
+			// and Yahoo returns flat closing auction candles that corrupt hourly data
+			const isIDX = ticker.toUpperCase().endsWith(".JK");
+			chartOptions.includePrePost = !isIDX;
 
 			this.logger.debug(
 				`Fetching ${ticker} (${interval}) range: ${queryOptions.period1} -> ${queryOptions.period2 || "now"}`,
@@ -126,10 +129,9 @@ export class SyncService {
 		source: string,
 	): { values: any[]; rejected: number } {
 		let rejected = 0;
-		// Use Map to handle collisions (e.g. 14:00 pre-market and 14:30 open both mapping to 14:00)
-		// Strategy: "Last Write Wins" (or merge logic could be added)
-		// Since Yahoo returns sorted data, the later candle (14:30) is usually the "Main" session one
+		// Deduplicate by timestamp. Intraday keeps raw timestamp, macroscopic intervals are normalized.
 		const candleMap = new Map<number, any>();
+		const isMacroscopic = ["1d", "1wk", "1mo"].includes(interval);
 
 		candles.forEach((candle: any) => {
 			// Basic null check
@@ -138,23 +140,25 @@ export class SyncService {
 				return;
 			}
 
-			// Normalize timestamp to interval boundary
-			const rawDate = candle.timestamp;
-			const normalizedDate = this.normalizeTimestamp(rawDate, interval);
-
-			// === GUARDRAIL: Strict Time-Windowing ===
-			// Enforce that 1h candles are strictly hour-aligned
-			if (interval === "1h" && normalizedDate.getMinutes() !== 0) {
-				this.logger.warn(
-					`[Guardrail] 1h candle normalization failed for ${ticker} at ${rawDate.toISOString()} -> ${normalizedDate.toISOString()}`,
-				);
-				normalizedDate.setMinutes(0, 0, 0);
+			let finalDate = new Date(candle.timestamp);
+			
+			// Normalize macroscopic intervals to prevent duplicate daily candles with different times
+			if (isMacroscopic) {
+				finalDate.setUTCHours(0, 0, 0, 0);
+				
+				if (interval === "1wk") {
+					const day = finalDate.getUTCDay();
+					const diff = finalDate.getUTCDate() - day + (day === 0 ? -6 : 1);
+					finalDate.setUTCDate(diff);
+				} else if (interval === "1mo") {
+					finalDate.setUTCDate(1);
+				}
 			}
 
-			const timestamp = normalizedDate.getTime();
-			const newCandleValue = {
+			const timestamp = finalDate.getTime();
+			const candleValue = {
 				symbolId: symbolId,
-				timestamp: normalizedDate,
+				timestamp: finalDate,
 				open: candle.open,
 				high: candle.high,
 				low: candle.low,
@@ -164,23 +168,8 @@ export class SyncService {
 				source: source,
 			};
 
-			// Collision Resolution Strategy
-			if (candleMap.has(timestamp)) {
-				const existing = candleMap.get(timestamp);
-				// If existing was low volume (e.g. pre-market 0 vol) and new is high volume, definitely take new
-				if ((existing.volume || 0) === 0 && (newCandleValue.volume || 0) > 0) {
-					this.logger.debug(
-						`[${ticker}] Overwriting zero-vol candle at ${normalizedDate.toISOString()} with high-vol candle`,
-					);
-					candleMap.set(timestamp, newCandleValue);
-				}
-				// Default: Overwrite (Last Wins) - usually 14:30 overwrites 14:00
-				else {
-					candleMap.set(timestamp, newCandleValue);
-				}
-			} else {
-				candleMap.set(timestamp, newCandleValue);
-			}
+			// Simple dedup: if exact same timestamp exists, keep last (provider order)
+			candleMap.set(timestamp, candleValue);
 		});
 
 		const values = Array.from(candleMap.values()).filter((c) => {
@@ -195,55 +184,6 @@ export class SyncService {
 		});
 
 		return { values, rejected };
-	}
-
-	/**
-	 * Normalize timestamp to interval boundary
-	 * e.g., for 1h: 07:48 -> 07:00, for 1d: any time -> 00:00 UTC
-	 */
-	private normalizeTimestamp(date: Date, interval: string): Date {
-		const normalized = new Date(date);
-
-		switch (interval) {
-			case "1m":
-				normalized.setSeconds(0, 0);
-				break;
-			case "5m":
-				normalized.setMinutes(Math.floor(normalized.getMinutes() / 5) * 5, 0, 0);
-				break;
-			case "15m":
-				normalized.setMinutes(Math.floor(normalized.getMinutes() / 15) * 15, 0, 0);
-				break;
-			case "30m":
-				normalized.setMinutes(Math.floor(normalized.getMinutes() / 30) * 30, 0, 0);
-				break;
-			case "1h":
-				normalized.setMinutes(0, 0, 0);
-				break;
-			case "4h":
-				normalized.setHours(Math.floor(normalized.getHours() / 4) * 4, 0, 0, 0);
-				break;
-			case "1d":
-				normalized.setUTCHours(0, 0, 0, 0);
-				break;
-			case "1wk": {
-				// Set to Monday 00:00 UTC
-				const day = normalized.getUTCDay();
-				const diff = normalized.getUTCDate() - day + (day === 0 ? -6 : 1);
-				normalized.setUTCDate(diff);
-				normalized.setUTCHours(0, 0, 0, 0);
-				break;
-			}
-			case "1mo":
-				normalized.setUTCDate(1);
-				normalized.setUTCHours(0, 0, 0, 0);
-				break;
-			default:
-				// Default: round to hour
-				normalized.setMinutes(0, 0, 0);
-		}
-
-		return normalized;
 	}
 
 	private async determineQueryOptions(symbolId: number, interval: string, endDate?: Date): Promise<any> {

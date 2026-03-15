@@ -90,7 +90,7 @@ export class BinanceStreamHandler {
 			timestamp: data.E,
 		};
 
-		this.broadcaster.broadcastQuote(symbol, update);
+		this.broadcaster.broadcastQuote(symbol, update, "YAHOO");
 	}
 
 	private processKline(stream: string, data: any) {

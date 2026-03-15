@@ -151,13 +151,22 @@ export const watchlistController = new Elysia({ prefix: "/watchlists" })
 		},
 	)
 	// REMOVE symbol from watchlist
-	.delete("/:id/symbols/:ticker", async ({ params, user }: any) => {
-		logger.info(`DELETE /watchlists/${params.id}/symbols/${params.ticker}`);
-		try {
-			await watchlistService.removeSymbolFromWatchlist(parseInt(params.id, 10), user.id, params.ticker);
-			return { success: true };
-		} catch (e) {
-			logger.error("Failed to remove symbol", e);
-			return { success: false, error: (e as Error).message };
-		}
-	});
+	.delete(
+		"/:id/symbols/:ticker",
+		async ({ params, query, user }: any) => {
+			const source = query?.source;
+			logger.info(`DELETE /watchlists/${params.id}/symbols/${params.ticker} (source=${source || "any"})`);
+			try {
+				await watchlistService.removeSymbolFromWatchlist(parseInt(params.id, 10), user.id, params.ticker, source);
+				return { success: true };
+			} catch (e) {
+				logger.error("Failed to remove symbol", e);
+				return { success: false, error: (e as Error).message };
+			}
+		},
+		{
+			query: t.Object({
+				source: t.Optional(t.String()),
+			}),
+		},
+	);

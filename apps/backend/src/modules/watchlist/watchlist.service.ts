@@ -240,8 +240,8 @@ export class WatchlistService {
 	}
 
 	// Remove symbol from watchlist
-	async removeSymbolFromWatchlist(watchlistId: number, userId: number, ticker: string) {
-		logger.info(`Removing ${ticker} from watchlist ${watchlistId}`);
+	async removeSymbolFromWatchlist(watchlistId: number, userId: number, ticker: string, source?: string) {
+		logger.info(`Removing ${ticker} (source=${source || "any"}) from watchlist ${watchlistId}`);
 
 		// Verify watchlist ownership
 		const [watchlist] = await db
@@ -261,10 +261,15 @@ export class WatchlistService {
 			throw new Error("Symbol not found");
 		}
 
-		await db
-			.delete(watchlistItems)
-			.where(and(eq(watchlistItems.watchlistId, watchlistId), eq(watchlistItems.symbolId, symbol.id)))
-			.execute();
+		// Build delete conditions
+		const conditions = [eq(watchlistItems.watchlistId, watchlistId), eq(watchlistItems.symbolId, symbol.id)];
+
+		// If source is specified, only delete that specific source entry
+		if (source) {
+			conditions.push(eq(watchlistItems.source, source));
+		}
+
+		await db.delete(watchlistItems).where(and(...conditions)).execute();
 
 		return { success: true };
 	}

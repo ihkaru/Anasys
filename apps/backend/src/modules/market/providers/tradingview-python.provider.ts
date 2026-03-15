@@ -52,23 +52,36 @@ export class TradingViewPythonProvider implements IDataProvider {
 
 		// Map raw data to UnifiedCandle
 		// Bridge script returns [{time, open, high, low, close, volume}, ...]
-		const mapped = result.map((c: any) => {
-			let ts = c.time || c.date || c.timestamp;
-			// Unix timestamp in seconds? Convert to ms
-			if (typeof ts === "number" && ts < 2000000000) {
-				ts *= 1000;
-			}
-			return {
-				timestamp: new Date(ts),
-				open: Number(c.open),
-				high: Number(c.high),
-				low: Number(c.low),
-				close: Number(c.close),
-				volume: Number(c.volume || 0),
-			};
-		});
+		const mapped = result
+			.map((c: any) => {
+				let ts = c.time || c.date || c.timestamp;
+				// Unix timestamp in seconds? Convert to ms
+				if (typeof ts === "number" && ts < 2000000000) {
+					ts *= 1000;
+				}
+				return {
+					timestamp: new Date(ts),
+					open: Number(c.open),
+					high: Number(c.high),
+					low: Number(c.low),
+					close: Number(c.close),
+					volume: Number(c.volume || 0),
+				};
+			})
+			.filter((c: UnifiedCandle) => {
+				// Reject candles where Number() conversion produced NaN or non-positive prices
+				if (Number.isNaN(c.open) || Number.isNaN(c.high) || Number.isNaN(c.low) || Number.isNaN(c.close)) {
+					this.logger.warn(`[TradingViewProvider] Rejected NaN candle at ${c.timestamp.toISOString()}`);
+					return false;
+				}
+				if (c.open <= 0 || c.high <= 0 || c.low <= 0 || c.close <= 0) {
+					this.logger.warn(`[TradingViewProvider] Rejected non-positive candle at ${c.timestamp.toISOString()}`);
+					return false;
+				}
+				return true;
+			});
 
-		this.logger.debug(`[TradingViewProvider] Received ${mapped.length} candles from Python`);
+		this.logger.debug(`[TradingViewProvider] Received ${mapped.length} valid candles from Python`);
 		return mapped;
 	}
 

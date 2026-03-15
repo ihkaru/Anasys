@@ -43,6 +43,12 @@ export class YahooPollingHandler {
 				const quotes = (await marketService.getQuotes(tickers, "1d", "YAHOO")) as any[];
 
 				for (const quote of quotes) {
+					// Validate quote before broadcasting \u2014 skip garbage data
+					if (!quote.price || quote.price <= 0 || Number.isNaN(quote.price)) {
+						logger.warn(`Skipping invalid Yahoo quote for ${quote.ticker}: price=${quote.price}`);
+						continue;
+					}
+
 					const update: QuoteUpdate = {
 						symbol: quote.ticker,
 						price: quote.price,
@@ -51,7 +57,7 @@ export class YahooPollingHandler {
 						volume: quote.volume,
 						timestamp: Date.now(),
 					};
-					this.broadcaster.broadcastQuote(quote.ticker, update);
+					this.broadcaster.broadcastQuote(quote.ticker, update, "YAHOO");
 				}
 			} catch (e) {
 				logger.error("Yahoo polling failed", e);

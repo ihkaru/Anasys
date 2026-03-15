@@ -16,11 +16,22 @@ export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>
 			const first = ohlcvData.value[0];
 			const last = ohlcvData.value[ohlcvData.value.length - 1];
 			logger.debug(`Range: ${first.timestamp} -> ${last.timestamp}`);
+			console.log(`[useChartData] Updating chart with ${ohlcvData.value.length} candles. Sample:`, first);
+		} else {
+			console.log("[useChartData] No data to update.");
 		}
 
+		console.time("[ChartFormat]");
 		const chartData = formatOHLCVForChart(ohlcvData.value, settingsStore.timezoneMode);
+		console.timeEnd("[ChartFormat]");
+		console.log(`[useChartData] Formatted chart data length: ${chartData.length}`);
 
-		candleSeries.value.setData(chartData);
+		try {
+			candleSeries.value.setData(chartData);
+			console.log("[useChartData] setData successful.");
+		} catch (e) {
+			console.error("[useChartData] Error in setData", e);
+		}
 	}
 
 	function updateMarkers() {

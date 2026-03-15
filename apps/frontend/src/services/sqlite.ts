@@ -6,7 +6,7 @@ export const sqliteConnection = new SQLiteConnection(CapacitorSQLite);
 
 export class SQLiteService {
 	db: SQLiteDBConnection | null = null;
-	dbName = "finance_db_v4"; // Bump version to force fresh DB for multi-source support
+	dbName = "finance_db_v5"; // Bump version to force fresh DB and clear 1M vs 1d cache conflicts
 	private logger = createLogger("SQLite");
 
 	async init() {

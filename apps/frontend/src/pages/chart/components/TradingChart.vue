@@ -62,7 +62,7 @@ const handleInfiniteLoad = async (): Promise<number | boolean | undefined> => {
 	return undefined;
 };
 
-const { subscribe: subscribeScroll, unsubscribe: unsubscribeScroll } = useInfiniteScroll(chart, handleInfiniteLoad);
+const { subscribe: subscribeScroll, unsubscribe: unsubscribeScroll, reset: resetScroll } = useInfiniteScroll(chart, handleInfiniteLoad);
 
 // FPS Monitor for detecting jank
 let frameCount = 0;
@@ -162,6 +162,7 @@ defineExpose({
 	toggleFullscreen,
 	fitContent,
 	updateCandle,
+	resetScroll,
 });
 </script>
 

@@ -14,14 +14,15 @@ export class Broadcaster {
 		this.subscriptionManager = manager;
 	}
 
-	broadcastQuote(symbol: string, update: QuoteUpdate) {
+	broadcastQuote(symbol: string, update: QuoteUpdate, source: string = "YAHOO") {
 		if (!update.price || update.price <= 0) {
 			// logger.warn(`Skipping invalid quote broadcast for ${symbol}: price=${update.price}`);
 			return;
 		}
 
-		const subKey = `quote:${symbol}`;
-		const clientIds = this.subscriptionManager.getSubscribers(subKey);
+		// Source-aware subscription key
+		const subKey = `quote:${symbol}:${source}`;
+		const clientIds = this.subscriptionManager?.getSubscribers(subKey);
 
 		if (!clientIds || clientIds.size === 0) {
 			return;
@@ -29,7 +30,7 @@ export class Broadcaster {
 
 		const message = JSON.stringify({
 			type: "quote",
-			data: update,
+			data: { ...update, source }, // Include source in payload for frontend
 		});
 
 		for (const clientId of clientIds) {

@@ -21,14 +21,15 @@ defineProps<{
 
 defineEmits<(e: "update:modelValue", value: string) => void>();
 
-// Professional timeframe options
+// Professional interval options (Option A - TradingView Standard)
 const timeframes: Timeframe[] = [
-	{ value: "1D", label: "1D" },
-	{ value: "1W", label: "1W" },
-	{ value: "1M", label: "1M" },
-	{ value: "3M", label: "3M" },
-	{ value: "1Y", label: "1Y" },
-	{ value: "ALL", label: "ALL" },
+	{ value: "5m", label: "5m" },
+	{ value: "15m", label: "15m" },
+	{ value: "30m", label: "30m" },
+	{ value: "1h", label: "1H" },
+	{ value: "4h", label: "4H" },
+	{ value: "1d", label: "1D" },
+	{ value: "1wk", label: "1W" },
 ];
 </script>
 

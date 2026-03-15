@@ -68,8 +68,17 @@ kill_backend() {
         print_warning "No backend server running on port 3000"
     fi
     
-    # Also kill any bun processes running the backend
-    pkill -f "bun.*apps/backend" 2>/dev/null
+    # Kill the background process started by dev.sh using PID file
+    if [ -f "$PROJECT_DIR/.backend.pid" ]; then
+        PID=$(cat "$PROJECT_DIR/.backend.pid")
+        if [ -n "$PID" ]; then
+            # Kill child processes first
+            pkill -P $PID 2>/dev/null
+            # Kill main process
+            kill -9 $PID 2>/dev/null
+        fi
+        rm -f "$PROJECT_DIR/.backend.pid"
+    fi
 }
 
 kill_frontend() {
@@ -83,9 +92,17 @@ kill_frontend() {
         print_warning "No frontend server running on port 5173"
     fi
     
-    # Also kill any bun/vite processes running the frontend
-    pkill -f "bun.*apps/frontend" 2>/dev/null
-    pkill -f "vite.*apps/frontend" 2>/dev/null
+    # Kill the background process started by dev.sh using PID file
+    if [ -f "$PROJECT_DIR/.frontend.pid" ]; then
+        PID=$(cat "$PROJECT_DIR/.frontend.pid")
+        if [ -n "$PID" ]; then
+            # Kill child processes first
+            pkill -P $PID 2>/dev/null
+            # Kill main process
+            kill -9 $PID 2>/dev/null
+        fi
+        rm -f "$PROJECT_DIR/.frontend.pid"
+    fi
 }
 
 kill_all() {
@@ -117,6 +134,7 @@ start_backend() {
     cd "$PROJECT_DIR/apps/backend"
     NODE_ENV=development bun run dev > "$PROJECT_DIR/apps/backend/server.log" 2>&1 &
     BACKEND_PID=$!
+    echo $BACKEND_PID > "$PROJECT_DIR/.backend.pid"
     cd "$PROJECT_DIR"
     sleep 2
     if kill -0 $BACKEND_PID 2>/dev/null; then
@@ -130,8 +148,9 @@ start_backend() {
 start_frontend() {
     print_info "Starting Frontend server..."
     cd "$PROJECT_DIR/apps/frontend"
-    bun run dev &
+    bun run dev > "$PROJECT_DIR/apps/frontend/server.log" 2>&1 &
     FRONTEND_PID=$!
+    echo $FRONTEND_PID > "$PROJECT_DIR/.frontend.pid"
     cd "$PROJECT_DIR"
     sleep 2
     if kill -0 $FRONTEND_PID 2>/dev/null; then

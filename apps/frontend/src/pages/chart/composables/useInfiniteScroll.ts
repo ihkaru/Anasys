@@ -69,6 +69,11 @@ export function useInfiniteScroll(
 		chart.value.timeScale().unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChanged);
 	}
 
+	function reset() {
+		isLoadingMore.value = false;
+		hasMoreHistory.value = true;
+	}
+
 	// We need to re-subscribe if chart instance changes (e.g. remounted)
 	// But usually chart lifecycle is managed outside.
 	// We expose subscribe/unsubscribe to be called when chart is ready.
@@ -79,5 +84,6 @@ export function useInfiniteScroll(
 		isLoadingMore: readonly(isLoadingMore),
 		subscribe,
 		unsubscribe,
+		reset,
 	};
 }

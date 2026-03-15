@@ -24,15 +24,21 @@ export class YahooFinanceProvider implements IDataProvider {
 			if (!result || !result.quotes) return [];
 
 			return result.quotes
+				.filter((q: any) => {
+					// Skip candles with null/undefined OHLC — don't default to 0
+					if (q.open == null || q.high == null || q.low == null || q.close == null) {
+						return false;
+					}
+					return true;
+				})
 				.map((q: any) => ({
 					timestamp: new Date(q.date),
-					open: q.open ?? 0,
-					high: q.high ?? 0,
-					low: q.low ?? 0,
-					close: q.close ?? 0,
+					open: q.open,
+					high: q.high,
+					low: q.low,
+					close: q.close,
 					volume: q.volume || 0,
-				}))
-				.filter((c: UnifiedCandle) => c.open !== null && c.close !== null);
+				}));
 		} catch (e) {
 			console.warn(`Chart fetch failed for ${ticker}:`, (e as Error).message);
 			return [];

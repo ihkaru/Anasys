@@ -159,6 +159,23 @@ export class DataValidator {
 			return { isValid: false, reason: "Timestamp in the future", severity: "error" };
 		}
 
+		// 10. Flat candle detection (stocks only)
+		// Closing auction data from Yahoo often has O=H=L=C which corrupts charts.
+		// Crypto can legitimately have flat candles on illiquid pairs, so skip for crypto.
+		if (!isCrypto && candle.open === candle.high && candle.high === candle.low && candle.low === candle.close) {
+			return { isValid: false, reason: "Flat candle (O=H=L=C)", severity: "warning" };
+		}
+
+		// 11. Zero price range with significant volume
+		// Strong indicator of auction/settlement data, not real trading
+		if (!isCrypto && candle.high === candle.low && candle.volume > 0) {
+			return {
+				isValid: false,
+				reason: `Zero price range with volume ${candle.volume} (likely auction data)`,
+				severity: "warning",
+			};
+		}
+
 		return { isValid: true };
 	}
 

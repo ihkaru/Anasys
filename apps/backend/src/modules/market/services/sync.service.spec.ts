@@ -7,7 +7,7 @@ import { SyncService } from "./sync.service";
 
 // Mocks
 const mockSymbolService = {
-	ensureSymbol: jest.fn().mockResolvedValue({ id: 1, ticker: "TEST" }),
+	ensureSymbol: jest.fn().mockResolvedValue({ id: 1, ticker: "TEST", type: "STOCK" }),
 } as unknown as SymbolService;
 
 const mockMarketDataRepo = {
@@ -34,20 +34,28 @@ const mockLogger = {
 	error: jest.fn(),
 } as unknown as Logger;
 
+// Mock provider factory that returns our mock provider
+const mockProviderFactory = {
+	getProvider: jest.fn().mockReturnValue(mockDataProvider),
+} as any;
+
 describe("SyncService", () => {
 	let service: SyncService;
 
 	beforeEach(() => {
-		service = new SyncService(mockSymbolService, mockMarketDataRepo, mockDataProvider, mockLogger);
+		service = new SyncService(mockSymbolService, mockMarketDataRepo, mockProviderFactory, mockLogger);
 		jest.clearAllMocks();
+		// Re-setup default mocks after clearing
+		(mockSymbolService.ensureSymbol as jest.Mock).mockResolvedValue({ id: 1, ticker: "TEST", type: "STOCK" });
+		(mockMarketDataRepo.getLastTimestamp as jest.Mock).mockResolvedValue(null);
+		(mockProviderFactory.getProvider as jest.Mock).mockReturnValue(mockDataProvider);
 	});
 
-	it("should normalize 1h US market candles from :30 to :00", async () => {
-		// Setup raw data from Yahoo (Market Open 9:30 EST -> 13:30/14:30 UTC)
-		// Let's use winter time (UTC-5): 9:30 EST = 14:30 UTC
+	it("should store raw timestamps without normalization", async () => {
+		// Yahoo sends 1h candles at :30 for US stocks (market opens 9:30 EST = 14:30 UTC)
 		const rawCandles = [
 			{
-				date: new Date("2023-12-01T14:30:00Z"), // 9:30 AM EST
+				timestamp: new Date("2023-12-01T14:30:00Z"), // 9:30 AM EST
 				open: 100,
 				high: 105,
 				low: 95,
@@ -55,7 +63,7 @@ describe("SyncService", () => {
 				volume: 1000,
 			},
 			{
-				date: new Date("2023-12-01T15:30:00Z"), // 10:30 AM EST
+				timestamp: new Date("2023-12-01T15:30:00Z"), // 10:30 AM EST
 				open: 102,
 				high: 108,
 				low: 101,
@@ -64,76 +72,26 @@ describe("SyncService", () => {
 			},
 		];
 
-		(mockDataProvider.fetchChart as jest.Mock).mockResolvedValue({
-			quotes: rawCandles,
-		});
+		(mockDataProvider.fetchChart as jest.Mock).mockResolvedValue(rawCandles);
 
 		const result = await service.syncSymbolData("TEST", "STOCK", "1h");
 
 		expect(result.status).toBe("success");
 		expect(result.count).toBe(2);
 
-		// Check what verify called marketDataRepo.upsert with
 		const upsertCall = (mockMarketDataRepo.upsert as jest.Mock).mock.calls[0][0];
 		expect(upsertCall).toHaveLength(2);
 
-		// Verify timestamps are normalized to :00
-		expect(upsertCall[0].timestamp.toISOString()).toBe("2023-12-01T14:00:00.000Z");
-		expect(upsertCall[1].timestamp.toISOString()).toBe("2023-12-01T15:00:00.000Z");
-
-		expect(upsertCall[0].timestamp.getMinutes()).toBe(0);
-		expect(upsertCall[1].timestamp.getMinutes()).toBe(0);
+		// Timestamps should be PRESERVED as-is (not rounded to :00)
+		expect(upsertCall[0].timestamp.toISOString()).toBe("2023-12-01T14:30:00.000Z");
+		expect(upsertCall[1].timestamp.toISOString()).toBe("2023-12-01T15:30:00.000Z");
 	});
 
-	it("should handle pre-market candles that are already aligned", async () => {
-		// Pre-market 9:00 AM EST = 14:00 UTC
+	it("should keep different timestamps as separate candles (no collision)", async () => {
+		// Pre-market at 14:00 UTC and regular at 14:30 UTC should both be stored
 		const rawCandles = [
 			{
-				date: new Date("2023-12-01T14:00:00Z"),
-				open: 100,
-				high: 105,
-				low: 95,
-				close: 102,
-				volume: 1000,
-			},
-		];
-
-		(mockDataProvider.fetchChart as jest.Mock).mockResolvedValue({
-			quotes: rawCandles,
-		});
-
-		await service.syncSymbolData("TEST", "STOCK", "1h");
-
-		const upsertCall = (mockMarketDataRepo.upsert as jest.Mock).mock.calls[0][0];
-		expect(upsertCall[0].timestamp.toISOString()).toBe("2023-12-01T14:00:00.000Z"); // Should stay same
-	});
-
-	it("should strict enforce 1h alignment via guardrail", async () => {
-		// ... (previous test) ...
-		const rawCandles = [
-			{
-				date: new Date("2023-12-01T14:45:00Z"),
-				open: 100,
-				high: 105,
-				low: 95,
-				close: 102,
-				volume: 1000,
-			},
-		];
-		(mockDataProvider.fetchChart as jest.Mock).mockResolvedValue({ quotes: rawCandles });
-		await service.syncSymbolData("TEST", "STOCK", "1h");
-		const upsertCall = (mockMarketDataRepo.upsert as jest.Mock).mock.calls[0][0];
-		expect(upsertCall[0].timestamp.toISOString()).toBe("2023-12-01T14:00:00.000Z");
-	});
-
-	it("should handle collision: prioritize high volume regular candle over empty pre-market candle", async () => {
-		// Scenario:
-		// 1. Pre-market at 14:00 UTC (9:00 EST) -> Volume 0
-		// 2. Regular at 14:30 UTC (9:30 EST) -> Volume 1000
-		// Both normalize to 14:00 UTC. Logic should keep the Volume 1000 one.
-		const rawCandles = [
-			{
-				date: new Date("2023-12-01T14:00:00Z"),
+				timestamp: new Date("2023-12-01T14:00:00Z"),
 				open: 100,
 				high: 100,
 				low: 100,
@@ -141,7 +99,7 @@ describe("SyncService", () => {
 				volume: 0,
 			},
 			{
-				date: new Date("2023-12-01T14:30:00Z"),
+				timestamp: new Date("2023-12-01T14:30:00Z"),
 				open: 101,
 				high: 105,
 				low: 99,
@@ -150,16 +108,58 @@ describe("SyncService", () => {
 			},
 		];
 
-		(mockDataProvider.fetchChart as jest.Mock).mockResolvedValue({ quotes: rawCandles });
+		(mockDataProvider.fetchChart as jest.Mock).mockResolvedValue(rawCandles);
 
 		const result = await service.syncSymbolData("TEST", "STOCK", "1h");
 
-		expect(result.count).toBe(1); // Should only be 1 value at 14:00
-		const upsertCall = (mockMarketDataRepo.upsert as jest.Mock).mock.calls[0][0];
-		const savedCandle = upsertCall[0];
+		// The flat pre-market candle at 14:00 will be rejected by DataValidator (Rule 10: O=H=L=C)
+		// Only the normal candle at 14:30 should survive
+		expect(result.count).toBe(1);
+		expect(result.rejected).toBeGreaterThan(0);
 
-		expect(savedCandle.timestamp.toISOString()).toBe("2023-12-01T14:00:00.000Z");
-		expect(savedCandle.volume).toBe(1000); // Should have taken the high volume one
-		expect(savedCandle.open).toBe(101); // Should match the 14:30 candle data
+		const upsertCall = (mockMarketDataRepo.upsert as jest.Mock).mock.calls[0][0];
+		expect(upsertCall[0].timestamp.toISOString()).toBe("2023-12-01T14:30:00.000Z");
+		expect(upsertCall[0].open).toBe(101);
+	});
+
+	it("should reject flat candles (O=H=L=C) for stocks via DataValidator", async () => {
+		const rawCandles = [
+			{
+				timestamp: new Date("2023-12-01T14:00:00Z"),
+				open: 100,
+				high: 100,
+				low: 100,
+				close: 100,
+				volume: 50000,
+			},
+		];
+
+		(mockDataProvider.fetchChart as jest.Mock).mockResolvedValue(rawCandles);
+
+		const result = await service.syncSymbolData("TEST", "STOCK", "1h");
+
+		expect(result.rejected).toBeGreaterThan(0);
+		expect(result.count).toBe(0);
+	});
+
+	it("should NOT reject flat candles for crypto", async () => {
+		(mockSymbolService.ensureSymbol as jest.Mock).mockResolvedValue({ id: 1, ticker: "BTC-USD", type: "CRYPTO" });
+
+		const rawCandles = [
+			{
+				timestamp: new Date("2023-12-01T14:00:00Z"),
+				open: 42000,
+				high: 42000,
+				low: 42000,
+				close: 42000,
+				volume: 100,
+			},
+		];
+
+		(mockDataProvider.fetchChart as jest.Mock).mockResolvedValue(rawCandles);
+
+		const result = await service.syncSymbolData("BTC-USD", "CRYPTO", "1h");
+
+		expect(result.count).toBe(1); // Should be accepted for crypto
 	});
 });
