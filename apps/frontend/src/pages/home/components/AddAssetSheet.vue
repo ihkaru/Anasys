@@ -14,7 +14,7 @@
                 <f7-preloader />
             </div>
             <f7-list media-list v-else>
-                <f7-list-item v-for="asset in searchResults" :key="asset.ticker + (asset.source || '')"
+                <f7-list-item v-for="(asset, index) in searchResults" :key="(asset.ticker || 'unk') + (asset.source || '') + index"
                     :title="asset.ticker" :subtitle="asset.name" @click="$emit('add', asset)">
                     <template #after>
                         <span class="badge-row">
@@ -69,7 +69,7 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
 	try {
 		const results = await marketStore.searchSymbols(query, 20);
 
-		// Map to simple display format
+		// Map to simple display format — preserve fullSymbol for TV assets
 		searchResults.value = results
 			.filter((r: any) => r.symbol || r.ticker)
 			.map((r: any) => ({
@@ -78,6 +78,10 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
 				type: r.type === "CRYPTOCURRENCY" ? "CRYPTO" : "STOCK",
 				source: r.source,
 				exchange: r.exchange,
+				currency: r.currency,
+				// For TradingView results, fullSymbol = "EXCHANGE:TICKER" (e.g. "NASDAQ:MU")
+				// This is passed through so the API can use the exact exchange when fetching chart data
+				fullSymbol: r.fullSymbol || null,
 				iconUrl: undefined,
 				website: undefined,
 			}));

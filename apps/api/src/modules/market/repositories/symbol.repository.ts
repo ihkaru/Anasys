@@ -39,4 +39,13 @@ export class SymbolRepository {
 	async updateByTicker(ticker: string, data: any): Promise<void> {
 		await this.db.update(symbols).set(data).where(eq(symbols.ticker, ticker)).execute();
 	}
+    
+	async search(query: string, limit = 10): Promise<any[]> {
+		const { ilike, or } = await import("drizzle-orm");
+		return await this.db
+			.select()
+			.from(symbols)
+			.where(or(ilike(symbols.ticker, `%${query}%`), ilike(symbols.name, `%${query}%`)))
+			.limit(limit);
+	}
 }

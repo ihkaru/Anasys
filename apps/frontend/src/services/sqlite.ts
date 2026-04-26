@@ -18,14 +18,18 @@ export class SQLiteService {
 		this.logger.info("Initializing...");
 
 		if (!Capacitor.isNativePlatform()) {
-			// Web specific setup: Create jeep-sqlite element if not exists
-			const jeepEl = document.querySelector("jeep-sqlite");
+			// Web specific setup: Ensure jeep-sqlite element exists and is defined
+			let jeepEl = document.querySelector("jeep-sqlite");
 			if (!jeepEl) {
 				this.logger.debug("Creating jeep-sqlite element");
-				const jeepSqlite = document.createElement("jeep-sqlite");
-				document.body.appendChild(jeepSqlite);
-				await customElements.whenDefined("jeep-sqlite");
+				jeepEl = document.createElement("jeep-sqlite");
+				document.body.appendChild(jeepEl);
 			}
+			
+			// Always wait for the element to be defined by the custom elements registry
+			this.logger.debug("Waiting for jeep-sqlite to be defined...");
+			await customElements.whenDefined("jeep-sqlite");
+			
 			this.logger.debug("Calling initWebStore...");
 			await sqliteConnection.initWebStore();
 			this.logger.debug("Web Store Initialized");

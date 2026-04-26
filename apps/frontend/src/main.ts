@@ -20,7 +20,7 @@ const pinia = createPinia();
 registerComponents(app);
 
 app.use(vue3GoogleLogin, {
-	clientId: "30564891683-3mgqkqfh09lmtuveo2g5096imbv8qr4u.apps.googleusercontent.com",
+	clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
 });
 
 // Define custom elements for Capacitor SQLite Web Support

@@ -33,13 +33,27 @@ async fn main() -> anyhow::Result<()> {
         .filter(|s| !s.is_empty())
         .collect();
 
-    // 3. Start Scraper
+    // 3. Start Backfiller (in background)
+    let backfiller = Arc::new(backfiller::Backfiller::new(batcher.clone()));
+    let backfiller_handle = tokio::spawn(async move {
+        backfiller.run().await;
+    });
+
+    // 4. Start Scraper
     let scraper = TradingViewScraper::new(broadcaster, batcher);
     
     info!("📡 Monitoring {} symbols...", symbols.len());
     
-    if let Err(e) = scraper.run(symbols).await {
-        error!("🚨 Engine crashed: {}", e);
+    // Run scraper and backfiller (scraper is blocking, so we await both if needed)
+    tokio::select! {
+        res = scraper.run(symbols) => {
+            if let Err(e) = res {
+                error!("🚨 Scraper crashed: {}", e);
+            }
+        }
+        _ = backfiller_handle => {
+            error!("🚨 Backfiller stopped unexpectedly");
+        }
     }
 
     Ok(())

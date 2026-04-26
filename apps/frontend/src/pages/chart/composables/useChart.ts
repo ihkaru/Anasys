@@ -1,5 +1,5 @@
 import { useElementSize } from "@vueuse/core";
-import { CandlestickSeries, createChart, type IChartApi } from "lightweight-charts";
+import { createChart, type IChartApi } from "lightweight-charts";
 import { onUnmounted, type Ref, shallowRef, watch } from "vue";
 import { useSettingsStore } from "../../../stores/settings";
 import { useThemeStore } from "../../../stores/theme";
@@ -52,7 +52,7 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
 			),
 		);
 
-		candleSeries.value = chart.value.addSeries(CandlestickSeries, getCandlestickSeriesOptions(getTheme()));
+		candleSeries.value = chart.value.addCandlestickSeries(getCandlestickSeriesOptions(getTheme()));
 	}
 
 	function destroyChart() {

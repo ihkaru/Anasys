@@ -7,9 +7,9 @@
 
 import { symbols } from "@packages/db/src/schema";
 import { eq, isNull, or } from "drizzle-orm";
-import yahooFinance from "yahoo-finance2";
 import { db } from "../db";
 import { Logger } from "../utils/logger";
+import { marketService } from "../modules/market/market.service";
 
 const logger = new Logger("EnrichSymbols");
 
@@ -21,50 +21,7 @@ interface EnrichmentResult {
 
 async function enrichSymbol(ticker: string): Promise<EnrichmentResult> {
 	try {
-		logger.debug(`Fetching metadata for ${ticker}...`);
-
-		const result = await yahooFinance.quoteSummary(ticker, {
-			modules: ["assetProfile", "quoteType"],
-		});
-
-		const profile = result.assetProfile;
-		const quoteType = result.quoteType;
-
-		// Extract relevant fields
-		const updates: Record<string, any> = {
-			metadataUpdatedAt: new Date(),
-		};
-
-		// Name from quoteType (more reliable)
-		if (quoteType?.longName) {
-			updates.name = quoteType.longName;
-		} else if (quoteType?.shortName) {
-			updates.name = quoteType.shortName;
-		}
-
-		// Profile data
-		if (profile) {
-			if (profile.longBusinessSummary) {
-				updates.description = profile.longBusinessSummary;
-			}
-			if (profile.sector) {
-				updates.sector = profile.sector;
-			}
-			if (profile.industry) {
-				updates.industry = profile.industry;
-			}
-			if (profile.website) {
-				updates.website = profile.website;
-			}
-			if (profile.country) {
-				updates.country = profile.country;
-			}
-		}
-
-		// Update DB
-		await db.update(symbols).set(updates).where(eq(symbols.ticker, ticker)).execute();
-
-		logger.info(`✓ Enriched ${ticker}: ${updates.name || "N/A"} | ${updates.sector || "N/A"}`);
+		await marketService.enrichSymbol(ticker);
 		return { ticker, success: true };
 	} catch (error: any) {
 		// Handle rate limiting
@@ -73,12 +30,7 @@ async function enrichSymbol(ticker: string): Promise<EnrichmentResult> {
 			return { ticker, success: false, error: "rate_limited" };
 		}
 
-		// Some tickers won't have profile data (e.g., some ETFs, crypto)
 		logger.warn(`Could not enrich ${ticker}: ${error?.message || "Unknown error"}`);
-
-		// Mark as attempted even if failed
-		await db.update(symbols).set({ metadataUpdatedAt: new Date() }).where(eq(symbols.ticker, ticker)).execute();
-
 		return { ticker, success: false, error: error?.message };
 	}
 }
@@ -101,11 +53,10 @@ async function main() {
 
 	logger.info(`Starting symbol enrichment (batch=${batchSize}, delay=${delayMs}ms)`);
 
-	// Get symbols that haven't been enriched yet
 	const pendingSymbols = await db
 		.select()
 		.from(symbols)
-		.where(or(isNull(symbols.metadataUpdatedAt), isNull(symbols.name)))
+		.where(eq(symbols.ticker, "GC=F"))
 		.limit(batchSize);
 
 	logger.info(`Found ${pendingSymbols.length} symbols to enrich`);

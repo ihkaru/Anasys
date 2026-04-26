@@ -2,6 +2,10 @@ import { api } from "../../../api/client";
 import type { MarketMover, Symbol as MarketSymbol, OHLCV, Signal } from "../market.types";
 
 export const marketApi = {
+	async fetchStats() {
+		return api.get<{ success: boolean; data: any }>("/market/internal/stats");
+	},
+
 	async fetchMovers() {
 		return api.get<{
 			success: boolean;
@@ -25,7 +29,7 @@ export const marketApi = {
 		return api.post<{ success: boolean; error?: string }>("/market/sync", { ticker, type, source });
 	},
 
-	async fetchHistory(ticker: string, params: { limit: string; interval: string; before?: string; source: string }) {
+	async fetchHistory(ticker: string, params: { limit: string; interval: string; before?: string }) {
 		return api.get<{ success: boolean; data: OHLCV[]; error?: string }>(`/market/history/${ticker}`, { params });
 	},
 
@@ -61,8 +65,8 @@ export const marketApi = {
 		return api.get<{ success: boolean; data: any }>(`/market/analyst/${ticker}`);
 	},
 
-	async fetchQuote(ticker: string, source: string) {
-		return api.get<{ success: boolean; data: MarketMover }>(`/market/quote/${ticker}`, { params: { source } });
+	async fetchQuote(ticker: string) {
+		return api.get<{ success: boolean; data: MarketMover }>(`/market/quote/${ticker}`);
 	},
 
 	async fetchRecommendations(ticker: string) {

@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
 	plugins: [vue()],
+	envDir: "../../", // Point to workspace root for .env
 	root: ".",
 	build: {
 		outDir: "dist",
@@ -18,12 +19,12 @@ export default defineConfig({
 		strictPort: true,
 		proxy: {
 			"/api": {
-				target: "http://localhost:3000",
+				target: "http://localhost:28081",
 				changeOrigin: true,
 				secure: false,
 			},
 			"/public": {
-				target: "http://localhost:3000",
+				target: "http://localhost:28081",
 				changeOrigin: true,
 				secure: false,
 			},
@@ -33,12 +34,12 @@ export default defineConfig({
 		port: 4173,
 		proxy: {
 			"/api": {
-				target: "http://localhost:3000",
+				target: "http://localhost:28081",
 				changeOrigin: true,
 				secure: false,
 			},
 			"/public": {
-				target: "http://localhost:3000",
+				target: "http://localhost:28081",
 				changeOrigin: true,
 				secure: false,
 			},

@@ -1,10 +1,10 @@
-import { ref, type Ref } from "vue";
+import { ref } from "vue";
 import { sqliteService } from "../../../services/sqlite";
 import type { Logger } from "../../../utils/logger";
 import { marketApi } from "../api/marketApi";
 import type { Signal } from "../market.types";
 
-export function useMarketAnalysis(logger: Logger, _selectedSource: Ref<string>) {
+export function useMarketAnalysis(logger: Logger) {
 	const signals = ref<Signal[]>([]);
 	const lastAnalysisTicker = ref<string | null>(null);
 	const analyzing = ref(false);

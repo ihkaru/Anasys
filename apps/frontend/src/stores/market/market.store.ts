@@ -16,37 +16,34 @@ export const useMarketStore = defineStore("market", () => {
 
 	// Shared State
 	const selectedSymbol = useLocalStorage<string>("selected_symbol", "AAPL");
-	const selectedSource = useLocalStorage<string>("selected_source", "YAHOO");
 	const selectedStrategy = useLocalStorage<string>("selected_strategy", "SMA_CROSSOVER");
 
-	// Quotes State (Shared between Cache and Updates)
+	// Quotes State
 	const quotes = shallowRef<Map<string, MarketMover>>(new Map());
 	const quotesVersion = ref(0);
 
-	// Movers State (Shared)
-	const movers = ref<{ gainers: MarketMover[]; losers: MarketMover[]; trending: MarketMover[] }>({
+	// Movers State
+	const movers = shallowRef<{ gainers: MarketMover[]; losers: MarketMover[]; trending: MarketMover[] }>({
 		gainers: [],
 		losers: [],
 		trending: [],
 	});
 
-	// Composables
-	// Pass shared state where needed
-	const symbolManagement = useSymbolManagement(logger, selectedSource, movers);
+	// Composables — selectedSource removed, Smart Proxy handles routing on backend
+	const symbolManagement = useSymbolManagement(logger, movers);
 	const marketCache = useMarketCache(logger, quotes, quotesVersion);
-	const marketHistory = useMarketHistory(logger, selectedSource);
-	const marketAnalysis = useMarketAnalysis(logger, selectedSource);
-	const quoteUpdates = useQuoteUpdates(logger, quotes, quotesVersion, selectedSource);
+	const marketHistory = useMarketHistory(logger);
+	const marketAnalysis = useMarketAnalysis(logger);
+	const quoteUpdates = useQuoteUpdates(logger, quotes, quotesVersion);
 
 	// Computed
 	const currentStrategy = computed(() => STRATEGIES.find((s) => s.id === selectedStrategy.value) || STRATEGIES[0]);
 
 	// Aggregated Loading & Error
-	const loading = computed(() => symbolManagement.loading.value); // Main loading often refers to symbol/page load
+	const loading = computed(() => symbolManagement.loading.value);
 	const error = computed({
 		get: () => symbolManagement.error.value || marketHistory.error.value || marketAnalysis.error.value || null,
 		set: (val) => {
-			// Basic setter to allow clearing error, though ideally acts on specific source
 			if (val === null) {
 				symbolManagement.error.value = null;
 				marketHistory.error.value = null;
@@ -55,7 +52,7 @@ export const useMarketStore = defineStore("market", () => {
 		},
 	});
 
-	// Actions Wrapper (to match original API signature where reasonable)
+	// Actions
 	function selectSymbol(ticker: string) {
 		selectedSymbol.value = ticker;
 	}
@@ -64,26 +61,20 @@ export const useMarketStore = defineStore("market", () => {
 		selectedStrategy.value = strategyId;
 	}
 
-	function selectSource(source: string) {
-		selectedSource.value = source;
-		// Clear history data to trigger refresh
-		marketHistory.ohlcvData.value = [];
-	}
-
 	return {
 		// State
 		selectedSymbol,
-		selectedSource,
 		selectedStrategy,
 		currentStrategy,
 		quotes,
 		quotesVersion,
 		movers,
+		stats: symbolManagement.stats,
 
 		// Composables State Exposed
 		symbols: symbolManagement.symbols,
 		selectedSymbolData: symbolManagement.selectedSymbolData,
-		loading, // Aggregated
+		loading,
 		syncing: symbolManagement.syncing,
 
 		ohlcvData: marketHistory.ohlcvData,
@@ -93,12 +84,11 @@ export const useMarketStore = defineStore("market", () => {
 		lastAnalysisTicker: marketAnalysis.lastAnalysisTicker,
 		analyzing: marketAnalysis.analyzing,
 
-		error, // Aggregated
+		error,
 
 		// Actions
 		selectSymbol,
 		selectStrategy,
-		selectSource,
 
 		// Symbol Actions
 		fetchSymbols: symbolManagement.fetchSymbols,
@@ -125,5 +115,6 @@ export const useMarketStore = defineStore("market", () => {
 		// Quote Actions
 		updateQuote: quoteUpdates.updateQuote,
 		fetchQuote: quoteUpdates.fetchQuote,
+		fetchStats: symbolManagement.fetchStats,
 	};
 });

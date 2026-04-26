@@ -32,8 +32,8 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile.prod
     restart: always
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-finance_db}
@@ -47,6 +47,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - anasys-net
+
+  # ---------------------------------------------------------------------------
+  # Frontend UI (Vue/Vite)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile.prod
+    restart: always
+    expose:
+      - "80"
+    depends_on:
+      api:
+        condition: service_started
     networks:
       - anasys-net
 

@@ -25,7 +25,7 @@ export const useAuthStore = defineStore("auth", () => {
 	async function initGoogleAuth() {
 		if (Capacitor.isNativePlatform()) {
 			GoogleAuth.initialize({
-				clientId: "30564891683-3mgqkqfh09lmtuveo2g5096imbv8qr4u.apps.googleusercontent.com",
+				clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID,
 				scopes: ["profile", "email"],
 				grantOfflineAccess: true,
 			});

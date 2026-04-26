@@ -7,7 +7,7 @@ import { errorHandler, requestLogger, securityHeaders } from "./middleware/secur
 import { analysisController } from "./modules/analysis/analysis.controller";
 import { authController } from "./modules/auth/auth.controller";
 import { holdingsController } from "./modules/holdings/holdings.controller";
-import { marketController } from "./modules/market/market.controller";
+import { internalMarketController, marketController } from "./modules/market/market.controller";
 import { realtimeController } from "./modules/realtime/realtime.controller";
 import { watchlistController } from "./modules/watchlist/watchlist.controller";
 
@@ -64,11 +64,11 @@ const app = new Elysia()
 
 	// WebSocket real-time routes (no rate limiting needed)
 	.use(realtimeController)
-
 	// Auth routes with stricter rate limiting
 	.group("/api", (api) =>
 		api
 			.use(apiRateLimiter)
+			.use(internalMarketController)
 			.use(authController)
 			.use(marketController)
 			.use(analysisController)

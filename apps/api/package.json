@@ -14,7 +14,8 @@
 		"prune": "bun run src/scripts/prune_stale_data.ts",
 		"prune:dry": "bun run src/scripts/prune_stale_data.ts --dry-run",
 		"clean-slate": "bun run src/scripts/clean_slate.ts",
-		"clean-slate:keep-symbols": "bun run src/scripts/clean_slate.ts --keep-symbols"
+		"clean-slate:keep-symbols": "bun run src/scripts/clean_slate.ts --keep-symbols",
+		"harvest": "bun run src/scripts/tv_multi_harvester.ts"
 	},
 	"dependencies": {
 		"@elysiajs/cookie": "^0.8.0",
@@ -22,6 +23,7 @@
 		"@elysiajs/eden": "^1.2.0",
 		"@elysiajs/jwt": "^1.2.0",
 		"@elysiajs/swagger": "^1.2.1",
+		"@mathieuc/tradingview": "github:Mathieu2301/TradingView-API",
 		"ccxt": "^4.5.34",
 		"csv-parse": "^6.1.0",
 		"drizzle-orm": "^0.39.3",
@@ -29,8 +31,10 @@
 		"google-auth-library": "^9.15.0",
 		"ioredis": "^5.10.1",
 		"jose": "^6.1.3",
+		"playwright": "^1.59.1",
 		"postgres": "^3.4.4",
-		"yahoo-finance2": "^3.13.0"
+		"tradingview-scraper": "^1.0.4",
+		"yahoo-finance2": "^3.14.0"
 	},
 	"devDependencies": {
 		"@types/bun": "^1.3.6",

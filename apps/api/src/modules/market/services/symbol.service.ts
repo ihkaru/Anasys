@@ -74,6 +74,7 @@ export class SymbolService {
 		private symbolRepo: SymbolRepository,
 		private dataProvider: IDataProvider,
 		private logger: Logger,
+		private discoveryProvider?: IDataProvider,
 	) {}
 
 	async ensureSymbol(
@@ -197,6 +198,13 @@ export class SymbolService {
 
 			await this.symbolRepo.updateByTicker(ticker, updates);
 
+			// NEW: Discover TradingView Mapping
+			if (this.discoveryProvider) {
+				this.discoverTradingViewMapping(ticker, updates.name || ticker).catch((err) =>
+					this.logger.error(`[${ticker}] Failed to discover TradingView mapping`, err),
+				);
+			}
+
 			// Trigger Logo Download (Async, don't block response)
 			// Dynamic import to avoid cycles since logo.service might import db
 			import("./logo.service").then(({ logoService }) => {
@@ -227,6 +235,47 @@ export class SymbolService {
 			}
 
 			return await this.symbolRepo.findByTicker(ticker);
+		}
+	}
+	/**
+	 * Search TradingView for a matching symbol to create a mapping
+	 */
+	private async discoverTradingViewMapping(ticker: string, name: string) {
+		if (!this.discoveryProvider) return;
+
+		try {
+			this.logger.debug(`[${ticker}] Searching TradingView for mapping (Query: ${ticker} or ${name})...`);
+
+			// Try searching by ticker first (clean ticker without suffix)
+			const cleanTicker = ticker.split(".")[0].split("=")[0];
+			let results = await this.discoveryProvider.search(cleanTicker, 10);
+
+			// If no good results, try by name
+			if (!results.length && name !== ticker) {
+				results = await this.discoveryProvider.search(name, 10);
+			}
+
+			if (results.length > 0) {
+				// Simple heuristic to find best match:
+				// 1. Exact ticker match
+				// 2. Ticker contains cleanTicker
+				// 3. Name matches
+				const bestMatch =
+					results.find((r) => r.ticker === cleanTicker || r.ticker === ticker) ||
+					results.find((r) => r.ticker.includes(cleanTicker)) ||
+					results[0];
+
+				this.logger.info(`[${ticker}] Found TradingView match: ${bestMatch.fullSymbol} (${bestMatch.exchange})`);
+
+				await this.symbolRepo.updateByTicker(ticker, {
+					tradingviewSymbol: bestMatch.ticker,
+					tradingviewExchange: bestMatch.exchange,
+				});
+			} else {
+				this.logger.debug(`[${ticker}] No TradingView match found for '${cleanTicker}' or '${name}'`);
+			}
+		} catch (err) {
+			this.logger.error(`TradingView discovery failed for ${ticker}`, err);
 		}
 	}
 }

@@ -41,7 +41,23 @@ export class TradingViewPythonProvider implements IDataProvider {
 		this.logger.debug(`[TradingViewProvider] Requesting ${limit} candles for ${ticker} (${options.interval})`);
 
 		// Construct full symbol if exchange provided
-		const symbol = options.exchange ? `${options.exchange}:${ticker}` : ticker;
+		let symbol = options.exchange ? `${options.exchange}:${ticker}` : ticker;
+
+		// Heuristic Mapping for common tickers where Yahoo != TradingView
+		const mapping: Record<string, string> = {
+			"GC=F": "COMEX:GC1!", // Gold Futures
+			"SI=F": "COMEX:SI1!", // Silver Futures
+			"CL=F": "NYMEX:CL1!", // Crude Oil Futures
+			"^GSPC": "SPX", // S&P 500
+			"^IXIC": "IXIC", // NASDAQ Composite
+			"^DJI": "DJI", // Dow Jones
+			"^JKSE": "IDX:COMPOSITE", // IHSG
+		};
+
+		if (mapping[ticker]) {
+			symbol = mapping[ticker];
+			this.logger.info(`[TradingViewProvider] Applied heuristic mapping: ${ticker} -> ${symbol}`);
+		}
 
 		const result = await this.executePython("chart", {
 			symbol: symbol,
@@ -204,7 +220,19 @@ export class TradingViewPythonProvider implements IDataProvider {
 		if (!tickers.length) return [];
 		this.logger.debug(`Fetching quotes for ${tickers.join(",")} from TradingView...`);
 
-		const raw = await this.executePython("quote", { symbols: tickers });
+		// Heuristic Mapping for common tickers where Yahoo != TradingView
+		const mapping: Record<string, string> = {
+			"GC=F": "COMEX:GC1!",
+			"SI=F": "COMEX:SI1!",
+			"CL=F": "NYMEX:CL1!",
+			"^GSPC": "SPX",
+			"^IXIC": "IXIC",
+			"^DJI": "DJI",
+			"^JKSE": "IDX:COMPOSITE",
+		};
+
+		const mappedTickers = tickers.map((t) => mapping[t] || t);
+		const raw = await this.executePython("quote", { symbols: mappedTickers });
 
 		// Map to format compatible with Yahoo QuoteResult
 		return raw.map((r: any) => {

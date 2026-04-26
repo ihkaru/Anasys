@@ -1,5 +1,6 @@
 import type { IDataProvider } from "./data-provider.interface";
-import { TradingViewPythonProvider } from "./tradingview-python.provider"; // Make sure to export this class in its file
+import { TradingViewPlaywrightProvider } from "./tradingview-playwright.provider";
+import { TradingViewPythonProvider } from "./tradingview-python.provider";
 import { YahooFinanceProvider } from "./yahoo-finance.provider";
 
 export class DataProviderFactory {
@@ -8,10 +9,12 @@ export class DataProviderFactory {
 	constructor() {
 		// Initialize providers
 		const yahoo = new YahooFinanceProvider();
-		const tv = new TradingViewPythonProvider();
+		const tvPython = new TradingViewPythonProvider();
+		const tvPlaywright = new TradingViewPlaywrightProvider();
 
 		this.providers.set("YAHOO", yahoo);
-		this.providers.set("TRADINGVIEW", tv);
+		this.providers.set("TRADINGVIEW", tvPython);
+		this.providers.set("TRADINGVIEW_PW", tvPlaywright);
 		// CCXT can be added later
 	}
 

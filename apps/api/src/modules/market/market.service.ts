@@ -1,3 +1,5 @@
+import { sql } from "drizzle-orm";
+import { backfillProgress, symbols } from "@packages/db/src/schema";
 import { db } from "../../db";
 import { Logger } from "../../utils/logger";
 import { CacheService } from "./cache/cache.service";
@@ -11,14 +13,11 @@ import { FinancialsService } from "./services/financials.service";
 import { MoversService } from "./services/movers.service";
 import { OverviewService } from "./services/overview.service";
 import { QuoteService } from "./services/quote.service";
+import { questDbService } from "./services/QuestDBService";
 import { SymbolService } from "./services/symbol.service";
 import { SyncService } from "./services/sync.service";
-import { questDbService } from "./services/QuestDBService";
 
 // Initialize Dependencies
-// Note: In a real NestJS app this would be in a module.
-// Here we manually wire them up.
-
 const logger = new Logger("MarketService");
 const symbolRepo = new SymbolRepository(db);
 const marketDataRepo = new MarketDataRepository(db);
@@ -27,7 +26,7 @@ const providerFactory = new DataProviderFactory();
 const cacheService = new CacheService();
 const tvProvider = new TradingViewPythonProvider();
 
-const symbolService = new SymbolService(symbolRepo, dataProvider, logger);
+const symbolService = new SymbolService(symbolRepo, dataProvider, logger, tvProvider);
 const syncService = new SyncService(symbolService, marketDataRepo, providerFactory, logger);
 const candleService = new CandleService(symbolService, syncService, marketDataRepo, logger);
 const overviewService = new OverviewService(symbolRepo, marketDataRepo, logger);
@@ -68,9 +67,48 @@ export class MarketService {
 		return syncService.syncSymbolData(ticker, type, interval, endDate, source);
 	}
 
-	// Delegate to CandleService
-	async getOHLCV(ticker: string, interval: string, limit: number, before?: string, source: string = "YAHOO") {
-		return candleService.getOHLCV(ticker, interval, limit, before, source);
+	/**
+	 * Unified OHLCV fetch — Smart Proxy routing.
+	 *
+	 * Strategy (Unified Data Lake):
+	 * 1. Try QuestDB (Engine) first — our local high-performance store.
+	 *    If data exists, downsample from ticks and return immediately.
+	 * 2. Fallback to external provider (Yahoo/TV via Postgres/CandleService).
+	 * 3. Fire-and-forget: signal Engine to begin ingesting this ticker asynchronously
+	 *    so future requests will be served from our local store.
+	 *
+	 * The caller (frontend) never needs to specify a "source" —
+	 * that routing decision lives entirely in this layer.
+	 */
+	async getOHLCV(ticker: string, interval: string, limit: number, before?: string) {
+		// Step 1: Try Engine (QuestDB) first
+		try {
+			const engineData = await this.getHistoricalOHLCV(ticker, interval, limit);
+			if (engineData.length > 0) {
+				logger.debug(`[getOHLCV] Engine cache HIT for ${ticker} (${engineData.length} candles)`);
+				return engineData;
+			}
+			logger.debug(`[getOHLCV] Engine cache MISS for ${ticker} — falling back to external provider`);
+		} catch (err) {
+			// Engine unavailable or table missing — silently fall through
+			logger.warn(`[getOHLCV] Engine query failed for ${ticker}, falling through to external provider`, err);
+		}
+
+		// Step 2: Fallback to external provider with smart source selection
+		const intradayIntervals = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h"];
+		const smartSource = intradayIntervals.includes(interval) ? "TRADINGVIEW_PW" : "YAHOO";
+
+		const externalData = await candleService.getOHLCV(ticker, interval, limit, before, smartSource);
+
+		// Step 3: Fire-and-forget ingestion signal
+		if (externalData.length > 0) {
+			logger.info(
+				`[getOHLCV] [INGEST-PENDING] ${ticker} (${interval}) served from ${smartSource}. ` +
+					`Engine should ingest this ticker to serve future requests locally.`,
+			);
+		}
+
+		return externalData;
 	}
 
 	async getDownsampledCandles(ticker: string, resolution: string, limit: number) {
@@ -90,8 +128,8 @@ export class MarketService {
 	// ===== Delegate to QuoteService =====
 
 	/**
-	 * Get real-time quotes for multiple tickers
-	 * Uses caching to avoid rate limiting
+	 * Get real-time quotes for multiple tickers.
+	 * Quotes always come from external providers (Yahoo/TV) — Engine handles historical OHLCV only.
 	 */
 	async getQuotes(tickers: string[], period: string = "7d", source: string = "YAHOO") {
 		return quoteService.getQuotes(tickers, period, source);
@@ -105,42 +143,73 @@ export class MarketService {
 	}
 
 	/**
-	 * Search for symbols across multiple sources (Yahoo + TradingView)
-	 * Returns aggregated results with source labels
+	 * Search for symbols across multiple sources (Yahoo + TradingView + Local DB).
+	 * Returns ALL results from ALL sources without deduplication.
+	 * The identity of a result is (symbol, exchange, source) — not just ticker.
+	 * Results from DB use their original provider as source (not forced to "LOCAL").
 	 */
 	async searchSymbolsMultiSource(query: string, limit: number = 15): Promise<any[]> {
 		logger.debug(`Multi-source search for: ${query}`);
 
-		// Query both sources in parallel
-		const [yahooResults, tvResults] = await Promise.allSettled([
+		// Query all sources in parallel — failures are handled gracefully
+		const [yahooResults, tvResults, localResults] = await Promise.allSettled([
 			quoteService.search(query, limit),
 			tvProvider.search(query, limit),
+			symbolRepo.search(query, limit),
 		]);
 
-		const results: any[] = [];
+		const all: any[] = [];
 
-		// Process Yahoo results
+		// 1. Database results first — these are already followed (isFollowed = true)
+		//    Use the original provider stored in the DB, not a hardcoded "LOCAL".
+		if (localResults.status === "fulfilled" && localResults.value) {
+			for (const r of localResults.value) {
+				const provider = r.provider?.toUpperCase();
+				let source = "YAHOO"; // safe default
+				if (provider === "TRADINGVIEW") source = "TRADINGVIEW";
+				else if (provider === "ENGINE") source = "ENGINE"; // Anasys Engine scraped
+
+				all.push({
+					symbol: r.ticker,
+					name: r.name,
+					type: r.type,
+					exchange: r.exchange,
+					source,
+					isFollowed: true,
+				});
+			}
+		} else if (localResults.status === "rejected") {
+			logger.warn("Local DB search failed:", localResults.reason);
+		}
+
+		// 2. Yahoo Finance results
 		if (yahooResults.status === "fulfilled" && yahooResults.value) {
-			const yahooMapped = yahooResults.value.map((r: any) => ({
-				symbol: r.ticker || r.symbol, // Handle both just in case
-				name: r.name || r.longName || r.shortName,
-				type: r.type || r.quoteType,
-				exchange: r.exchange || r.exchDisp,
-				currency: r.currency,
-				source: "YAHOO",
-			}));
-			results.push(...yahooMapped);
+			for (const r of yahooResults.value) {
+				all.push({
+					symbol: r.ticker || r.symbol,
+					name: r.name || r.longName || r.shortName,
+					type: r.type || r.quoteType,
+					exchange: r.exchange || r.exchDisp,
+					currency: r.currency,
+					source: "YAHOO",
+					isFollowed: false,
+				});
+			}
+		} else if (yahooResults.status === "rejected") {
+			logger.warn("Yahoo search failed:", yahooResults.reason);
 		}
 
-		// Process TradingView results
+		// 3. TradingView results — already normalized by tvProvider.search()
 		if (tvResults.status === "fulfilled" && tvResults.value) {
-			results.push(...tvResults.value);
+			for (const r of tvResults.value) {
+				all.push({ ...r, isFollowed: false });
+			}
 		} else if (tvResults.status === "rejected") {
-			logger.warn("TradingView search failed, continuing with Yahoo only");
+			logger.warn("TradingView search failed:", tvResults.reason);
 		}
 
-		logger.debug(`Multi-source search returned ${results.length} total results`);
-		return results;
+		logger.debug(`Multi-source search returned ${all.length} total results`);
+		return all;
 	}
 
 	/**
@@ -159,34 +228,25 @@ export class MarketService {
 
 	// ===== Delegate to FinancialsService =====
 
-	/**
-	 * Get financial metrics for a stock (PE, margins, etc)
-	 * Data from: summaryDetail, financialData, defaultKeyStatistics
-	 */
 	async getFinancials(ticker: string) {
 		return financialsService.getFinancials(ticker);
 	}
 
-	/**
-	 * Get earnings data (history, calendar, trend)
-	 * Data from: earnings, earningsHistory, calendarEvents
-	 */
 	async getEarnings(ticker: string) {
 		return financialsService.getEarnings(ticker);
 	}
 
-	/**
-	 * Get analyst ratings breakdown (buy/hold/sell)
-	 * Data from: recommendationTrend
-	 */
 	async getAnalystRatings(ticker: string) {
 		return financialsService.getAnalystRatings(ticker);
 	}
 
 	/**
-	 * Fetches historical OHLCV data from QuestDB (Performance Engine)
+	 * Fetches historical OHLCV data from QuestDB (Anasys Engine).
+	 * Raw ticks are downsampled to the requested interval on-the-fly using QuestDB SAMPLE BY.
+	 * This enables any timeframe (even non-standard ones) without pre-aggregating.
 	 */
-	async getHistoricalOHLCV(symbol: string, interval: string = "1m", limit: number = 100) {
+	async getHistoricalOHLCV(symbol: string, interval: string = "1d", limit: number = 500) {
+		// QuestDB uses underscores for symbols (e.g. FX:EURUSD → FX_EURUSD)
 		const qdbSymbol = symbol.replace(":", "_");
 
 		const sql = `
@@ -207,13 +267,64 @@ export class MarketService {
 		const formatted = questDbService.formatResult<any>(response);
 
 		return formatted.map((item) => ({
-			timestamp: new Date(item.timestamp).getTime(),
+			timestamp: new Date(item.timestamp).toISOString(),
 			open: item.open,
 			high: item.high,
 			low: item.low,
 			close: item.close,
 			volume: item.volume,
 		}));
+	}
+
+	/**
+	 * Get market-wide data statistics (coverage, gaps, totals)
+	 */
+	async getMarketStats() {
+		logger.debug("Calculating market stats...");
+		// 1. Total tickers in database
+		const totalTickersCount = await db.select({ count: sql`count(*)` }).from(symbols);
+		const totalTickers = Number(totalTickersCount[0]?.count || 0);
+		logger.debug(`Total tickers: ${totalTickers}`);
+
+		// 2. Tickers with data gaps for different periods
+		// We define a "gap" if backfill_progress.is_completed is false for '1d' interval
+		// or if there's no progress entry at all.
+		const periods = [
+			{ label: "10y", years: 10 },
+			{ label: "5y", years: 5 },
+			{ label: "1y", years: 1 },
+			{ label: "6m", months: 6 },
+			{ label: "3m", months: 3 },
+			{ label: "1m", months: 1 },
+		];
+
+		const coverage: Record<string, number> = {};
+
+		for (const period of periods) {
+			const targetDate = new Date();
+			if (period.years) targetDate.setFullYear(targetDate.getFullYear() - period.years);
+			if (period.months) targetDate.setMonth(targetDate.getMonth() - period.months);
+
+			// Count symbols that have completed backfill for this period (or better)
+			// For simplicity now, we check if they have a completed record with targetDate <= this period's targetDate
+			const result = await db.execute(sql`
+                SELECT count(DISTINCT s.id) as count
+                FROM symbols s
+                JOIN backfill_progress bp ON s.id = bp.symbol_id
+                WHERE bp.interval = '1d' 
+                AND bp.is_completed = true
+                AND bp.target_start_date <= ${targetDate.toISOString()}
+            `);
+
+			const completedCount = Number((result[0] as any)?.count || 0);
+			coverage[period.label] = totalTickers - completedCount; // "Gaps" count
+		}
+
+		return {
+			totalTickers,
+			gaps: coverage,
+			timestamp: new Date().toISOString(),
+		};
 	}
 }
 

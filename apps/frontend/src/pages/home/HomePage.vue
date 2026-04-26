@@ -14,6 +14,8 @@
 
 		<MarketSummaryCard />
 
+		<DataLakeStatsCard :stats="marketStore.stats" @refresh="marketStore.fetchStats" />
+
 		<f7-block-title class="section-title">
 			<span>My Watchlists</span>
 			<f7-link @click="watchlistActions.showWatchlistActions()">
@@ -50,6 +52,7 @@ import { useMarketStore } from "../../stores/market";
 import { useWatchlistStore } from "../../stores/watchlist";
 import { createLogger } from "../../utils/logger";
 import AddAssetSheet from "./components/AddAssetSheet.vue";
+import DataLakeStatsCard from "./components/DataLakeStatsCard.vue";
 import MarketSummaryCard from "./components/MarketSummaryCard.vue";
 import UserGreeting from "./components/UserGreeting.vue";
 import WatchlistItemList from "./components/WatchlistItemList.vue";
@@ -371,17 +374,8 @@ watch(
 );
 
 function openAssetDetail(item: any) {
-	logger.debug("Open asset detail:", item.ticker, item.source);
+	logger.debug("Open asset detail:", item.ticker);
 	marketStore.selectSymbol(item.ticker);
-	if (item.source) {
-		marketStore.selectSource(item.source);
-	} else {
-		// If no source is explicit, do NOT forcibly reset to YAHOO if it's already set correctly.
-		// BUT, for watchlist items, we usually know the source if we stored it.
-		// If we rely on stored data, we should probably default to 'YAHOO' if missing,
-		// to ensure we don't accidentally view a TV asset as Yahoo if previous state was TV.
-		marketStore.selectSource("YAHOO");
-	}
 	f7.views.main.router.navigate("/chart/", { props: { ticker: item.ticker } });
 }
 
@@ -389,7 +383,13 @@ async function handleAddAsset(asset: any) {
 	if (!selectedWatchlistId.value) return;
 
 	try {
-		await watchlistStore.addSymbolToWatchlist(selectedWatchlistId.value, asset.ticker, asset.type, asset.source);
+		await watchlistStore.addSymbolToWatchlist(
+			selectedWatchlistId.value,
+			asset.ticker,
+			asset.type,
+			asset.source,
+			asset.exchange, // User-confirmed exchange from search result (e.g. "BMV" for TV listing)
+		);
 		addAssetSheetOpen.value = false;
 		f7.toast.show({ text: `Added ${asset.ticker}`, closeTimeout: 2000 });
 		// Will trigger watch above
@@ -429,6 +429,9 @@ function onItemHold(item: any) {
 
 onMounted(async () => {
 	logger.debug("HomePage Mounted");
+
+	// Fetch stats first as it's small and important for the dashboard
+	marketStore.fetchStats();
 
 	await Promise.all([
 		marketStore.fetchSymbols(),

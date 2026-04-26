@@ -1,0 +1,30 @@
+# Stage 1: Build the frontend assets
+FROM oven/bun:1.2-slim AS build
+WORKDIR /app
+
+# Copy lockfile, package.json, and root tsconfig
+COPY package.json bun.lock tsconfig.json ./
+COPY apps/frontend/package.json ./apps/frontend/
+COPY packages/shared/package.json ./packages/shared/
+
+# Install dependencies
+# Install all dependencies (workspaces need this for proper bin linking)
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install
+
+# Copy source code
+COPY apps/frontend ./apps/frontend
+COPY packages/shared ./packages/shared
+
+# Build the frontend
+WORKDIR /app/apps/frontend
+RUN bun run build
+
+# Stage 2: Serve with Nginx
+FROM nginx:alpine
+# Copy the built assets from the build stage to Nginx's default public directory
+COPY --from=build /app/apps/frontend/dist /usr/share/nginx/html
+# Expose port 80
+EXPOSE 80
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]

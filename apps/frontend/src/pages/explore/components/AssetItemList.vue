@@ -1,6 +1,6 @@
 <template>
     <f7-list class="asset-list">
-        <f7-list-item v-for="item in items" :key="item.ticker + (item.source || '') + (item.exchange || '')"
+        <f7-list-item v-for="(item, index) in items" :key="(item.ticker || 'unk') + (item.source || '') + (item.exchange || '') + index"
             :subtitle="showSubtitle ? item.name : undefined" :footer="!showSubtitle ? item.name : undefined"
             @click="$emit('click', item)">
             <template #title>

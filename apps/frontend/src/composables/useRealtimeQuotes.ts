@@ -60,7 +60,7 @@ function getWsUrl(): string {
 	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 	// In preview (production build served locally), we still want to connect to local backend
 	// window.location.host would point to 4173 (preview port)
-	const host = import.meta.env.DEV ? "localhost:3000" : "localhost:3000";
+	const host = import.meta.env.DEV ? "localhost:28081" : "localhost:28081";
 	return `${protocol}//${host}/ws/market`;
 }
 

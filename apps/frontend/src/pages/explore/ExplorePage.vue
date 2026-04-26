@@ -10,7 +10,8 @@
     <f7-searchbar :custom-search="true" placeholder="Search stocks, crypto..." @searchbar:search="onSearch"
       @searchbar:clear="onSearchClear" :value="searchQuery"></f7-searchbar>
 
-    <div v-if="marketStore.loading && !searchQuery" class="text-align-center padding">
+    <!-- Global Loading Overlay (Stays in DOM to prevent insertBefore errors) -->
+    <div v-show="marketStore.loading && !searchQuery" class="loading-overlay">
       <f7-preloader />
     </div>
 
@@ -18,33 +19,33 @@
     <CategoryChips v-model:selected="selectedCategories" />
 
     <!-- Content: Trending or Search Results -->
-    <template v-if="!searchQuery">
-      <!-- Trending Section -->
-      <f7-block-title v-if="!marketStore.loading">🔥 Trending Today</f7-block-title>
-      <TrendingSection v-if="!marketStore.loading" :items="trendingAssets" @click="openAsset" />
+    <div :class="{ 'content-loading': marketStore.loading && !searchQuery }">
+      <template v-if="!searchQuery">
+        <!-- Trending Section -->
+        <f7-block-title>🔥 Trending Today</f7-block-title>
+        <TrendingSection :items="trendingAssets" @click="openAsset" />
 
-      <!-- Lists: Gainers & Losers -->
-      <template v-if="!marketStore.loading">
+        <!-- Lists: Gainers & Losers -->
         <f7-block-title>📈 Top Gainers</f7-block-title>
         <AssetItemList :items="topGainers" @click="openAsset" />
 
         <f7-block-title>📉 Top Losers</f7-block-title>
         <AssetItemList :items="topLosers" @click="openAsset" />
       </template>
-    </template>
 
-    <template v-else>
-      <f7-block-title>Search Results</f7-block-title>
+      <template v-else>
+        <f7-block-title>Search Results</f7-block-title>
 
-      <div v-if="searchLoading" class="text-align-center padding">
-        <f7-preloader />
-        <p class="text-color-gray">Searching...</p>
-      </div>
+        <div v-if="searchLoading" class="text-align-center padding">
+          <f7-preloader />
+          <p class="text-color-gray">Searching...</p>
+        </div>
 
-      <AssetItemList v-else :items="searchResults" :show-subtitle="true" :show-sparkline="false" :show-price="false"
-        :empty-message="searchQuery.length < 2 ? 'Type at least 2 characters to search' : 'No assets found matching your search'"
-        @click="openAsset" />
-    </template>
+        <AssetItemList v-else :items="searchResults" :show-subtitle="true" :show-sparkline="false" :show-price="false"
+          :empty-message="searchQuery.length < 2 ? 'Type at least 2 characters to search' : 'No assets found matching your search'"
+          @click="openAsset" />
+      </template>
+    </div>
 
     <!-- Filter Sheet -->
     <f7-sheet class="filter-sheet" :opened="filterSheetOpened" @sheet:closed="filterSheetOpened = false">
@@ -114,17 +115,19 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
 	try {
 		const results = await marketStore.searchSymbols(query, 20);
 		// Map to our expected format
-		backendSearchResults.value = results.map((r: any) => ({
-			ticker: r.symbol || r.ticker,
-			name: r.name,
-			type: r.type === "CRYPTOCURRENCY" ? "CRYPTO" : "STOCK",
-			price: 0, // Search doesn't return price
-			changePercent: 0,
-			sparkline: [],
-			exchange: r.exchange,
-			source: r.source,
-			currency: r.currency,
-		}));
+		backendSearchResults.value = results
+			.filter((r: any) => r.symbol || r.ticker)
+			.map((r: any) => ({
+				ticker: r.symbol || r.ticker,
+				name: r.name,
+				type: r.type === "CRYPTOCURRENCY" || r.type === "CRYPTO" ? "CRYPTO" : "STOCK",
+				price: 0, // Search doesn't return price
+				changePercent: 0,
+				sparkline: [],
+				exchange: r.exchange,
+				source: r.source,
+				currency: r.currency,
+			}));
 	} catch (e) {
 		logger.error("Search failed", e);
 		backendSearchResults.value = [];
@@ -178,5 +181,25 @@ function openAsset(item: any) {
 <style scoped>
 .explore-page-content {
   background: var(--f7-page-bg-color);
+  position: relative;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 100px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  z-index: 10;
+  background: var(--f7-page-bg-color);
+}
+
+.content-loading {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: blur(1px);
+  transition: opacity 0.3s ease;
 }
 </style>

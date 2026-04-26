@@ -234,13 +234,13 @@ export const marketController = new Elysia({ prefix: "/market" })
 		async ({ params, query }) => {
 			logger.debug(`GET /history/${params.ticker} interval=${query.interval} before=${query.before}`);
 			try {
-				const limit = query.limit ? parseInt(query.limit, 10) : 100;
+				const limit = query.limit ? parseInt(query.limit, 10) : 500;
+				// Source is no longer a frontend concern — Smart Proxy decides internally
 				const data = await marketService.getOHLCV(
 					params.ticker,
 					query.interval || "1d",
 					limit,
-					query.before, // Pass the before timestamp
-					query.source || "YAHOO",
+					query.before,
 				);
 				return { success: true, data };
 			} catch (e) {
@@ -252,8 +252,7 @@ export const marketController = new Elysia({ prefix: "/market" })
 			query: t.Object({
 				limit: t.Optional(t.String()),
 				interval: t.Optional(t.String()),
-				before: t.Optional(t.String()), // ISO timestamp
-				source: t.Optional(t.String()),
+				before: t.Optional(t.String()), // ISO timestamp for pagination
 			}),
 		},
 	)
@@ -385,4 +384,41 @@ export const marketController = new Elysia({ prefix: "/market" })
 				limit: t.Optional(t.String({ default: "100" })),
 			}),
 		},
+	);
+
+// ---------------------------------------------------------------------------
+// INTERNAL: Backfill Management (Used by Engine)
+// ---------------------------------------------------------------------------
+export const internalMarketController = new Elysia({ prefix: "/market/internal" })
+	.get("/stats", async () => {
+		console.log("[InternalMarketController] GET /stats hit!");
+		try {
+			const stats = await marketService.getMarketStats();
+			return { success: true, data: stats };
+		} catch (e) {
+			return { success: false, error: (e as Error).message };
+		}
+	})
+	.group("/backfill", (app) =>
+		app
+			.get("/tasks", async () => {
+				const { backfillService } = await import("./services/backfill.service");
+				const tasks = await backfillService.getPendingTasks();
+				return { success: true, data: tasks };
+			})
+			.post(
+				"/report",
+				async ({ body }) => {
+					const { backfillService } = await import("./services/backfill.service");
+					await backfillService.updateProgress(body.id, body.lastTimestamp, body.isCompleted);
+					return { success: true };
+				},
+				{
+					body: t.Object({
+						id: t.Number(),
+						lastTimestamp: t.String(),
+						isCompleted: t.Optional(t.Boolean()),
+					}),
+				},
+			),
 	);

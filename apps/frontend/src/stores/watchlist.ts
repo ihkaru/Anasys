@@ -136,10 +136,17 @@ export const useWatchlistStore = defineStore("watchlist", () => {
 		}
 	}
 
-	async function addSymbolToWatchlist(watchlistId: number, ticker: string, type?: string, source?: string) {
+	async function addSymbolToWatchlist(
+		watchlistId: number,
+		ticker: string,
+		type?: string,
+		source?: string,
+		/** User-selected exchange (e.g. "BMV", "NASDAQ"). For TRADINGVIEW source, this becomes the confirmed tv mapping. */
+		exchange?: string,
+	) {
 		try {
-			logger.info(`Adding ${ticker} (${source}) to watchlist ${watchlistId}`);
-			const response = await api.post(`/watchlists/${watchlistId}/symbols`, { ticker, type, source });
+			logger.info(`Adding ${ticker} (${source}, exchange=${exchange || "auto"}) to watchlist ${watchlistId}`);
+			const response = await api.post(`/watchlists/${watchlistId}/symbols`, { ticker, type, source, exchange });
 			if (!response.data.success) {
 				throw new Error(response.data.error);
 			}

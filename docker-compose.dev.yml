@@ -46,6 +46,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - QUESTDB_URL=http://questdb:9000
       - JWT_SECRET=${JWT_SECRET:-dev_secret_key_123}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-${GS_CLIENT_ID}}
     command: ["bun", "run", "--watch", "src/index.ts"]
     volumes:
       - .:/app
@@ -96,7 +97,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     networks:
       - anasys-dev-net
 

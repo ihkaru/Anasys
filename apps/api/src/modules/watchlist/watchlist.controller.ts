@@ -127,7 +127,7 @@ export const watchlistController = new Elysia({ prefix: "/watchlists" })
 	.post(
 		"/:id/symbols",
 		async ({ params, body, user }: any) => {
-			logger.info(`POST /watchlists/${params.id}/symbols - ${body.ticker} (${body.source || "YAHOO"})`);
+			logger.info(`POST /watchlists/${params.id}/symbols - ${body.ticker} (${body.source || "YAHOO"}, exchange=${body.exchange || "auto"})`);
 			try {
 				const result = await watchlistService.addSymbolToWatchlist(
 					parseInt(params.id, 10),
@@ -135,6 +135,7 @@ export const watchlistController = new Elysia({ prefix: "/watchlists" })
 					body.ticker,
 					body.type,
 					body.source || "YAHOO",
+					body.exchange, // User-confirmed exchange (overrides auto-discovery for TRADINGVIEW source)
 				);
 				return { success: true, symbol: result.symbol };
 			} catch (e) {
@@ -147,6 +148,7 @@ export const watchlistController = new Elysia({ prefix: "/watchlists" })
 				ticker: t.String(),
 				type: t.Optional(t.Union([t.Literal("STOCK"), t.Literal("CRYPTO")])),
 				source: t.Optional(t.String()),
+				exchange: t.Optional(t.String()), // User-selected exchange from search results
 			}),
 		},
 	)

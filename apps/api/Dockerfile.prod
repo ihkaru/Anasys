@@ -3,24 +3,52 @@ FROM oven/bun:1.2-slim AS build
 
 WORKDIR /app
 
+# Copy root lock and package files
 COPY package.json bun.lock ./
+
+# Copy all package.json files for workspaces
 COPY apps/api/package.json ./apps/api/
 COPY packages/db/package.json ./packages/db/
 COPY packages/analysis/package.json ./packages/analysis/
 COPY packages/shared/package.json ./packages/shared/
 
-RUN bun install --frozen-lockfile
+# Install dependencies using cache mount
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install
 
+# Copy source code
 COPY apps/api ./apps/api
 COPY packages/db ./packages/db
 COPY packages/analysis ./packages/analysis
 COPY packages/shared ./packages/shared
 
-# Stage 2: Run
+# Stage 2: Runtime (Production)
 FROM oven/bun:1.2-slim
+
+# Install system dependencies for Chromium to run via Playwright
+# This replaces the need for the heavy Playwright base image
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# Copy built node_modules and source from build stage
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/apps/api ./apps/api
 COPY --from=build /app/packages/db ./packages/db
@@ -29,6 +57,15 @@ COPY --from=build /app/packages/shared ./packages/shared
 
 WORKDIR /app/apps/api
 
+# Install Chromium browser only
+RUN bun x playwright install chromium
+
+# Environment adjustments
+ENV NODE_ENV=production
+ENV RUNNING_IN_DOCKER=true
+
 EXPOSE 3000
 
+# Start the API
 CMD ["bun", "run", "src/index.ts"]
+

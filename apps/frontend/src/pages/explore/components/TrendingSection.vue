@@ -12,7 +12,7 @@
                 <div class="trending-info">
                     <span class="trending-ticker">{{ item.ticker }}</span>
                     <span :class="['trending-change', isPositive(item) ? 'positive' : 'negative']">
-                        {{ isPositive(item) ? '+' : '' }}{{ item.changePercent.toFixed(2) }}%
+                        {{ isPositive(item) ? '+' : '' }}{{ (item.changePercent || 0).toFixed(2) }}%
                     </span>
                 </div>
             </div>

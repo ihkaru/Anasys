@@ -37,10 +37,19 @@ export class MoversService {
 			// Note: QuoteWithSparkline has 'ticker', 'price', etc.
 			// It might lack 'id' if it's not in our DB, but frontend should handle ticker as key.
 
+			// DIAGNOSTIC: log any null tickers from each source (should never happen after enrichQuote guard)
+			for (const [key, list] of [['gainers', gainers], ['losers', losers], ['trending', trending]] as const) {
+				const nullTickers = list.filter((q) => !q.ticker);
+				if (nullTickers.length > 0) {
+					this.logger.warn(`[getTopMovers] ⚠️ ${key}: ${nullTickers.length} items with null ticker after enrichment!`);
+				}
+				this.logger.debug(`[getTopMovers] ${key} sample:`, list.slice(0, 3).map((q) => ({ ticker: q.ticker, name: q.name })));
+			}
+
 			const result = {
-				gainers: gainers.slice(0, limit),
-				losers: losers.slice(0, limit),
-				trending: trending.slice(0, limit),
+				gainers: gainers.filter((q) => q.ticker).slice(0, limit),
+				losers: losers.filter((q) => q.ticker).slice(0, limit),
+				trending: trending.filter((q) => q.ticker).slice(0, limit),
 			};
 
 			const duration = (performance.now() - start).toFixed(2);

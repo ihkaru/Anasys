@@ -6,12 +6,6 @@
 				<div class="nav-title-content">
 					<div class="title-row">
 						<span class="ticker">{{ marketStore.selectedSymbol || 'Chart' }}</span>
-						<!-- Source Badge -->
-						<a href="#" class="source-badge"
-							@click="sourcePopoverOpen = true; sourcePopoverTarget = $event.target">
-							{{ currentSourceLabel }}
-							<f7-icon f7="chevron_down" size="12px"></f7-icon>
-						</a>
 					</div>
 					<div v-if="primaryQuoteInfo" class="price-info-wrapper">
 						<div class="main-price-row">
@@ -44,24 +38,7 @@
 			</f7-nav-right>
 		</f7-navbar>
 
-		<!-- Source Popover -->
-		<f7-popover :opened="sourcePopoverOpen" :target="sourcePopoverTarget"
-			@popover:closed="sourcePopoverOpen = false">
-			<f7-list>
-				<f7-list-item title="Yahoo Finance (Default)" @click="switchSource('YAHOO')"
-					:checked="marketStore.selectedSource === 'YAHOO'" link="#" popover-close>
-					<template #after><f7-icon v-if="marketStore.selectedSource === 'YAHOO'" f7="checkmark_alt"
-							size="16"></f7-icon></template>
-				</f7-list-item>
-				<f7-list-item title="TradingView" @click="switchSource('TRADINGVIEW')"
-					:checked="marketStore.selectedSource === 'TRADINGVIEW'" link="#" popover-close>
-					<template #after><f7-icon v-if="marketStore.selectedSource === 'TRADINGVIEW'" f7="checkmark_alt"
-							size="16"></f7-icon></template>
-				</f7-list-item>
-			</f7-list>
-		</f7-popover>
-
-		<TradingChart ref="chartRef" :key="marketStore.selectedSymbol + '-' + marketStore.selectedSource"
+		<TradingChart ref="chartRef" :key="marketStore.selectedSymbol"
 			:ohlcv-data="marketStore.ohlcvData" :signals="marketStore.signals" :loading="marketStore.historyLoading"
 			:on-load-more="handleLoadMore" />
 
@@ -100,7 +77,7 @@ import FinancialsSection from "./components/FinancialsSection.vue";
 import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
-import type TradingChart from "./components/TradingChart.vue";
+import TradingChart from "./components/TradingChart.vue";
 
 // Throttle helper for chart updates
 let lastChartUpdate = 0;
@@ -121,9 +98,6 @@ const analystRatings = ref<any>(null);
 const earnings = ref<any>(null);
 const currentQuote = ref<any>(null);
 
-// Source Selector State
-const sourcePopoverOpen = ref(false);
-const sourcePopoverTarget = ref<any>(null);
 
 // ==================== Real-Time Subscriptions ====================
 
@@ -248,23 +222,22 @@ function setupRealtimeSubscriptions(ticker: string, interval: string, source: st
 	);
 }
 
-// Watch for symbol/interval/source changes
+// Watch for symbol/interval changes and set up real-time subscriptions
 watch(
-	() => [marketStore.selectedSymbol, selectedInterval.value, marketStore.selectedSource] as const,
-	([symbol, interval, source]) => {
-		console.log(`[ChartPage] Watcher triggered: ${symbol} ${interval} ${source}`);
+	() => [marketStore.selectedSymbol, selectedInterval.value] as const,
+	([symbol, interval]) => {
+		console.log(`[ChartPage] Watcher triggered: ${symbol} ${interval}`);
 		if (symbol) {
-			setupRealtimeSubscriptions(symbol, interval, source);
+			// Quotes are always subscribed via YAHOO (live price feed)
+			// Historical data routing is handled by backend Smart Proxy
+			setupRealtimeSubscriptions(symbol, interval, "YAHOO");
 		}
 	},
-	{ immediate: true }, // Changed to immediate: true to ensure initial subscription
+	{ immediate: true },
 );
 
 // ==================== Computed Properties ====================
 
-const currentSourceLabel = computed(() => {
-	return marketStore.selectedSource === "YAHOO" ? "Yahoo" : "TradingView";
-});
 
 // Extended hours info for secondary display
 const extendedHoursInfo = computed(() => {
@@ -311,10 +284,6 @@ const secondaryQuoteInfo = computed(() => {
 	return null;
 });
 
-function switchSource(source: string) {
-	if (marketStore.selectedSource === source) return;
-	handleSourceChange(source);
-}
 
 function getIntervalLimit(interval: string): number {
 	// Standard limits for initial load to ensure a full chart view
@@ -336,21 +305,6 @@ async function handleTimeframeChange(interval: string) {
 	chartRef.value?.fitContent();
 }
 
-async function handleSourceChange(source: string) {
-	if (!marketStore.selectedSymbol) return;
-	console.log("[ChartPage] Source changed to:", source);
-	marketStore.selectSource(source);
-
-	// Reload history with current timeframe config
-	lastLoadedTimestamp.value = null;
-	const interval = selectedInterval.value;
-	const limit = getIntervalLimit(interval);
-	await marketStore.fetchHistory(marketStore.selectedSymbol, interval, limit);
-	chartRef.value?.fitContent();
-
-	// Reload quote for the new source
-	loadBackgroundData(marketStore.selectedSymbol);
-}
 
 const lastLoadedTimestamp = ref<string | null>(null);
 

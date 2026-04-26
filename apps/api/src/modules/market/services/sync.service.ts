@@ -62,9 +62,22 @@ export class SyncService {
 				`Fetching ${ticker} (${interval}) range: ${queryOptions.period1} -> ${queryOptions.period2 || "now"}`,
 			);
 
+			// If source is TRADINGVIEW, check if we have a mapped symbol in DB
+			let effectiveTicker = ticker;
+			if (source === "TRADINGVIEW" && symbol.tradingviewSymbol) {
+				effectiveTicker = symbol.tradingviewSymbol;
+				if (symbol.tradingviewExchange) {
+					chartOptions.exchange = symbol.tradingviewExchange;
+				}
+				this.logger.debug(`[SyncService] Using mapped TV symbol: ${effectiveTicker} for ${ticker}`);
+			}
+
 			// Use rate limiter with exponential backoff
 			const startFetch = Date.now();
-			const result = await this.rateLimiter.execute(() => provider.fetchChart(ticker, chartOptions), `chart:${ticker}`);
+			const result = await this.rateLimiter.execute(
+				() => provider.fetchChart(effectiveTicker, chartOptions),
+				`chart:${ticker}`,
+			);
 			this.logger.debug(`[SyncService] API Fetch (${source}) took ${Date.now() - startFetch}ms`);
 
 			if (!result || result.length === 0) {

@@ -1,27 +1,30 @@
 # ADR-0001: Arsitektur Awal Pengambilan Data Real-time (Status Quo)
 
 ## Status
-Accepted
+Superceded by ADR-0006 and Implementation of Redis Orchestration
 
-## Konteks
-Saat ini, proyek **Anasys** membutuhkan data pasar (stock/crypto) secara real-time untuk ditampilkan di frontend dan digunakan oleh sistem alert. Karena ketiadaan API resmi yang gratis dan stabil untuk data tick-by-tick, sistem menggunakan library pihak ketiga.
+## Konteks & Evolusi
+Arsitektur awal yang menggunakan `child_process.spawn` dari Node.js ke Python terbukti kurang stabil untuk produksi karena masalah "Restart Blackout" dan manajemen proses yang kaku. 
 
-Arsitektur saat ini adalah sebagai berikut:
-1. **Backend (Node.js/Bun)**: Mengelola state aplikasi dan koneksi klien.
-2. **Python Bridge**: Skrip Python (`apps/backend/src/scripts/bridge_tradingview.py`) yang menggunakan library `tradingview-scraper`.
-3. **Child Process**: Node.js memicu skrip Python tersebut menggunakan `child_process.spawn`.
-4. **Data Flow**: Python mengambil data via WebSocket dari TradingView -> mencetak JSON ke `stdout` -> Node.js membaca `stdout` -> Broadcaster meneruskan ke klien via WebSocket.
+Sistem telah berevolusi menjadi arsitektur berbasis **Pub/Sub Orchestration**:
+1. **Ingestion Layer (Rust)**: Engine berperforma tinggi yang mengelola scraping/streaming dan menulis langsung ke **Redis** dan **QuestDB**.
+2. **Message Bus (Redis)**: Bertindak sebagai buffer dan orchestrator. Data tick-by-tick dipublikasikan ke channel Redis (misal: `ticks:all`).
+3. **Delivery Layer (API Gateway/Elysia)**: Tidak lagi menjalankan scraper sendiri. Ia cukup berlangganan (*subscribe*) ke Redis dan meneruskan data ke klien via WebSocket.
 
-## Keputusan Arsitektur Saat Ini
-- Menggunakan skrip Python sebagai jembatan karena ekosistem library scraper TradingView lebih matang di Python.
-- Mengirimkan daftar simbol (tickers) sebagai argumen baris perintah saat proses dijalankan.
-- Komunikasi satu arah dari Python ke Node.js melalui `stdout`.
+## Keuntungan Arsitektur Baru
+- **Zero Blackout**: Penambahan simbol di Ingestion Layer tidak mengganggu koneksi WebSocket klien di Delivery Layer.
+- **Decoupling**: API Gateway tetap ringan dan fokus pada manajemen koneksi user.
+- **Persistensi**: Data otomatis tersimpan di QuestDB untuk analisis historis tanpa membebani aliran realtime.
+- **Multi-Source**: Ingestion Layer dapat menarik data dari berbagai provider (Yahoo, TV, CCXT) secara paralel dan menggabungkannya di Redis.
 
-## Konsekuensi & Batasan (Pain Points)
-- **Restart Blackout**: Setiap kali simbol ditambahkan atau dihapus, proses Python harus dimatikan (`kill`) dan dijalankan ulang. Hal ini menyebabkan jeda (blackout) data selama beberapa detik bagi seluruh pengguna yang sedang aktif.
-- **Scalability**: Menjalankan satu proses Python per stream mungkin tidak efisien jika jumlah simbol sangat banyak.
-- **Reliability**: Jika proses Python mati, Node.js harus mendeteksi dan merestart manual, yang bisa menyebabkan data hilang sementara.
-- **Rate Limiting**: Karena menggunakan scraping WebSocket TradingView (tidak resmi), ada risiko pemblokiran IP jika koneksi dibuka-tutup terlalu sering (akibat restart proses).
+## Konsekuensi
+- Membutuhkan infrastruktur Redis yang stabil.
+- Kompleksitas debugging meningkat karena data berpindah antar proses/bahasa (Rust -> Redis -> Bun).
+
+## Referensi
+- `apps/backend/src/engine/scraper.rs` (Ingestion)
+- `apps/api/src/modules/market/services/RealtimeService.ts` (Delivery)
+- ADR-0006: Unified Realtime Ingestion
 
 ## Referensi
 - `apps/backend/src/modules/realtime/streams/TradingViewStreamHandler.ts`

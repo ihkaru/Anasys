@@ -53,6 +53,7 @@ onMounted(async () => {
 	await authStore.checkSession();
 
 	// App Initialized!
+	logger.info("Setting initialized = true");
 	initialized.value = true;
 	logger.info("App Initialization Complete");
 });

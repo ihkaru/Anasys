@@ -184,8 +184,11 @@ export class WatchlistService {
 		ticker: string,
 		type?: "STOCK" | "CRYPTO",
 		source: string = "YAHOO",
+		/** User-selected exchange from search results (e.g. "BMV", "NASDAQ").
+		 *  For TRADINGVIEW source, this becomes the confirmed tv mapping, overriding auto-discovery. */
+		exchange?: string,
 	) {
-		logger.info(`Adding ${ticker} (${source}) to watchlist ${watchlistId}`);
+		logger.info(`Adding ${ticker} (${source}, exchange=${exchange || "auto"}) to watchlist ${watchlistId}`);
 
 		// Verify watchlist ownership
 		const [watchlist] = await db
@@ -208,6 +211,26 @@ export class WatchlistService {
 			logger.info(`Symbol ${ticker} not in DB. Auto-registering...`);
 			const symbolType = type ?? (ticker.includes("-") ? "CRYPTO" : "STOCK");
 			symbol = await marketService.ensureSymbol(ticker.toUpperCase(), symbolType);
+		}
+
+		// If user explicitly chose a TRADINGVIEW exchange, persist it immediately as a
+		// confirmed mapping — this overrides the heuristic auto-discovery.
+		if (source === "TRADINGVIEW" && exchange) {
+			const tvExchangeChanged = symbol.tradingviewExchange !== exchange;
+			if (tvExchangeChanged) {
+				logger.info(`[${ticker}] User-confirmed TV exchange: ${exchange} (was: ${symbol.tradingviewExchange || "unset"})`);
+				await db
+					.update(symbols)
+					.set({
+						tradingviewExchange: exchange,
+						tradingviewSymbol: ticker.toUpperCase(), // Clean ticker without exchange prefix
+					})
+					.where(eq(symbols.id, symbol.id))
+					.execute();
+				// Refresh symbol record so the returned data is current
+				const [updated] = await db.select().from(symbols).where(eq(symbols.id, symbol.id)).limit(1);
+				if (updated) symbol = updated;
+			}
 		}
 
 		// Ensure symbol has currency data before adding to watchlist

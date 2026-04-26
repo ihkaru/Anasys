@@ -1,11 +1,11 @@
-import { ref, shallowRef, type Ref } from "vue";
+import { ref, shallowRef } from "vue";
 import { sqliteService } from "../../../services/sqlite";
 import type { Logger } from "../../../utils/logger";
 import { marketApi } from "../api/marketApi";
 import type { OHLCV } from "../market.types";
 import { mergeOHLCVData } from "../utils/marketUtils";
 
-export function useMarketHistory(logger: Logger, selectedSource: Ref<string>) {
+export function useMarketHistory(logger: Logger) {
 	const ohlcvData = shallowRef<OHLCV[]>([]);
 	const ohlcvCache = shallowRef<Map<string, OHLCV[]>>(new Map()); // RAM Cache
 	const historyLoading = ref(false);
@@ -15,7 +15,7 @@ export function useMarketHistory(logger: Logger, selectedSource: Ref<string>) {
 		try {
 			console.time("[FetchHistory] TOTAL");
 			logger.debug(`Fetching history for ${ticker} (interval=${interval}, limit=${limit}, before=${before})`);
-			const cacheKey = `${ticker}:${interval}:${selectedSource.value}`;
+			const cacheKey = `${ticker}:${interval}`;
 
 			if (!before) {
 				const ramData = ohlcvCache.value.get(cacheKey);
@@ -32,7 +32,7 @@ export function useMarketHistory(logger: Logger, selectedSource: Ref<string>) {
 			let cachedData: any[] = [];
 			try {
 				const beforeTs = before ? new Date(before).getTime() : undefined;
-				cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs, selectedSource.value);
+				cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs);
 			} catch (err) {
 				logger.warn("SQLite Cache Read Failed", err);
 			}
@@ -71,14 +71,14 @@ export function useMarketHistory(logger: Logger, selectedSource: Ref<string>) {
 						limit: String(limit),
 						interval,
 						before,
-						source: selectedSource.value,
+						// No source param — Smart Proxy on backend decides the data origin
 					});
 
 					if (response.data.success) {
 						const newData = response.data.data || [];
 
 						// Save to Cache
-						const dataToSave = newData.map((d: any) => ({ ...d, source: selectedSource.value }));
+						const dataToSave = newData.map((d: any) => ({ ...d }));
 						sqliteService.saveOHLCV(ticker, interval, dataToSave).catch((e) => logger.error("Cache Save Failed", e));
 
 						if (before) {

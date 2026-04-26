@@ -38,6 +38,8 @@ export const symbols = pgTable("symbols", {
 	industry: text("industry"),
 	website: text("website"),
 	country: text("country"),
+	tradingviewSymbol: text("tradingview_symbol"), // e.g. "GC1!", "AAPL"
+	tradingviewExchange: text("tradingview_exchange"), // e.g. "COMEX", "NASDAQ"
 	metadataUpdatedAt: timestamp("metadata_updated_at", { withTimezone: true }),
 });
 
@@ -249,5 +251,26 @@ export const analystRatings = pgTable("analyst_ratings", {
 	// Format: [{ period: "0m", strongBuy: 10, buy: 15, hold: 5, sell: 1, strongSell: 0 }, ...]
 	ratingsTrend: text("ratings_trend"), // JSON string
 
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * Track historical data ingestion (backfill) progress for each symbol and interval.
+ * Used by Anasys Engine (Rust) to ensure data completeness across restarts.
+ */
+export const backfillProgress = pgTable("backfill_progress", {
+	id: serial("id").primaryKey(),
+	symbolId: integer("symbol_id")
+		.references(() => symbols.id, { onDelete: "cascade" })
+		.notNull(),
+	interval: text("interval").notNull(), // e.g., "1d", "1h", "1m"
+	
+	// Boundary settings
+	targetStartDate: timestamp("target_start_date", { withTimezone: true }).notNull(),
+	
+	// Progress tracking
+	lastBackfilledAt: timestamp("last_backfilled_at", { withTimezone: true }), // Current progress point
+	isCompleted: boolean("is_completed").default(false).notNull(),
+	
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
