@@ -1,53 +1,58 @@
-# ADR-0002: Arsitektur Rust-First Performance (Bun + Rust + QuestDB)
+# ADR-0002: Arsitektur Polyglot & Rust-First Performance (PostgreSQL + QuestDB + Redis)
 
 ## Status
-Proposed (Revised based on Technical Review)
+Approved (Revised based on Schema Audit & Stress Test Results - April 2026)
 
 ## Konteks
-Berdasarkan tinjauan teknis mendalam terhadap arsitektur awal (ADR-0001), kita menghadapi tantangan kritis pada infrastruktur server:
-- **Storage: HDD (Mechanical Disk)**. Penulisan real-time (tick-by-tick) ke HDD akan menyebabkan *disk thrashing* dan kegagalan sistem.
-- **Complexity**: Penggunaan tiga runtime (Bun, Python, Rust) menambah kerumitan *deployment* dan overhead IPC (Inter-Process Communication).
-- **RAM 16GB**: Kapasitas memori harus dikelola secara presisi untuk memberikan ruang bagi *write buffer* database.
+Berdasarkan pengujian nyata pada 26 April 2026, arsitektur awal (Hybrid) telah ditinggalkan demi efisiensi resource yang ekstrem. Kita menghadapi tantangan hardware spesifik:
+- **Storage: HDD (Mechanical Disk)**. Memerlukan penulisan sekuensial masif (batching) untuk mencegah disk thrashing.
+- **RAM 16GB**: Kapasitas memori harus dihemat agar bisa dialokasikan untuk OS Page Cache (membantu performa HDD).
 
-## Decision Drivers
-*   **HDD Resilience**: Strategi "Write-Buffer-First" untuk meminimalkan beban I/O pada piringan mekanis HDD.
-*   **Zero IPC Overhead**: Menghilangkan latensi antar-bahasa dengan konsolidasi logika ke Rust.
-*   **Stack Simplification**: Menghapus ketergantungan pada Python runtime untuk efisiensi *maintenance*.
-*   **Determinism**: Kontrol penuh atas alokasi memori dan *flush timing* untuk data real-time.
+## Temuan Baru (Eksperimen April 2026)
+- **Rust Performance**: Terukur hanya **4.2MB RAM** untuk memproses 149 simbol aktif.
+- **WebSocket Scalability**: Satu koneksi Guest WebSocket stabil menangani **541 simbol unik** secara simultan.
+- **Protocol Reverse Engineering**: Mekanisme handshake `~m~` dan heartbeat `~h~` telah berhasil diimplementasikan di Rust.
 
-## Keputusan Arsitektur
-Kita akan beralih dari model "Hybrid" ke **Rust-First Architecture**:
+## Keputusan Arsitektur: Polyglot Persistence & Dual-Path Data Flow
+Berdasarkan audit skema Drizzle ORM pada frontend dan Node.js API (yang mengatur entitas kompleks seperti User, Watchlist, Portfolio Holdings, dan Metadata Aset), diputuskan bahwa kita menerapkan **Polyglot Persistence**, di mana dua database bekerja secara spesifik sesuai spesialisasinya:
 
-1. **Integrated Ingestion (Rust)**: Scraper WebSocket TradingView akan di-rewrite sepenuhnya ke Rust menggunakan `tokio-tungstenite`. Satu proses Rust akan menangani koneksi, parsing protocol, dan kalkulasi.
-2. **Write-Buffer Strategy**: Rust akan mengalokasikan *in-process memory buffer* (misal 256MB-512MB) untuk menampung aliran data tick. Data akan di-*flush* ke QuestDB secara sekuensial dalam batch besar (setiap 2-5 detik) untuk mengakomodasi keterbatasan HDD.
-3. **Core Engine (Rust via Bun.ffi)**: Logika indikator teknikal tetap di Rust, namun diintegrasikan langsung ke Bun API melalui FFI (Foreign Function Interface). Hal ini menghilangkan kebutuhan akan Unix Sockets atau `stdout` IPC.
-4. **QuestDB Optimization**: Database akan dikonfigurasi khusus untuk *sequential writes*. WAL (Write-Ahead Log) akan diletakkan pada buffer memori sebelum dikomit ke HDD.
-5. **Shared Stream (Redis 8.0)**: Tetap digunakan sebagai distributor data ke frontend via WebSockets/Server-Sent Events untuk skalabilitas 100+ user.
+1.  **PostgreSQL (Relational Source of Truth)**:
+    - Menyimpan data bisnis yang butuh operasi mutasi (`UPDATE`, `DELETE`) dan relasi kompleks (ACID).
+    - Tabel: `users`, `watchlists`, `holdings`, `symbols`, `categories`, `analyst_ratings`.
+    - Diakses eksklusif oleh **Node.js/Bun Backend** via Drizzle ORM.
+2.  **QuestDB (Time-Series Sink)**:
+    - Secara eksklusif HANYA untuk menyimpan miliaran baris data *tick* & *candlestick* historis.
+    - Ditulis oleh **Rust Engine** via InfluxDB Line Protocol (ILP) secara *batching* untuk optimasi mekanis HDD.
+    - Di-query oleh Node.js (sebagai *Read-Replica*) saat menggambar grafik historis di UI.
+3.  **Redis (Real-time Broadcaster)**:
+    - Data tick dari WebSocket langsung dikirim ke UI via Redis Pub/Sub tanpa menyentuh disk.
+    - Menjamin *Watchlist* dan *Chart* di UI berkedip instan (latensi milidetik).
+
+## Mitigasi Risiko: Self-Healing Backfiller
+Untuk mengatasi risiko kehilangan data histori (gap) saat aplikasi crash (data di buffer hilang):
+- Engine dilengkapi modul **Backfiller** mandiri.
+- Saat startup, engine mendeteksi celah timestamp di database dan menarik data OHLC 1m yang hilang via REST API TradingView.
+- Menjamin akurasi indikator teknikal (SMA, RSI) tetap 100% pada level candle.
 
 ## Konsekuensi
-- **Positif**: 
-    - **Performa HDD Terjaga**: Penulisan sekuensial yang terkontrol memperpanjang umur HDD dan menjaga responsivitas sistem.
-    - **Single Logic Tree**: Tidak ada lagi fragmentasi kode antara Python dan Rust.
-    - **Deployment Ringan**: Menghapus ketergantungan Python, `pip`, dan venv di server produksi (Coolify).
+- **Positif**:
+    - **Resource Hemat**: Menggunakan < 20MB RAM untuk 500+ ticker (Scraper level).
+    - **HDD Longevity**: Mengurangi beban mekanis HDD secara signifikan.
+    - **Zero-Dependency**: Tidak membutuhkan Python runtime di server.
 - **Negatif**:
-    - **Kurva Pembelajaran**: Tim harus menangani protokol WebSocket TradingView yang kompleks langsung di Rust (tanpa bantuan library Python yang sudah ada).
-    - **Development Time**: Proses *rewrite* scraper awal akan memakan waktu lebih lama dibanding menggunakan bridge Python.
+    - **Complexity**: Membutuhkan logika manajemen buffer dan sinkronisasi backfill yang presisi di Rust.
 
-## Estimasi Penggunaan Resource (Production Level)
-| Komponen | Estimasi RAM | Alasan |
+## Estimasi Penggunaan Resource (Realistis)
+| Komponen | Estimasi RAM | Keterangan |
 | :--- | :--- | :--- |
-| **Rust Scraper + Engine** | 150 - 300 MB | Termasuk TLS stack, internal buffers, dan indicator caches. |
-| **Write Buffer (RAM)** | 512 MB | Alokasi khusus untuk memitigasi bottleneck HDD. |
-| **QuestDB** | 2 - 4 GB | Penggunaan cache yang agresif untuk pembacaan data historis. |
-| **Redis 8.0** | 500 MB | State management dan real-time Pub/Sub. |
-| **Bun API Backend** | 300 - 500 MB | Manajemen session user dan REST API. |
-| **Total Estimasi** | **~6 GB** | **Status: SANGAT AMAN** (Sisa ~10GB untuk OS Page Cache). |
-
-## Mitigasi Risiko
-- **HDD Write-Rate Monitoring**: Menambahkan alert jika *flush latency* dari buffer ke HDD mulai meningkat melampaui batas aman.
-- **Protocol Stability**: Menggunakan unit test yang ketat di Rust untuk memastikan parser WebSocket tidak pecah saat TradingView memperbarui skema pesan mereka.
+| **Rust Engine** | < 100 MB | Scraper, Broadcaster, & Batcher. |
+| **Node.js API** | ~ 200 MB | Bun runtime untuk REST API dan GraphQL Frontend. |
+| **Write Buffer** | 512 MB | Buffer penahan sebelum flush ke HDD. |
+| **PostgreSQL 16** | ~ 500 MB | Database operasional ringan untuk data pengguna & bisnis. |
+| **QuestDB** | 2 - 4 GB | Database storage & historical time-series cache. |
+| **Redis 8.0** | 500 MB | Real-time Pub/Sub distribution. |
+| **OS Page Cache** | ~10 GB | Sisa RAM yang digunakan Linux untuk mempercepat I/O HDD. |
 
 ## Referensi
-- Tinjauan Teknis Arsitektur (April 2026)
-- Dokumentasi QuestDB: HDD Storage Optimization.
-- Spesifikasi Server: Intel Xeon, 16GB RAM, 1TB HDD.
+- Hasil Stress Test 541 Simbol (April 2026).
+- Strategi Batch-Flush untuk Mechanical Storage.

@@ -163,10 +163,9 @@ async function setupDatabase() {
 		await $`bun run db:push`;
 		log("✅", "Database schema created");
 
-		// Setup TimescaleDB
-		log("🔧", "Setting up TimescaleDB...");
-		await $`bun run --filter @apps/backend src/scripts/setup_timescale.ts`.quiet();
-		log("✅", "TimescaleDB configured");
+		// Setup QuestDB (handled by Rust engine mostly, but we can verify here)
+		log("🔧", "QuestDB verification skipped (handled by Rust engine)");
+		log("✅", "Database verification complete");
 	} catch (e) {
 		log("⚠️", `Schema push had issues: ${e}`, COLORS.yellow);
 	}

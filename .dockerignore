@@ -1,0 +1,34 @@
+# Build artifacts
+**/target/
+**/node_modules/
+**/dist/
+**/build/
+
+# IDE and environment
+.env
+.venv/
+.idea/
+.vscode/
+*.log
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Scratch files
+scratch/
+temp/
+
+# Secrets and Credentials
+credential_analisis.json
+*.json.secret
+*.key
+*.pem
+
+# Root testing and junk scripts
+test*.ts
+test_output.txt
+get-pip.py
+sample.json
+export/

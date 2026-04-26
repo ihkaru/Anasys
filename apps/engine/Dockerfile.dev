@@ -1,0 +1,23 @@
+# Gunakan official Rust image berbasis Debian Bookworm (glibc 2.36)
+# PENTING: Sama dengan runtime image (debian:bookworm-slim) agar tidak ada GLIBC mismatch
+FROM rust:1.95
+
+# Install system dependencies untuk build
+# libssl-dev: dibutuhkan beberapa crate native
+# curl: untuk healthcheck dan debugging
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-watch untuk hot-reload (dikompilasi sekali, di-cache di layer ini)
+RUN cargo install cargo-watch
+
+WORKDIR /app/apps/engine
+
+ENV RUST_LOG=info
+ENV REDIS_URL=redis://redis:6379
+ENV QUESTDB_URL=http://questdb:9000
+
+CMD ["cargo", "watch", "-x", "run"]

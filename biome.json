@@ -14,7 +14,7 @@
 			}
 		},
 		{
-			"includes": ["apps/backend/src/scripts/**/*.ts", "apps/backend/src/tests/**/*.ts", "apps/backend/test/**/*.ts"],
+			"includes": ["apps/api/src/scripts/**/*.ts", "apps/api/src/tests/**/*.ts", "apps/api/test/**/*.ts"],
 			"linter": {
 				"rules": {
 					"suspicious": {
@@ -56,8 +56,10 @@
 			"!**/.nuxt",
 			"!**/coverage",
 			"!**/public",
-			"!**/*.d.ts",
-			"!**/.agent"
+			"!**/.d.ts",
+			"!**/.agent",
+			"!**/target",
+			"!**/.venv"
 		]
 	}
 }

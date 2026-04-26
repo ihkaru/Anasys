@@ -100,7 +100,7 @@ import FinancialsSection from "./components/FinancialsSection.vue";
 import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
-import TradingChart from "./components/TradingChart.vue";
+import type TradingChart from "./components/TradingChart.vue";
 
 // Throttle helper for chart updates
 let lastChartUpdate = 0;
@@ -405,9 +405,9 @@ async function loadInitialData(ticker: string) {
 	// Optimize: Prioritize History (Chart) over Symbol Details (Metadata)
 	console.time("LoadHistory");
 	console.log("[ChartPage] Starting fetchHistory...");
-	
+
 	// The selector model holds the interval directly natively
-	const interval = selectedTimeframe.value; 
+	const interval = selectedTimeframe.value;
 	selectedInterval.value = interval;
 	const limit = getIntervalLimit(interval);
 

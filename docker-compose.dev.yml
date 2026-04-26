@@ -1,0 +1,127 @@
+name: anasys-dev
+
+services:
+  # ---------------------------------------------------------------------------
+  # Performance Engine (Rust) - High-speed ingestion & scraping
+  # ---------------------------------------------------------------------------
+  engine:
+    build:
+      context: .
+      dockerfile: apps/engine/Dockerfile.dev
+    container_name: anasys-dev-engine
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - QUESTDB_URL=http://questdb:9000
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/finance_db
+      - ANASYS_SCRAPE_SYMBOLS=${ANASYS_SCRAPE_SYMBOLS:-BINANCE:BTCUSDT,BINANCE:ETHUSDT,FX:EURUSD,COMEX:GC1!}
+      - RUST_LOG=info
+    volumes:
+      - .:/app
+      - engine_target:/app/apps/engine/target # Preserve target folder in container
+      - cargo_registry:/usr/local/cargo/registry # Cache cargo registry
+    depends_on:
+      redis:
+        condition: service_healthy
+      questdb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - anasys-dev-net
+
+  # ---------------------------------------------------------------------------
+  # API Gateway (Bun) - Logic, Auth, & Relational Data
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.dev
+    container_name: anasys-dev-api
+    ports:
+      - "${ANASYS_BACKEND_PORT:-28081}:3000" # Mapped to original backend port for compatibility
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/finance_db
+      - REDIS_URL=redis://redis:6379
+      - QUESTDB_URL=http://questdb:9000
+      - JWT_SECRET=${JWT_SECRET:-dev_secret_key_123}
+    command: ["bun", "run", "--watch", "src/index.ts"]
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      questdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - anasys-dev-net
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: anasys-dev-postgres
+    ports:
+      - "25432:5432" # Relational Source of Truth
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-finance_db}
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-finance_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - anasys-dev-net
+
+  questdb:
+    image: questdb/questdb:9.3.5
+    container_name: anasys-dev-questdb
+    ports:
+      - "29010:9000"  # Web Console & REST
+      - "29011:9009"  # ILP (Influx Line Protocol)
+      - "28813:8812"  # Postgres Wire
+    volumes:
+      - questdb_dev_data:/root/.questdb
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fL http://localhost:9000/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - anasys-dev-net
+
+  redis:
+    image: redis:7.2.7-alpine
+    container_name: anasys-dev-redis
+    ports:
+      - "26380:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - anasys-dev-net
+
+networks:
+  anasys-dev-net:
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+  questdb_dev_data:
+  redis_dev_data:
+  engine_target:
+  cargo_registry:

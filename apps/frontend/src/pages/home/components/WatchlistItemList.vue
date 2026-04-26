@@ -45,19 +45,19 @@
 import WatchlistItem from "./WatchlistItem.vue";
 
 interface Props {
-    items: any[];
-    loaded: boolean;
-    watchlistId: number | null;
-    period?: string;
+	items: any[];
+	loaded: boolean;
+	watchlistId: number | null;
+	period?: string;
 }
 
 defineProps<Props>();
 
 defineEmits<{
-    (e: "item-click", item: any): void;
-    (e: "item-remove", item: any): void;
-    (e: "item-hold", item: any): void;
-    (e: "add-asset"): void;
+	(e: "item-click", item: any): void;
+	(e: "item-remove", item: any): void;
+	(e: "item-hold", item: any): void;
+	(e: "add-asset"): void;
 }>();
 </script>
 

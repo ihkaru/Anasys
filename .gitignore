@@ -58,3 +58,10 @@ get-pip.py
 
 # Bun
 bun-types/
+
+# AI Agent Artifacts & Scratch
+artifacts/
+*.ts.bak
+sample.json
+test*.ts
+dump_docker_config.sh
