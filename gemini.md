@@ -62,6 +62,10 @@
 
 ### 🔧 Architecture Notes
 
+#### Real-time Data Stream
+- **Status Quo: [ADR-0001](docs/adr/0001-initial-realtime-architecture.md)**. Node.js spawns Python bridge (stdout). Risiko data blackout.
+- **Masa Depan: [ADR-0002](docs/adr/0002-hybrid-high-performance-architecture.md)**. **Rust-First Performance**. Konsolidasi Scraper & Engine ke Rust untuk optimalisasi HDD Write Buffer dan eliminasi IPC overhead.
+
 #### Backend Rate Limiting Strategy
 
 - **Quotes**: Batched (5 per request), 500ms delay between batches

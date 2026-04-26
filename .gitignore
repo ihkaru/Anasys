@@ -39,3 +39,22 @@ Thumbs.db
 # Static Assets (Generated)
 apps/backend/public/logos/*
 !apps/backend/public/logos/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Rust
+target/
+**/*.rs.bk
+
+# Development Scratch & Artifacts
+scratch/
+test_output.txt
+git_status.txt
+get-pip.py
+
+# Bun
+bun-types/
