@@ -218,7 +218,9 @@ export class WatchlistService {
 		if (source === "TRADINGVIEW" && exchange) {
 			const tvExchangeChanged = symbol.tradingviewExchange !== exchange;
 			if (tvExchangeChanged) {
-				logger.info(`[${ticker}] User-confirmed TV exchange: ${exchange} (was: ${symbol.tradingviewExchange || "unset"})`);
+				logger.info(
+					`[${ticker}] User-confirmed TV exchange: ${exchange} (was: ${symbol.tradingviewExchange || "unset"})`,
+				);
 				await db
 					.update(symbols)
 					.set({

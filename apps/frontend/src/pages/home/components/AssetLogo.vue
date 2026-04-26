@@ -32,17 +32,17 @@ import { createLogger } from "../../../utils/logger";
 const logger = createLogger("AssetLogo");
 
 interface Props {
-    ticker?: string | null;
-    name?: string;
-    type?: string;
-    iconUrl?: string;
-    website?: string;
-    size?: "small" | "medium" | "large";
+	ticker?: string | null;
+	name?: string;
+	type?: string;
+	iconUrl?: string;
+	website?: string;
+	size?: "small" | "medium" | "large";
 }
 
 const props = withDefaults(defineProps<Props>(), {
-    size: "medium",
-    type: "STOCK",
+	size: "medium",
+	type: "STOCK",
 });
 
 const hasError = ref(false);
@@ -55,55 +55,55 @@ const initials = computed(() => safeTicker.value.substring(0, 2));
 
 // Reset state if ticker changes
 watch(
-    () => props.ticker,
-    (newTicker, oldTicker) => {
-        if (newTicker !== oldTicker) {
-            if (!newTicker) {
-                logger.warn(`[AssetLogo] Received null/undefined ticker (was: ${oldTicker})`);
-            }
-            hasError.value = false;
-            isLoaded.value = false;
-        }
-    },
+	() => props.ticker,
+	(newTicker, oldTicker) => {
+		if (newTicker !== oldTicker) {
+			if (!newTicker) {
+				logger.warn(`[AssetLogo] Received null/undefined ticker (was: ${oldTicker})`);
+			}
+			hasError.value = false;
+			isLoaded.value = false;
+		}
+	},
 );
 
 const logoUrl = computed(() => {
-    // Priority 1: Use backend-provided icon if available
-    if (props.iconUrl) return props.iconUrl;
+	// Priority 1: Use backend-provided icon if available
+	if (props.iconUrl) return props.iconUrl;
 
-    const ticker = safeTicker.value;
-    if (!ticker || ticker === "??") return "";
+	const ticker = safeTicker.value;
+	if (!ticker || ticker === "??") return "";
 
-    // Skip logo fetch for futures/commodities — they always 404
-    if (ticker.includes("=F") || ticker.includes("!")) {
-        return "";
-    }
+	// Skip logo fetch for futures/commodities — they always 404
+	if (ticker.includes("=F") || ticker.includes("!")) {
+		return "";
+	}
 
-    // Skip tickers with hyphens except crypto (e.g. BRK-B is a stock, BTC-USD is crypto)
-    if (ticker.includes("-") && !ticker.includes("-USD") && !ticker.includes("-PERP")) {
-        return "";
-    }
+	// Skip tickers with hyphens except crypto (e.g. BRK-B is a stock, BTC-USD is crypto)
+	if (ticker.includes("-") && !ticker.includes("-USD") && !ticker.includes("-PERP")) {
+		return "";
+	}
 
-    // Crypto logo endpoint
-    if (props.type === "CRYPTO" || ticker.includes("-USD") || ticker.includes("-PERP")) {
-        return `https://api.elbstream.com/logos/crypto/${ticker.split("-")[0]}`;
-    }
+	// Crypto logo endpoint
+	if (props.type === "CRYPTO" || ticker.includes("-USD") || ticker.includes("-PERP")) {
+		return `https://api.elbstream.com/logos/crypto/${ticker.split("-")[0]}`;
+	}
 
-    // Stock/ETF logo endpoint
-    return `https://api.elbstream.com/logos/symbol/${ticker}`;
+	// Stock/ETF logo endpoint
+	return `https://api.elbstream.com/logos/symbol/${ticker}`;
 });
 
 function onLogoLoad() {
-    isLoaded.value = true;
+	isLoaded.value = true;
 }
 
 function onLogoError() {
-    // This is the normal path for any ticker not in elbstream — not a bug
-    hasError.value = true;
-    // Only log unexpected cases — known 404s (no icon in DB) are expected
-    if (props.iconUrl) {
-        logger.warn(`[AssetLogo] UNEXPECTED: iconUrl failed to load for ${safeTicker.value}: ${props.iconUrl}`);
-    }
+	// This is the normal path for any ticker not in elbstream — not a bug
+	hasError.value = true;
+	// Only log unexpected cases — known 404s (no icon in DB) are expected
+	if (props.iconUrl) {
+		logger.warn(`[AssetLogo] UNEXPECTED: iconUrl failed to load for ${safeTicker.value}: ${props.iconUrl}`);
+	}
 }
 </script>
 

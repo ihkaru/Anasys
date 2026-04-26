@@ -127,7 +127,9 @@ export const watchlistController = new Elysia({ prefix: "/watchlists" })
 	.post(
 		"/:id/symbols",
 		async ({ params, body, user }: any) => {
-			logger.info(`POST /watchlists/${params.id}/symbols - ${body.ticker} (${body.source || "YAHOO"}, exchange=${body.exchange || "auto"})`);
+			logger.info(
+				`POST /watchlists/${params.id}/symbols - ${body.ticker} (${body.source || "YAHOO"}, exchange=${body.exchange || "auto"})`,
+			);
 			try {
 				const result = await watchlistService.addSymbolToWatchlist(
 					parseInt(params.id, 10),

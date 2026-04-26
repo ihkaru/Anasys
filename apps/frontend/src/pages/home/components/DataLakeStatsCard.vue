@@ -30,14 +30,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 const props = defineProps<{
 	stats: any;
 	loading?: boolean;
 }>();
 
-defineEmits(['refresh']);
+defineEmits(["refresh"]);
 
 function formatLabel(label: string) {
 	return label.toUpperCase();
@@ -51,16 +51,16 @@ function calculateProgress(gaps: number) {
 
 function getProgressColor(gaps: number) {
 	const progress = calculateProgress(gaps);
-	if (progress > 95) return 'green';
-	if (progress > 80) return 'blue';
-	if (progress > 50) return 'orange';
-	return 'red';
+	if (progress > 95) return "green";
+	if (progress > 80) return "blue";
+	if (progress > 50) return "orange";
+	return "red";
 }
 
 function formatTime(timestamp?: string) {
-	if (!timestamp) return '--:--';
+	if (!timestamp) return "--:--";
 	const date = new Date(timestamp);
-	return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+	return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 </script>
 

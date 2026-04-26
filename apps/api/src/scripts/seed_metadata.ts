@@ -42,11 +42,11 @@ const DRY_RUN = ARGS["dry-run"] === "true";
 
 // ─── Yahoo Screener Sources ───────────────────────────────────────────────────
 const SCREENER_IDS = [
-	"day_gainers",        // Top gainers
-	"day_losers",         // Top losers
-	"most_actives",       // Most traded
+	"day_gainers", // Top gainers
+	"day_losers", // Top losers
+	"most_actives", // Most traded
 	"growth_technology_stocks", // Tech growth
-	"undervalued_large_caps",   // Large caps
+	"undervalued_large_caps", // Large caps
 ];
 
 const yf = new (yahooFinance as any)();
@@ -60,12 +60,16 @@ let notInDb = 0;
 // ─── Core ─────────────────────────────────────────────────────────────────────
 
 async function writeBack(ticker: string, name: string, exchange: string | undefined, currency: string | undefined) {
-	const results = await db.select({
-		id: symbols.id,
-		name: symbols.name,
-		exchange: symbols.exchange,
-		currency: symbols.currency,
-	}).from(symbols).where(eq(symbols.ticker, ticker)).limit(1);
+	const results = await db
+		.select({
+			id: symbols.id,
+			name: symbols.name,
+			exchange: symbols.exchange,
+			currency: symbols.currency,
+		})
+		.from(symbols)
+		.where(eq(symbols.ticker, ticker))
+		.limit(1);
 
 	const existing = results[0];
 
@@ -147,9 +151,9 @@ async function seedFromIDXSearch() {
 
 	// Get IDX symbols already in DB that still have name === ticker
 	const idxStubs = await db.execute(
-		sql`SELECT ticker FROM symbols WHERE ticker LIKE '%.JK' AND (name IS NULL OR name = ticker) LIMIT 100`
+		sql`SELECT ticker FROM symbols WHERE ticker LIKE '%.JK' AND (name IS NULL OR name = ticker) LIMIT 100`,
 	);
-	
+
 	const rows = (idxStubs.rows || idxStubs) as any[];
 	logger.info(`   → ${rows.length} IDX stubs found`);
 
@@ -161,7 +165,7 @@ async function seedFromIDXSearch() {
 				const name = q.shortName || q.longName;
 				await writeBack(ticker, name, q.exchange || undefined, q.currency || undefined);
 			}
-			await sleep(DELAY_MS); 
+			await sleep(DELAY_MS);
 		} catch {
 			failed++;
 		}
@@ -203,7 +207,7 @@ async function main() {
 			COUNT(CASE WHEN name != ticker THEN 1 END) AS has_real_name,
 			COUNT(CASE WHEN exchange IS NOT NULL AND exchange != '' THEN 1 END) AS has_exchange,
 			COUNT(CASE WHEN currency IS NOT NULL AND currency != '' THEN 1 END) AS has_currency
-		FROM symbols`
+		FROM symbols`,
 	);
 	logger.info("📊 DB State after seeding:", (stats as any).rows?.[0] ?? stats);
 }

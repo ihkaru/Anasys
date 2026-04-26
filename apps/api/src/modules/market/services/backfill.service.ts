@@ -27,7 +27,7 @@ export class BackfillService {
 				const targetStartDate = new Date();
 				targetStartDate.setFullYear(targetStartDate.getFullYear() - config.years);
 
-				let progress = await db
+				const progress = await db
 					.select()
 					.from(backfillProgress)
 					.where(and(eq(backfillProgress.symbolId, symbol.id), eq(backfillProgress.interval, config.interval)))
@@ -60,7 +60,7 @@ export class BackfillService {
 	 */
 	async updateProgress(id: number, lastTimestamp: string, isCompleted = false) {
 		logger.info(`Updating backfill progress for ID ${id}: last=${lastTimestamp}, completed=${isCompleted}`);
-		
+
 		await db
 			.update(backfillProgress)
 			.set({

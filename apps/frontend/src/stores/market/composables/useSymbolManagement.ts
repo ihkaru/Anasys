@@ -136,13 +136,16 @@ export function useSymbolManagement(
 					if (bad.length > 0) {
 						logger.warn(`[fetchTrending] ⚠️ ${bad.length} items have NULL/EMPTY ticker!`, bad);
 					}
-					logger.debug(`[fetchTrending] Received ${data.length} items. Sample:`, data.slice(0, 3).map((d) => ({ ticker: d.ticker, name: d.name, changePercent: d.changePercent })));
-					
+					logger.debug(
+						`[fetchTrending] Received ${data.length} items. Sample:`,
+						data.slice(0, 3).map((d) => ({ ticker: d.ticker, name: d.name, changePercent: d.changePercent })),
+					);
+
 					// Use nextTick to avoid rendering collisions during mount
 					await nextTick();
 					movers.value = {
 						...movers.value,
-						trending: data.filter((d) => d.ticker)
+						trending: data.filter((d) => d.ticker),
 					};
 					return movers.value.trending;
 				}
@@ -176,7 +179,9 @@ export function useSymbolManagement(
 						const bad = (raw[key] || []).filter((d: any) => !d.ticker);
 						if (bad.length > 0) logger.warn(`[fetchMovers] ⚠️ ${key}: ${bad.length} items with NULL ticker!`, bad);
 					}
-					logger.debug(`[fetchMovers] gainers=${raw.gainers?.length}, losers=${raw.losers?.length}, trending=${raw.trending?.length}`);
+					logger.debug(
+						`[fetchMovers] gainers=${raw.gainers?.length}, losers=${raw.losers?.length}, trending=${raw.trending?.length}`,
+					);
 
 					const newMovers = {
 						gainers: (raw.gainers || []).filter((d: any) => d.ticker),

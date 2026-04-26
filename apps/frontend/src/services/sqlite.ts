@@ -25,11 +25,11 @@ export class SQLiteService {
 				jeepEl = document.createElement("jeep-sqlite");
 				document.body.appendChild(jeepEl);
 			}
-			
+
 			// Always wait for the element to be defined by the custom elements registry
 			this.logger.debug("Waiting for jeep-sqlite to be defined...");
 			await customElements.whenDefined("jeep-sqlite");
-			
+
 			this.logger.debug("Calling initWebStore...");
 			await sqliteConnection.initWebStore();
 			this.logger.debug("Web Store Initialized");

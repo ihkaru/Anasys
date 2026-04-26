@@ -264,13 +264,13 @@ export const backfillProgress = pgTable("backfill_progress", {
 		.references(() => symbols.id, { onDelete: "cascade" })
 		.notNull(),
 	interval: text("interval").notNull(), // e.g., "1d", "1h", "1m"
-	
+
 	// Boundary settings
 	targetStartDate: timestamp("target_start_date", { withTimezone: true }).notNull(),
-	
+
 	// Progress tracking
 	lastBackfilledAt: timestamp("last_backfilled_at", { withTimezone: true }), // Current progress point
 	isCompleted: boolean("is_completed").default(false).notNull(),
-	
+
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

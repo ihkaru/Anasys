@@ -4,11 +4,7 @@ import type { Logger } from "../../../utils/logger";
 import { marketApi } from "../api/marketApi";
 import type { MarketMover } from "../market.types";
 
-export function useQuoteUpdates(
-	logger: Logger,
-	quotes: Ref<Map<string, MarketMover>>,
-	quotesVersion: Ref<number>,
-) {
+export function useQuoteUpdates(logger: Logger, quotes: Ref<Map<string, MarketMover>>, quotesVersion: Ref<number>) {
 	// DEBOUNCED triggerRef to prevent blocking on every quote update
 	let triggerTimeout: ReturnType<typeof setTimeout> | null = null;
 	function debouncedTrigger() {

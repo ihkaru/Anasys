@@ -63,12 +63,24 @@ export class SchedulerService {
 			for (const symbol of vipSymbols) {
 				try {
 					// Daily and Hourly via Yahoo (Fast)
-					await marketService.syncSymbolData(symbol.ticker, symbol.type as "STOCK" | "CRYPTO", "1d", undefined, "YAHOO");
-					
+					await marketService.syncSymbolData(
+						symbol.ticker,
+						symbol.type as "STOCK" | "CRYPTO",
+						"1d",
+						undefined,
+						"YAHOO",
+					);
+
 					// Intraday via TradingView Playwright (Precise)
 					const intradayTimeframes = ["1m", "5m", "15m", "1h"];
 					for (const interval of intradayTimeframes) {
-						await marketService.syncSymbolData(symbol.ticker, symbol.type as "STOCK" | "CRYPTO", interval, undefined, "TRADINGVIEW_PW");
+						await marketService.syncSymbolData(
+							symbol.ticker,
+							symbol.type as "STOCK" | "CRYPTO",
+							interval,
+							undefined,
+							"TRADINGVIEW_PW",
+						);
 						await new Promise((resolve) => setTimeout(resolve, 1000)); // Rate limit
 					}
 				} catch (e: any) {

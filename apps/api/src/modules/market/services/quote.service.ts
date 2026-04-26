@@ -119,7 +119,10 @@ export class QuoteService {
 	private async enrichQuote(quote: QuoteResult, period: string): Promise<QuoteWithSparkline | null> {
 		// GUARD: Never pass null/empty tickers to the frontend — it causes Vue v-if/v-else race conditions
 		if (!quote.ticker || !quote.ticker.trim()) {
-			this.logger.warn(`[enrichQuote] ⚠️ Received quote with NULL/EMPTY ticker! Dropping. Raw quote:`, JSON.stringify(quote));
+			this.logger.warn(
+				`[enrichQuote] ⚠️ Received quote with NULL/EMPTY ticker! Dropping. Raw quote:`,
+				JSON.stringify(quote),
+			);
 			return null;
 		}
 		try {
@@ -208,7 +211,7 @@ export class QuoteService {
 				periodChangePercent = quote.changePercent;
 			}
 
-				// ── Opportunistic Metadata Write-back ───────────────────────────────
+			// ── Opportunistic Metadata Write-back ───────────────────────────────
 			// Yahoo already returned real name/exchange in this quote response.
 			// If DB still has stub data (name === ticker), write it back now — zero extra API calls.
 			if (symbol && quote.name && symbol.name === symbol.ticker) {
@@ -218,9 +221,12 @@ export class QuoteService {
 				if (quote.currency && !symbol.currency) updates.currency = quote.currency;
 				if (Object.keys(updates).length > 0) {
 					// Fire-and-forget: don't block the response
-					this.symbolRepo.updateByTicker(symbol.ticker, updates)
+					this.symbolRepo
+						.updateByTicker(symbol.ticker, updates)
 						.then(() => this.logger.debug(`[enrichQuote] ✏️ Write-back ${symbol.ticker}: ${JSON.stringify(updates)}`))
-						.catch((err: Error) => this.logger.warn(`[enrichQuote] Write-back failed for ${symbol.ticker}: ${err.message}`));
+						.catch((err: Error) =>
+							this.logger.warn(`[enrichQuote] Write-back failed for ${symbol.ticker}: ${err.message}`),
+						);
 				}
 			}
 			// ────────────────────────────────────────────────────────────────────
@@ -234,7 +240,7 @@ export class QuoteService {
 				iconUrl: symbol?.iconUrl || undefined,
 				website: symbol?.website || undefined,
 				// Return the enriched name from live quote if DB still has stub
-				name: (symbol?.name && symbol.name !== symbol.ticker) ? symbol.name : (quote.name || quote.ticker),
+				name: symbol?.name && symbol.name !== symbol.ticker ? symbol.name : quote.name || quote.ticker,
 			};
 		} catch (e) {
 			this.logger.error(`Failed to enrich quote for ${quote.ticker}`, e);

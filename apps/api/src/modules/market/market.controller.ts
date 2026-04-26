@@ -236,12 +236,7 @@ export const marketController = new Elysia({ prefix: "/market" })
 			try {
 				const limit = query.limit ? parseInt(query.limit, 10) : 500;
 				// Source is no longer a frontend concern — Smart Proxy decides internally
-				const data = await marketService.getOHLCV(
-					params.ticker,
-					query.interval || "1d",
-					limit,
-					query.before,
-				);
+				const data = await marketService.getOHLCV(params.ticker, query.interval || "1d", limit, query.before);
 				return { success: true, data };
 			} catch (e) {
 				logger.error(`GET /history/${params.ticker} failed`, e);

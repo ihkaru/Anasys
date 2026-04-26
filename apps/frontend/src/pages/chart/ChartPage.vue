@@ -77,7 +77,7 @@ import FinancialsSection from "./components/FinancialsSection.vue";
 import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
-import TradingChart from "./components/TradingChart.vue";
+import type TradingChart from "./components/TradingChart.vue";
 
 // Throttle helper for chart updates
 let lastChartUpdate = 0;
@@ -97,7 +97,6 @@ const financials = ref<any>(null);
 const analystRatings = ref<any>(null);
 const earnings = ref<any>(null);
 const currentQuote = ref<any>(null);
-
 
 // ==================== Real-Time Subscriptions ====================
 
@@ -238,7 +237,6 @@ watch(
 
 // ==================== Computed Properties ====================
 
-
 // Extended hours info for secondary display
 const extendedHoursInfo = computed(() => {
 	if (!currentQuote.value) return null;
@@ -284,7 +282,6 @@ const secondaryQuoteInfo = computed(() => {
 	return null;
 });
 
-
 function getIntervalLimit(interval: string): number {
 	// Standard limits for initial load to ensure a full chart view
 	if (interval === "1d" || interval === "1wk" || interval === "1mo") return 500;
@@ -304,7 +301,6 @@ async function handleTimeframeChange(interval: string) {
 	await marketStore.fetchHistory(marketStore.selectedSymbol, interval, limit);
 	chartRef.value?.fitContent();
 }
-
 
 const lastLoadedTimestamp = ref<string | null>(null);
 

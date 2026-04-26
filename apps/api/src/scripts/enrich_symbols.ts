@@ -53,11 +53,7 @@ async function main() {
 
 	logger.info(`Starting symbol enrichment (batch=${batchSize}, delay=${delayMs}ms)`);
 
-	const pendingSymbols = await db
-		.select()
-		.from(symbols)
-		.where(eq(symbols.ticker, "GC=F"))
-		.limit(batchSize);
+	const pendingSymbols = await db.select().from(symbols).where(eq(symbols.ticker, "GC=F")).limit(batchSize);
 
 	logger.info(`Found ${pendingSymbols.length} symbols to enrich`);
 
