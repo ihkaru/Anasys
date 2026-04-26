@@ -65,3 +65,4 @@ artifacts/
 sample.json
 test*.ts
 dump_docker_config.sh
+docker_config_dump.txt
