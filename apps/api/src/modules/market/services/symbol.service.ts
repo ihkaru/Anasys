@@ -158,7 +158,15 @@ export class SymbolService {
 		const cryptoFallback = CRYPTO_PROFILES[ticker];
 
 		try {
-			const result = await this.dataProvider.fetchQuoteSummary(ticker, ["assetProfile", "quoteType", "price"]);
+			const result: any = await this.dataProvider.fetchQuoteSummary(ticker, [
+				"assetProfile",
+				"quoteType",
+				"price",
+				"financialData",
+				"defaultKeyStatistics",
+				"recommendationTrend",
+				"earnings",
+			]);
 			this.logger.debug(`[${ticker}] Yahoo API responded (${Date.now() - startTime}ms)`);
 			const profile = result.assetProfile;
 			const quoteType = result.quoteType;
@@ -172,6 +180,13 @@ export class SymbolService {
 			if (price?.currency) {
 				updates.currency = price.currency;
 			}
+
+			// Industry IDs
+			if (quoteType?.isin) updates.isin = quoteType.isin;
+			if (quoteType?.figi) updates.figi = quoteType.figi;
+
+			// Fallback check for ISIN/FIGI in other modules if needed
+			if (!updates.isin && ks?.isin) updates.isin = ks.isin;
 
 			// Name from quoteType
 			if (quoteType?.longName) updates.name = quoteType.longName;

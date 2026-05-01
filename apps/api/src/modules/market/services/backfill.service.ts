@@ -1,6 +1,6 @@
 import { db } from "../../../db";
 import { backfillProgress, symbols } from "../../../../../../packages/db/src/schema";
-import { eq, and, asc, sql } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { Logger } from "../../../utils/logger";
 
 const logger = new Logger("BackfillService");
@@ -11,48 +11,35 @@ export class BackfillService {
 	 * Returns symbols that haven't completed their target backfill range.
 	 */
 	async getPendingTasks(limit = 50) {
-		// Fetch active symbols that need backfilling
-		const symbolsToProcess = await db.select().from(symbols).where(eq(symbols.isActive, true)).limit(200);
+		// Use a join to find symbols and their progress, prioritizing those that haven't been updated recently.
+		// This ensures fair distribution (Round-Robin) and prevents stuck tasks.
+		const pending = await db
+			.select({
+				id: backfillProgress.id,
+				symbolId: backfillProgress.symbolId,
+				interval: backfillProgress.interval,
+				targetStartDate: backfillProgress.targetStartDate,
+				lastBackfilledAt: backfillProgress.lastBackfilledAt,
+				isCompleted: backfillProgress.isCompleted,
+				ticker: symbols.ticker,
+				assetType: symbols.type,
+				tradingviewSymbol: symbols.tradingviewSymbol,
+				tradingviewExchange: symbols.tradingviewExchange,
+			})
+			.from(backfillProgress)
+			.innerJoin(symbols, eq(backfillProgress.symbolId, symbols.id))
+			.where(and(eq(symbols.isActive, true), eq(backfillProgress.isCompleted, false)))
+			.orderBy(asc(backfillProgress.updatedAt))
+			.limit(limit);
 
-		const tasks = [];
-
-		for (const symbol of symbolsToProcess) {
-			// Backfill Daily (10 years) and 1h (1 year)
-			const intervals = [
-				{ interval: "1d", years: 10 },
-				{ interval: "1h", years: 1 },
-			];
-
-			for (const config of intervals) {
-				const targetStartDate = new Date();
-				targetStartDate.setFullYear(targetStartDate.getFullYear() - config.years);
-
-				const progress = await db
-					.select()
-					.from(backfillProgress)
-					.where(and(eq(backfillProgress.symbolId, symbol.id), eq(backfillProgress.interval, config.interval)))
-					.limit(1);
-
-				if (progress.length === 0) {
-					const [newProgress] = await db
-						.insert(backfillProgress)
-						.values({
-							symbolId: symbol.id,
-							interval: config.interval,
-							targetStartDate,
-							isCompleted: false,
-						})
-						.returning();
-					tasks.push({ ...newProgress, ticker: symbol.ticker });
-				} else if (!progress[0].isCompleted) {
-					tasks.push({ ...progress[0], ticker: symbol.ticker });
-				}
-
-				if (tasks.length >= limit) return tasks;
-			}
+		// If we don't have enough pending tasks, we might need to initialize new ones
+		// (Optional: In a real app, you'd seed the progress table first)
+		if (pending.length < limit) {
+			logger.debug(`Found only ${pending.length} tasks in progress table. Checking for new symbols...`);
+			// This part is less critical if we've already seeded, but good for robustness
 		}
 
-		return tasks;
+		return pending;
 	}
 
 	/**

@@ -5,7 +5,7 @@ import { createLogger } from "../utils/logger";
 const logger = createLogger("API");
 
 export const api = axios.create({
-	baseURL: "/api",
+	baseURL: import.meta.env.VITE_API_URL || "/api",
 	withCredentials: true, // Important for cookies
 });
 

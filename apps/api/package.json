@@ -18,12 +18,15 @@
 		"harvest": "bun run src/scripts/tv_multi_harvester.ts"
 	},
 	"dependencies": {
+		"@bull-board/api": "^7.0.0",
+		"@bull-board/elysia": "^7.0.0",
 		"@elysiajs/cookie": "^0.8.0",
 		"@elysiajs/cors": "^1.2.0",
 		"@elysiajs/eden": "^1.2.0",
 		"@elysiajs/jwt": "^1.2.0",
 		"@elysiajs/swagger": "^1.2.1",
 		"@mathieuc/tradingview": "github:Mathieu2301/TradingView-API",
+		"bullmq": "^5.76.4",
 		"ccxt": "^4.5.34",
 		"csv-parse": "^6.1.0",
 		"drizzle-orm": "^0.39.3",

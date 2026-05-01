@@ -20,7 +20,7 @@ import { SyncService } from "./services/sync.service";
 // Initialize Dependencies
 const logger = new Logger("MarketService");
 const symbolRepo = new SymbolRepository(db);
-const marketDataRepo = new MarketDataRepository(db);
+const marketDataRepo = new MarketDataRepository();
 const dataProvider = new YahooFinanceProvider();
 const providerFactory = new DataProviderFactory();
 const cacheService = new CacheService();
@@ -49,7 +49,16 @@ export class MarketService {
 	}
 
 	async enrichSymbol(ticker: string) {
-		return symbolService.enrichSymbol(ticker);
+		const symbol = await symbolService.enrichSymbol(ticker);
+		if (symbol) {
+			// Trigger detailed enrichment in background
+			Promise.all([
+				financialsService.getFinancials(ticker),
+				financialsService.getEarnings(ticker),
+				financialsService.getAnalystRatings(ticker),
+			]).catch((err) => logger.error(`Detailed enrichment failed for ${ticker}`, err));
+		}
+		return symbol;
 	}
 
 	async getSymbolByTicker(ticker: string) {
@@ -186,11 +195,11 @@ export class MarketService {
 		if (yahooResults.status === "fulfilled" && yahooResults.value) {
 			for (const r of yahooResults.value) {
 				all.push({
-					symbol: r.ticker || r.symbol,
-					name: r.name || r.longName || r.shortName,
-					type: r.type || r.quoteType,
-					exchange: r.exchange || r.exchDisp,
-					currency: r.currency,
+					symbol: (r as any).ticker || (r as any).symbol,
+					name: (r as any).name || (r as any).longName || (r as any).shortName,
+					type: (r as any).type || (r as any).quoteType,
+					exchange: (r as any).exchange || (r as any).exchDisp,
+					currency: (r as any).currency,
 					source: "YAHOO",
 					isFollowed: false,
 				});

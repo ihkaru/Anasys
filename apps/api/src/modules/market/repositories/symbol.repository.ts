@@ -21,7 +21,14 @@ export class SymbolRepository {
 		return await this.db.select().from(symbols);
 	}
 
-	async create(data: { ticker: string; type: string; provider: string; name: string }): Promise<any> {
+	async create(data: {
+		ticker: string;
+		type: string;
+		provider: string;
+		name: string;
+		exchange?: string;
+		currency?: string;
+	}): Promise<any> {
 		const [newSym] = await this.db
 			.insert(symbols)
 			.values({

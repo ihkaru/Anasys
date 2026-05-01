@@ -176,6 +176,7 @@ export class SyncService {
 				high: candle.high,
 				low: candle.low,
 				close: candle.close,
+				adjClose: candle.adjClose,
 				volume: candle.volume,
 				interval: interval,
 				source: source,

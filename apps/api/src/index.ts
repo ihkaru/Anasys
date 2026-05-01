@@ -14,6 +14,18 @@ import { watchlistController } from "./modules/watchlist/watchlist.controller";
 // Validate configuration at startup
 validateConfig();
 
+import { createBullBoard } from "@bull-board/api";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
+import { ElysiaAdapter } from "@bull-board/elysia";
+import { harvestQueue } from "./modules/scheduler/queue";
+
+// Setup Bull Board
+// const serverAdapter = new ElysiaAdapter({ basePath: "/admin/queues" });
+// createBullBoard({
+// 	queues: [new BullMQAdapter(harvestQueue)],
+// 	serverAdapter,
+// });
+
 const app = new Elysia()
 	// Global middleware
 	.use(errorHandler)
@@ -36,6 +48,16 @@ const app = new Elysia()
 			},
 		}),
 	)
+
+	// Register Bull Board UI (no auth for now on internal dev/admin network)
+	// .use((app) => {
+	// 	try {
+	// 		return app.use(serverAdapter.registerPlugin());
+	// 	} catch (e) {
+	// 		console.error("Failed to register Bull Board plugin:", e);
+	// 		return app;
+	// 	}
+	// })
 
 	// Health check (no rate limit, no auth)
 	.get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
@@ -78,14 +100,14 @@ const app = new Elysia()
 
 import { schedulerService } from "./modules/scheduler/scheduler.service";
 
-// Start scheduler
-schedulerService.start();
-
 if (import.meta.main) {
 	const port = process.env.PORT || 3000;
 	app.listen({ port, hostname: "0.0.0.0" });
 	console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
 	console.log(`📡 WebSocket available at ws://localhost:${port}/ws/market`);
+
+	// Start scheduler after API is ready
+	schedulerService.start();
 }
 
 export type App = typeof app;

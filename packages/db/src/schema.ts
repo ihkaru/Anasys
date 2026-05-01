@@ -18,7 +18,7 @@ export const strategies = pgTable("strategies", {
 // Market Data Extension
 import { boolean, doublePrecision, integer, pgEnum, primaryKey } from "drizzle-orm/pg-core";
 
-export const assetTypeEnum = pgEnum("asset_type", ["STOCK", "CRYPTO"]);
+export const assetTypeEnum = pgEnum("asset_type", ["STOCK", "CRYPTO", "FOREX", "INDEX", "COMMODITY", "FUTURES"]);
 export const dataSourceEnum = pgEnum("data_source", ["YAHOO", "TRADINGVIEW", "CCXT"]);
 
 export const symbols = pgTable("symbols", {
@@ -40,6 +40,8 @@ export const symbols = pgTable("symbols", {
 	country: text("country"),
 	tradingviewSymbol: text("tradingview_symbol"), // e.g. "GC1!", "AAPL"
 	tradingviewExchange: text("tradingview_exchange"), // e.g. "COMEX", "NASDAQ"
+	isin: text("isin"), // International Securities Identification Number
+	figi: text("figi"), // Financial Instrument Global Identifier
 	metadataUpdatedAt: timestamp("metadata_updated_at", { withTimezone: true }),
 });
 
@@ -107,6 +109,7 @@ export const marketData = pgTable(
 		high: doublePrecision("high").notNull(),
 		low: doublePrecision("low").notNull(),
 		close: doublePrecision("close").notNull(),
+		adjClose: doublePrecision("adj_close"), // Adjusted Close (Splits & Dividends)
 		volume: doublePrecision("volume").notNull(),
 		source: text("source").default("YAHOO").notNull(),
 		interval: text("interval").default("1d").notNull(),
@@ -161,6 +164,7 @@ export const symbolFinancials = pgTable("symbol_financials", {
 	fiftyDayAverage: doublePrecision("fifty_day_average"),
 	twoHundredDayAverage: doublePrecision("two_hundred_day_average"),
 	averageVolume: doublePrecision("average_volume"),
+	marketCap: doublePrecision("market_cap"), // Snapshot Market Capitalization
 
 	// From financialData
 	totalRevenue: doublePrecision("total_revenue"),
@@ -256,7 +260,6 @@ export const analystRatings = pgTable("analyst_ratings", {
 
 /**
  * Track historical data ingestion (backfill) progress for each symbol and interval.
- * Used by Anasys Engine (Rust) to ensure data completeness across restarts.
  */
 export const backfillProgress = pgTable("backfill_progress", {
 	id: serial("id").primaryKey(),
@@ -264,13 +267,67 @@ export const backfillProgress = pgTable("backfill_progress", {
 		.references(() => symbols.id, { onDelete: "cascade" })
 		.notNull(),
 	interval: text("interval").notNull(), // e.g., "1d", "1h", "1m"
-
-	// Boundary settings
 	targetStartDate: timestamp("target_start_date", { withTimezone: true }).notNull(),
-
-	// Progress tracking
-	lastBackfilledAt: timestamp("last_backfilled_at", { withTimezone: true }), // Current progress point
+	lastBackfilledAt: timestamp("last_backfilled_at", { withTimezone: true }),
 	isCompleted: boolean("is_completed").default(false).notNull(),
-
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * NEW: Corporate Actions Table
+ * Tracks Stock Splits and Dividends history.
+ */
+export const corporateActions = pgTable("corporate_actions", {
+	id: serial("id").primaryKey(),
+	symbolId: integer("symbol_id")
+		.references(() => symbols.id, { onDelete: "cascade" })
+		.notNull(),
+	type: text("type").notNull(), // 'SPLIT' or 'DIVIDEND'
+	executionDate: timestamp("execution_date", { withTimezone: true }).notNull(),
+
+	// For Dividends
+	amount: doublePrecision("amount"),
+
+	// For Splits
+	ratio: text("ratio"), // e.g., "7:1"
+
+	description: text("description"),
+	source: text("source").default("YAHOO").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * NEW: Insider Transactions Table
+ * Tracks trades by company insiders (Executives, Directors).
+ */
+export const insiderTransactions = pgTable("insider_transactions", {
+	id: serial("id").primaryKey(),
+	symbolId: integer("symbol_id")
+		.references(() => symbols.id, { onDelete: "cascade" })
+		.notNull(),
+	insiderName: text("insider_name").notNull(),
+	position: text("position"),
+	transactionDate: timestamp("transaction_date", { withTimezone: true }).notNull(),
+	transactionType: text("transaction_type").notNull(), // 'BUY', 'SELL', 'GRANT', etc.
+	shares: doublePrecision("shares"),
+	price: doublePrecision("price"),
+	value: doublePrecision("value"),
+	source: text("source").default("YAHOO").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/**
+ * NEW: Macro Economic Data Table
+ * Tracks global indicators like Fed Rates, CPI, GDP.
+ */
+export const macroData = pgTable("macro_data", {
+	id: serial("id").primaryKey(),
+	indicatorCode: text("indicator_code").notNull(), // e.g., "FED_RATE", "CPI_USA", "GDP_IDN"
+	indicatorName: text("indicator_name").notNull(),
+	timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
+	value: doublePrecision("value").notNull(),
+	unit: text("unit"), // 'PERCENT', 'CURRENCY', 'INDEX'
+	country: text("country").default("USA"),
+	source: text("source").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

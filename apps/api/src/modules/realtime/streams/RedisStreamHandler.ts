@@ -13,6 +13,8 @@ export class RedisStreamHandler {
 	private subscriber: Redis;
 	private aggregator = new CandleAggregator();
 
+	private isConnected = false;
+
 	constructor(private broadcaster: Broadcaster) {
 		const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 		// When in subscriber mode, ioredis should not try to run regular commands like INFO (readyCheck)
@@ -85,11 +87,8 @@ export class RedisStreamHandler {
 		// --- NEW: OHLCV AGGREGATION ---
 		const candle = this.aggregator.processTick(symbol, data.price, data.volume, update.timestamp);
 
-		// Broadcast 1m candle
-		this.broadcaster.broadcastOHLCV(symbol, candle, source);
-		if (source !== "ENGINE") {
-			this.broadcaster.broadcastOHLCV(symbol, candle, "ENGINE");
-		}
+		// Broadcast 1m candle (passing interval="1m")
+		this.broadcaster.broadcastOHLCV(symbol, "1m", candle);
 	}
 
 	async shutdown() {

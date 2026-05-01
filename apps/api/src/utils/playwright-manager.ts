@@ -37,7 +37,7 @@ export class PlaywrightManager {
 			logger.info("Initializing Playwright Browser...");
 			this.browser = await chromium.launch({
 				headless: true,
-				args: ["--no-sandbox", "--disable-setuid-sandbox"],
+				args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
 			});
 			this.context = await this.browser.newContext({
 				userAgent:

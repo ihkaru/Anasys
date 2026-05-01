@@ -1,21 +1,13 @@
 use futures_util::{SinkExt, StreamExt};
 use log::{info, warn, debug, error};
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream};
 use crate::engine::broadcaster::Broadcaster;
 use crate::engine::batcher::Batcher;
+use crate::types::TickData;
 use anyhow::Result;
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TickData {
-    pub symbol: String,
-    pub price: f64,
-    pub volume: f64,
-    pub timestamp: i64,
-}
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 
@@ -51,16 +43,16 @@ impl TradingViewScraper {
         let session_id = format!("qs_{}", rand::random::<u32>());
         self.send_message(&mut ws_stream, "quote_create_session", vec![Value::String(session_id.clone())]).await?;
         
-        // Tell TradingView which fields we want to receive
+        // Request all fields needed for tick + spread analysis
         self.send_message(&mut ws_stream, "quote_set_fields", vec![
             Value::String(session_id.clone()),
-            Value::String("lp".to_string()),
+            Value::String("lp".to_string()),    // last price
             Value::String("volume".to_string()),
-            Value::String("bid".to_string()),
-            Value::String("ask".to_string()),
+            Value::String("bid".to_string()),   // bid price for spread analysis
+            Value::String("ask".to_string()),   // ask price for spread analysis
         ]).await?;
 
-        // Add symbols in chunks
+        // Add symbols in chunks of 30 (TradingView limit)
         for chunk in symbols.chunks(30) {
             let mut params = vec![Value::String(session_id.clone())];
             for symbol in chunk {
@@ -92,21 +84,20 @@ impl TradingViewScraper {
 
     async fn handle_payload(&self, payload: String, ws: &mut WebSocketStream<MaybeTlsStream<TcpStream>>) -> Result<()> {
         // TradingView format: ~m~LEN~m~JSON...
-        // Can contain multiple messages
         let parts: Vec<&str> = payload.split("~m~").collect();
         
         for part in parts {
             if part.is_empty() { continue; }
             
-            // Heartbeat check: ~h~ID
+            // Heartbeat: ~h~ID → echo back
             if part.starts_with("~h~") {
                 let h_msg = format!("~m~{}~m~{}", part.len(), part);
                 ws.send(Message::Text(h_msg.into())).await?;
                 continue;
             }
 
-            // Skip the length part (it's always followed by ~m~)
-            if part.chars().all(|c| c.is_digit(10)) {
+            // Skip length-only segments
+            if part.chars().all(|c| c.is_ascii_digit()) {
                 continue;
             }
 
@@ -125,25 +116,32 @@ impl TradingViewScraper {
         if let Some(p) = json.get("p").and_then(|p| p.as_array()) {
             if p.len() >= 2 {
                 let symbol_data = &p[1];
-                if let (Some(symbol), Some(v)) = (symbol_data.get("n").and_then(|n| n.as_str()), symbol_data.get("v")) {
-                    
-                    let price = v.get("lp").and_then(|lp| lp.as_f64());
+                if let (Some(symbol), Some(v)) = (
+                    symbol_data.get("n").and_then(|n| n.as_str()),
+                    symbol_data.get("v"),
+                ) {
+                    let price  = v.get("lp").and_then(|lp| lp.as_f64());
                     let volume = v.get("volume").and_then(|vol| vol.as_f64());
+                    let bid    = v.get("bid").and_then(|b| b.as_f64()).unwrap_or(0.0);
+                    let ask    = v.get("ask").and_then(|a| a.as_f64()).unwrap_or(0.0);
 
-                    if let (Some(p), Some(vol)) = (price, volume) {
+                    if let (Some(price), Some(volume)) = (price, volume) {
                         let tick = TickData {
                             symbol: symbol.to_string(),
-                            price: p,
-                            volume: vol,
+                            price,
+                            volume,
+                            bid,
+                            ask,
                             timestamp: chrono::Utc::now().timestamp(),
                         };
 
-                        info!("📈 New Tick - {}: ${} (Vol: {})", tick.symbol, tick.price, tick.volume);
+                        info!("📈 Tick {}: ${:.4} (bid={:.4} ask={:.4} vol={})", 
+                            tick.symbol, tick.price, tick.bid, tick.ask, tick.volume);
 
-                        // Dispatch to Broadcaster (Redis)
+                        // Broadcast ke Redis Pub/Sub (untuk WebSocket clients)
                         let _ = self.broadcaster.broadcast(&tick).await;
                         
-                        // Dispatch to Batcher (QuestDB)
+                        // Batch ke QuestDB tabel `ticks`
                         let _ = self.batcher.add_tick(tick).await;
                     }
                 }

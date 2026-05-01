@@ -1,5 +1,12 @@
-import { eq } from "drizzle-orm";
-import { analystRatings, symbolEarnings, symbolFinancials, symbols } from "../../../../../../packages/db/src/schema";
+import { eq, sql } from "drizzle-orm";
+import {
+	analystRatings,
+	corporateActions,
+	insiderTransactions,
+	symbolEarnings,
+	symbolFinancials,
+	symbols,
+} from "../../../../../../packages/db/src/schema";
 import { db } from "../../../db";
 import { CacheService } from "../cache/cache.service";
 import type { YahooFinanceProvider } from "../providers/yahoo-finance.provider";
@@ -26,6 +33,7 @@ export interface FinancialsData {
 
 	// Volume
 	averageVolume?: number;
+	marketCap?: number;
 
 	// Income Statement
 	totalRevenue?: number;
@@ -140,10 +148,7 @@ export class FinancialsService {
 		this.cache = new CacheService();
 	}
 
-	/**
-	 * Get financial metrics for a symbol
-	 */
-	async getFinancials(ticker: string): Promise<FinancialsData | null> {
+	public async getFinancials(ticker: string): Promise<FinancialsData | null> {
 		const cacheKey = `financials:${ticker}`;
 
 		// Check memory cache
@@ -168,6 +173,15 @@ export class FinancialsService {
 			// Fetch fresh data from Yahoo
 			try {
 				const freshData = await this.fetchAndStoreFinancials(symbol.id, ticker);
+
+				// Also trigger async enrichment for insiders and corporate actions
+				this.fetchAndStoreInsiderTransactions(symbol.id, ticker).catch((err) =>
+					console.error(`[Insiders] ${ticker} failed:`, err),
+				);
+				this.fetchAndStoreCorporateActions(symbol.id, ticker).catch((err) =>
+					console.error(`[CorpActions] ${ticker} failed:`, err),
+				);
+
 				this.cache.set(cacheKey, freshData, CACHE_TTL_FINANCIALS);
 				return freshData;
 			} catch (e) {
@@ -342,6 +356,8 @@ export class FinancialsService {
 				trailingEps: this.extractValue(ks.trailingEps),
 				forwardEps: this.extractValue(ks.forwardEps),
 				pegRatio: this.extractValue(ks.pegRatio),
+				marketCap:
+					this.extractValue(sd.marketCap) || this.extractValue(fd.marketCap) || this.extractValue(ks.marketCap),
 
 				updatedAt: new Date(),
 			};
@@ -557,6 +573,7 @@ export class FinancialsService {
 			enterpriseValue: data.enterpriseValue,
 			trailingEps: data.trailingEps,
 			forwardEps: data.forwardEps,
+			marketCap: data.marketCap,
 			updatedAt: data.updatedAt?.toISOString?.() || data.updatedAt,
 		};
 	}
@@ -584,5 +601,74 @@ export class FinancialsService {
 			ratingsTrend: data.ratingsTrend ? JSON.parse(data.ratingsTrend) : [],
 			updatedAt: data.updatedAt?.toISOString?.() || data.updatedAt,
 		};
+	}
+
+	private async fetchAndStoreInsiderTransactions(symbolId: number, ticker: string): Promise<void> {
+		try {
+			const summary = await this.provider.fetchQuoteSummary(ticker, ["insiderTransactions"]);
+			const transactions = summary?.insiderTransactions?.transactions || [];
+
+			if (transactions.length === 0) return;
+
+			const values = transactions.map((t: any) => ({
+				symbolId,
+				insiderName: t.filerName || t.lexerName || t.officerName || "Unknown",
+				position: t.filerRelation || t.position || "Unknown",
+				transactionDate: new Date(t.startDate),
+				transactionType: t.transactionText || "UNKNOWN",
+				shares: this.extractValue(t.shares),
+				price: this.extractValue(t.value) / this.extractValue(t.shares), // Estimate price
+				value: this.extractValue(t.value),
+				source: "YAHOO",
+			}));
+
+			await db.insert(insiderTransactions).values(values).onConflictDoNothing();
+		} catch (e) {
+			console.warn(`[Insiders] Failed for ${ticker}`);
+		}
+	}
+
+	private async fetchAndStoreCorporateActions(symbolId: number, ticker: string): Promise<void> {
+		try {
+			// Try with events: true
+			const result = await (this.provider as any).client.chart(ticker, {
+				period1: "1970-01-01",
+				interval: "1mo",
+				events: true,
+			});
+
+			const dividends = result?.events?.dividends || {};
+			const splits = result?.events?.splits || {};
+
+			const actions: any[] = [];
+
+			// Parse Dividends
+			Object.values(dividends).forEach((d: any) => {
+				actions.push({
+					symbolId,
+					type: "DIVIDEND",
+					executionDate: new Date(d.date * 1000),
+					amount: d.amount,
+					source: "YAHOO",
+				});
+			});
+
+			// Parse Splits
+			Object.values(splits).forEach((s: any) => {
+				actions.push({
+					symbolId,
+					type: "SPLIT",
+					executionDate: new Date(s.date * 1000),
+					ratio: s.splitRatio,
+					source: "YAHOO",
+				});
+			});
+
+			if (actions.length > 0) {
+				await db.insert(corporateActions).values(actions).onConflictDoNothing();
+			}
+		} catch (e) {
+			console.warn(`[CorpActions] Failed for ${ticker}`);
+		}
 	}
 }

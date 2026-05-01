@@ -45,7 +45,7 @@ export const analysisController = new Elysia({ prefix: "/analysis" })
 			logger.info(`Analysis RUN: ${ticker} (${strategy}) by ${user?.email || "Unknown"}`);
 			try {
 				// Get historical data from DB
-				const rawData = await marketService.getOHLCV(ticker, 365); // 1 year
+				const rawData = await marketService.getOHLCV(ticker, "1d", 365); // 1 year
 
 				if (rawData.length === 0) {
 					logger.warn(`Analysis failed: No data for ${ticker}`);

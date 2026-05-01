@@ -261,6 +261,15 @@ export class WatchlistService {
 			.onConflictDoNothing()
 			.execute();
 
+		// Add symbol to real-time harvest set in Redis
+		try {
+			const { redisConnection } = await import("../scheduler/queue");
+			await redisConnection.sadd("harvest:realtime:symbols", ticker.toUpperCase());
+			logger.info(`Added ${ticker.toUpperCase()} to Redis real-time harvest set`);
+		} catch (err) {
+			logger.error(`Failed to add ${ticker.toUpperCase()} to Redis real-time harvest set:`, err);
+		}
+
 		return { success: true, symbol };
 	}
 

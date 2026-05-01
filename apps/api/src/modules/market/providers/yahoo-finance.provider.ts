@@ -37,6 +37,7 @@ export class YahooFinanceProvider implements IDataProvider {
 					high: q.high,
 					low: q.low,
 					close: q.close,
+					adjClose: q.adjclose,
 					volume: q.volume || 0,
 				}));
 		} catch (e) {

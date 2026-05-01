@@ -1,104 +1,60 @@
-import { holdings, symbols, watchlistItems } from "@packages/db/src/schema";
-import { asc, eq, inArray } from "drizzle-orm";
-import { db } from "../../db";
 import { Logger } from "../../utils/logger";
-import { marketService } from "../market/market.service";
+import { harvestQueue, redisConnection, registerRecurringJobs } from "./queue";
+import { createHarvestWorker } from "./workers/harvest.orchestrator";
 
 const logger = new Logger("SchedulerService");
 
+/**
+ * SchedulerService — BullMQ Edition
+ *
+ * Menggantikan setInterval yang fragile dengan BullMQ:
+ * - Jobs persist saat API restart (disimpan di Redis)
+ * - Retry otomatis dengan exponential backoff
+ * - Deduplication via jobId
+ * - Monitoring via Bull Board UI
+ */
 export class SchedulerService {
-	private syncIntervalId: Timer | null = null;
-	private pruneIntervalId: Timer | null = null;
-	private readonly SYNC_INTERVAL_MS = 15 * 60 * 1000; // 15 Minutes (Faster updates for trading)
+	private worker: ReturnType<typeof createHarvestWorker> | null = null;
 
-	start() {
-		logger.info("Scheduler started. Sync: 15m (VIP only)");
+	async start() {
+		logger.info("🚀 Starting BullMQ-based Scheduler...");
 
-		// Run sync after short delay
-		setTimeout(() => this.runSyncJob(), 5000);
+		// Pastikan koneksi Redis siap
+		await redisConnection.connect().catch(() => {
+			// lazyConnect: sudah connected, ignore
+		});
 
-		// Auto-prune disabled by user preference (keeping all historical data)
-		// setTimeout(() => this.runPruneJob(), 60 * 60 * 1000);
+		// Daftarkan recurring cron jobs (idempotent)
+		await registerRecurringJobs();
 
-		this.syncIntervalId = setInterval(() => this.runSyncJob(), this.SYNC_INTERVAL_MS);
-		// this.pruneIntervalId = setInterval(() => this.runPruneJob(), this.PRUNE_INTERVAL_MS);
+		// Buat dan jalankan central harvest worker
+		this.worker = createHarvestWorker();
+
+		// Wire up error handlers
+		this.worker.on("completed", (job) => {
+			logger.info(`✅ Job completed: ${job.name} (${job.id})`);
+		});
+		this.worker.on("failed", (job, err) => {
+			logger.error(`❌ Job failed: ${job?.name} (${job?.id}): ${err.message}`);
+		});
+
+		logger.info("✅ BullMQ Scheduler running. Central HarvestOrchestrator active.");
+
+		// Trigger VIP sync segera saat startup (bukan tunggu 15 menit)
+		await harvestQueue.add(
+			"vip-sync",
+			{},
+			{
+				jobId: `startup-vip-${Date.now()}`,
+			},
+		);
 	}
 
-	stop() {
-		if (this.syncIntervalId) {
-			clearInterval(this.syncIntervalId);
-			this.syncIntervalId = null;
-		}
-		if (this.pruneIntervalId) {
-			clearInterval(this.pruneIntervalId);
-			this.pruneIntervalId = null;
-		}
-		logger.info("Scheduler stopped");
-	}
-
-	/**
-	 * VIP-Only Sync: Only sync symbols in Watchlist or Holdings
-	 */
-	private async runSyncJob() {
-		logger.info("Running VIP-only market sync...");
-		try {
-			// Get VIP symbol IDs (Watchlist + Holdings)
-			const vipSymbolIds = await this.getVipSymbolIds();
-
-			if (vipSymbolIds.length === 0) {
-				logger.info("No VIP symbols to sync (empty watchlist/holdings).");
-				return;
-			}
-
-			// Get symbols sorted by oldest sync
-			const vipSymbols = await db
-				.select()
-				.from(symbols)
-				.where(inArray(symbols.id, vipSymbolIds))
-				.orderBy(asc(symbols.lastSyncedAt))
-				.limit(30); // Max 30 per 15 min cycle = 120/hr (Very Safe)
-
-			logger.info(`Syncing ${vipSymbols.length} VIP symbols (of ${vipSymbolIds.length} total)`);
-
-			for (const symbol of vipSymbols) {
-				try {
-					// Daily and Hourly via Yahoo (Fast)
-					await marketService.syncSymbolData(
-						symbol.ticker,
-						symbol.type as "STOCK" | "CRYPTO",
-						"1d",
-						undefined,
-						"YAHOO",
-					);
-
-					// Intraday via TradingView Playwright (Precise)
-					const intradayTimeframes = ["1m", "5m", "15m", "1h"];
-					for (const interval of intradayTimeframes) {
-						await marketService.syncSymbolData(
-							symbol.ticker,
-							symbol.type as "STOCK" | "CRYPTO",
-							interval,
-							undefined,
-							"TRADINGVIEW_PW",
-						);
-						await new Promise((resolve) => setTimeout(resolve, 1000)); // Rate limit
-					}
-				} catch (e: any) {
-					logger.error(`Sync failed for ${symbol.ticker}: ${e.message}`);
-					await db.update(symbols).set({ lastSyncedAt: new Date() }).where(eq(symbols.id, symbol.id));
-				}
-			}
-			logger.info("VIP sync completed.");
-		} catch (e) {
-			logger.error("Critical error in sync job", e);
-		}
-	}
-
-	private async getVipSymbolIds(): Promise<number[]> {
-		const watchlistIds = (await db.select({ id: watchlistItems.symbolId }).from(watchlistItems)).map((r) => r.id);
-		const holdingIds = (await db.select({ id: holdings.symbolId }).from(holdings)).map((r) => r.id);
-
-		return [...new Set([...watchlistIds, ...holdingIds])];
+	async stop() {
+		logger.info("Stopping BullMQ Scheduler...");
+		if (this.worker) await this.worker.close();
+		await redisConnection.quit();
+		logger.info("Scheduler stopped.");
 	}
 }
 
