@@ -1,4 +1,4 @@
-import { execSync } from "child_process";
+import { execSync } from "node:child_process";
 import { sql, eq, desc } from "drizzle-orm";
 import { db } from "../db";
 import {
@@ -19,8 +19,8 @@ import {
 	marketData,
 	holdings,
 } from "../../../../packages/db/src/schema";
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 const questdbUrl = process.env.QUESTDB_URL || "http://localhost:9000";
 
@@ -68,11 +68,11 @@ function mdTable(headers: string[], rows: (string | number | null | undefined)[]
 			if (v === null || v === undefined) return "";
 			const s = String(v);
 			// Truncate long JSON blobs to keep table readable
-			return s.length > 80 ? s.substring(0, 77) + "..." : s;
+			return s.length > 80 ? `${s.substring(0, 77)}...` : s;
 		});
 		out += `| ${cells.join(" | ")} |\n`;
 	}
-	return out + "\n";
+	return `${out}\n`;
 }
 
 function pgRowsToMd(rows: any[]): string {
@@ -82,7 +82,7 @@ function pgRowsToMd(rows: any[]): string {
 		headers.map((h) => {
 			const val = row[h];
 			if (val instanceof Date) return val.toISOString();
-			if (typeof val === "object" && val !== null) return JSON.stringify(val).substring(0, 77) + "...";
+			if (typeof val === "object" && val !== null) return `${JSON.stringify(val).substring(0, 77)}...`;
 			return val;
 		}),
 	);
@@ -464,12 +464,12 @@ async function runBenchmark() {
 		[
 			[
 				"`symbol_categories`",
-				(pgCounts["symbol_categories"] ?? -1) >= 0 ? pgCounts["symbol_categories"].toLocaleString() : "❌ Error",
+				(pgCounts.symbol_categories ?? -1) >= 0 ? pgCounts.symbol_categories.toLocaleString() : "❌ Error",
 				"Many-to-many: symbols ↔ categories",
 			],
 			[
 				"`watchlist_items`",
-				(pgCounts["watchlist_items"] ?? -1) >= 0 ? pgCounts["watchlist_items"].toLocaleString() : "❌ Error",
+				(pgCounts.watchlist_items ?? -1) >= 0 ? pgCounts.watchlist_items.toLocaleString() : "❌ Error",
 				"Many-to-many: watchlists ↔ symbols",
 			],
 		],

@@ -1,14 +1,6 @@
 import { Worker, type Job } from "bullmq";
-import {
-	symbols,
-	symbolFinancials,
-	symbolEarnings,
-	analystRatings,
-	watchlistItems,
-	holdings,
-	backfillProgress,
-} from "@packages/db/src/schema";
-import { eq, isNull, sql, asc, inArray, and } from "drizzle-orm";
+import { symbols, symbolFinancials, watchlistItems, holdings, backfillProgress } from "@packages/db/src/schema";
+import { eq, isNull, sql, asc, inArray } from "drizzle-orm";
 import { db } from "../../../db";
 import { Logger } from "../../../utils/logger";
 import { redisConnection } from "../queue";
@@ -217,7 +209,7 @@ async function handleEnrichment() {
 
 // ── HANDLER: Backfill (Phase 5) ──────────────────────────────────────────────
 
-async function handleBackfill() {
+async function _handleBackfill() {
 	// Ambil 10 backfill task yang belum selesai
 	const tasks = await db
 		.select()

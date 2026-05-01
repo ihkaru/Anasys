@@ -3,9 +3,9 @@ import * as schema from "../../../../packages/db/src/schema";
 import { desc } from "drizzle-orm";
 
 async function liveAudit() {
-	console.log("\n" + "=".repeat(120));
+	console.log(`\n${"=".repeat(120)}`);
 	console.log("💎 ANASYS INSTITUTIONAL DATA DIVERSITY AUDIT");
-	console.log("=".repeat(120) + "\n");
+	console.log(`${"=".repeat(120)}\n`);
 
 	const tables = [
 		{ name: "SYMBOLS", schema: schema.symbols, sort: schema.symbols.id },
@@ -37,9 +37,9 @@ async function liveAudit() {
 		}
 	}
 
-	console.log("\n" + "=".repeat(120));
+	console.log(`\n${"=".repeat(120)}`);
 	console.log(`✅ Audit Complete. Verification Timestamp: ${new Date().toISOString()}`);
-	console.log("=".repeat(120) + "\n");
+	console.log(`${"=".repeat(120)}\n`);
 	process.exit(0);
 }
 

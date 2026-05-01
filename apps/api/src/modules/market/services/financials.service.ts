@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
 	analystRatings,
 	corporateActions,
@@ -623,7 +623,7 @@ export class FinancialsService {
 			}));
 
 			await db.insert(insiderTransactions).values(values).onConflictDoNothing();
-		} catch (e) {
+		} catch (_e) {
 			console.warn(`[Insiders] Failed for ${ticker}`);
 		}
 	}
@@ -667,7 +667,7 @@ export class FinancialsService {
 			if (actions.length > 0) {
 				await db.insert(corporateActions).values(actions).onConflictDoNothing();
 			}
-		} catch (e) {
+		} catch (_e) {
 			console.warn(`[CorpActions] Failed for ${ticker}`);
 		}
 	}

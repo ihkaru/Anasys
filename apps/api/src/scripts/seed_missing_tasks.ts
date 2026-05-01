@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { symbols, backfillProgress } from "../../../../packages/db/src/schema";
+import { backfillProgress } from "../../../../packages/db/src/schema";
 import { sql } from "drizzle-orm";
 
 async function runSeeder() {

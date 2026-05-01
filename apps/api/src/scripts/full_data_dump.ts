@@ -1,8 +1,8 @@
 import { db } from "../db";
 import { symbols, candles, backfillProgress, ticks } from "@anasys/db/schema";
 import { desc, count, eq } from "drizzle-orm";
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 async function generateDump() {
 	console.log("📊 Starting Full Data Dump & Velocity Audit...");
@@ -35,8 +35,8 @@ async function generateDump() {
 		}
 
 		const headers = Object.keys(data[0]);
-		md += "| " + headers.join(" | ") + " |\n";
-		md += "| " + headers.map(() => "---").join(" | ") + " |\n";
+		md += `| ${headers.join(" | ")} |\n`;
+		md += `| ${headers.map(() => "---").join(" | ")} |\n`;
 
 		data.forEach((row: any) => {
 			md +=

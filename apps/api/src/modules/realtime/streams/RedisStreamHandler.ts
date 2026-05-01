@@ -13,8 +13,6 @@ export class RedisStreamHandler {
 	private subscriber: Redis;
 	private aggregator = new CandleAggregator();
 
-	private isConnected = false;
-
 	constructor(private broadcaster: Broadcaster) {
 		const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 		// When in subscriber mode, ioredis should not try to run regular commands like INFO (readyCheck)

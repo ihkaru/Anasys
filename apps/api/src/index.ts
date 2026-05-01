@@ -14,11 +14,6 @@ import { watchlistController } from "./modules/watchlist/watchlist.controller";
 // Validate configuration at startup
 validateConfig();
 
-import { createBullBoard } from "@bull-board/api";
-import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
-import { ElysiaAdapter } from "@bull-board/elysia";
-import { harvestQueue } from "./modules/scheduler/queue";
-
 // Setup Bull Board
 // const serverAdapter = new ElysiaAdapter({ basePath: "/admin/queues" });
 // createBullBoard({

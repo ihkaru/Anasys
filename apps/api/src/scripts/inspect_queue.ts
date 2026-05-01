@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { backfillProgress, symbols } from "@packages/db/src/schema";
-import { eq, and, asc } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 
 async function inspect() {
 	console.log("🔍 Inspecting Top 20 Pending Tasks...");

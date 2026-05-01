@@ -31,8 +31,8 @@ export class TradingViewPlaywrightProvider implements IDataProvider {
 					return new Promise((resolve, reject) => {
 						console.log(`Starting WS bridge for ${symbol}...`);
 						const ws = new WebSocket("wss://data.tradingview.com/socket.io/websocket?from=chart%2F&type=chart");
-						const session = "cs_" + Math.random().toString(36).substring(2, 12);
-						const chartSession = "cs_" + Math.random().toString(36).substring(2, 12);
+						const session = `cs_${Math.random().toString(36).substring(2, 12)}`;
+						const chartSession = `cs_${Math.random().toString(36).substring(2, 12)}`;
 
 						let candles: any[] = [];
 						const timeout = setTimeout(() => {
@@ -59,7 +59,7 @@ export class TradingViewPlaywrightProvider implements IDataProvider {
 									if (data.m === "timescale_update") {
 										const payload = data.p[1];
 										const series = payload[Object.keys(payload)[0]];
-										if (series && series.s) {
+										if (series?.s) {
 											console.log(`Received ${series.s.length} candles for ${symbol}`);
 											candles = series.s.map((b: any) => ({
 												timestamp: b.v[0] * 1000,
@@ -93,7 +93,7 @@ export class TradingViewPlaywrightProvider implements IDataProvider {
 							send("create_series", [chartSession, "sds_1", "s1", "sds_sym_1", res, range, ""]);
 						};
 
-						ws.onerror = (err) => {
+						ws.onerror = (_err) => {
 							clearTimeout(timeout);
 							reject(new Error("WebSocket error inside browser"));
 						};
@@ -133,32 +133,32 @@ export class TradingViewPlaywrightProvider implements IDataProvider {
 		return map[interval] || "60";
 	}
 
-	async fetchQuotes(tickers: string[]): Promise<QuoteResult[]> {
+	async fetchQuotes(_tickers: string[]): Promise<QuoteResult[]> {
 		// For simplicity, reuse the Yahoo provider or implement later
 		return [];
 	}
 
-	async search(query: string, limit?: number): Promise<SearchResult[]> {
+	async search(_query: string, _limit?: number): Promise<SearchResult[]> {
 		return [];
 	}
 
-	async fetchQuoteSummary(ticker: string, modules: string[]): Promise<unknown> {
+	async fetchQuoteSummary(_ticker: string, _modules: string[]): Promise<unknown> {
 		return {};
 	}
 
-	async fetchTrending(region?: string, count?: number): Promise<TrendingResult[]> {
+	async fetchTrending(_region?: string, _count?: number): Promise<TrendingResult[]> {
 		return [];
 	}
 
-	async fetchRecommendations(ticker: string): Promise<string[]> {
+	async fetchRecommendations(_ticker: string): Promise<string[]> {
 		return [];
 	}
 
-	async fetchDailyGainers(count?: number): Promise<QuoteResult[]> {
+	async fetchDailyGainers(_count?: number): Promise<QuoteResult[]> {
 		return [];
 	}
 
-	async fetchDailyLosers(count?: number): Promise<QuoteResult[]> {
+	async fetchDailyLosers(_count?: number): Promise<QuoteResult[]> {
 		return [];
 	}
 }

@@ -10,7 +10,7 @@ export class CcxtProvider implements IDataProvider {
 		});
 	}
 
-	async fetchChart(symbol: string, interval: string, startTime?: number, endTime?: number): Promise<UnifiedCandle[]> {
+	async fetchChart(symbol: string, interval: string, startTime?: number, _endTime?: number): Promise<UnifiedCandle[]> {
 		// Convert symbol from BINANCE:BTCUSDT to BTC/USDT or BTC-USD to BTC/USD
 		const ccxtSymbol = this.normalizeSymbol(symbol);
 		const ccxtInterval = this.normalizeInterval(interval);

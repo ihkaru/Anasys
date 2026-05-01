@@ -11,7 +11,7 @@ async function runMigration() {
 	const totalRows = countRes[0].count;
 	console.log(`📊 Found ${totalRows} rows in market_data (Postgres).`);
 
-	if (totalRows == 0) {
+	if (totalRows === 0) {
 		console.log("✅ Nothing to migrate!");
 		process.exit(0);
 	}

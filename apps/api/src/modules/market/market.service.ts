@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { backfillProgress, symbols } from "@packages/db/src/schema";
+import { symbols } from "@packages/db/src/schema";
 import { db } from "../../db";
 import { Logger } from "../../utils/logger";
 import { CacheService } from "./cache/cache.service";

@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { symbols, backfillProgress } from "../../../../packages/db/src/schema";
-import { sql, eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import axios from "axios";
 
 /**

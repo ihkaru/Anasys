@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { sql, eq } from "drizzle-orm";
-import { corporateActions, insiderTransactions, symbols, symbolFinancials } from "../../../../packages/db/src/schema";
+import { corporateActions, insiderTransactions, symbols } from "../../../../packages/db/src/schema";
 import { marketService } from "../modules/market/market.service";
 
 async function main() {

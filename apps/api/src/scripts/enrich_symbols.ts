@@ -6,7 +6,7 @@
  */
 
 import { symbols } from "@packages/db/src/schema";
-import { eq, isNull, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { Logger } from "../utils/logger";
 import { marketService } from "../modules/market/market.service";
