@@ -15,7 +15,9 @@
 		"prune:dry": "bun run src/scripts/prune_stale_data.ts --dry-run",
 		"clean-slate": "bun run src/scripts/clean_slate.ts",
 		"clean-slate:keep-symbols": "bun run src/scripts/clean_slate.ts --keep-symbols",
-		"harvest": "bun run src/scripts/tv_multi_harvester.ts"
+		"harvest": "bun run src/scripts/tv_multi_harvester.ts",
+		"db-sync": "cd ../.. && bun run db:push && cd apps/api && bun run src/scripts/seed_missing_tasks.ts",
+		"start": "bun run db-sync && bun run src/index.ts"
 	},
 	"dependencies": {
 		"@bull-board/api": "^7.0.0",
