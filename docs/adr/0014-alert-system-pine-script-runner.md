@@ -18,11 +18,19 @@ Visi jangka panjang adalah mendukung **Pine Script Runner** — kemampuan menjal
 
 | Proyek | Bahasa | Pendekatan | Status |
 |---|---|---|---|
-| **PyneCore** (pynecore.org) | Python | AST transformation, Pine-compatible functions (`ta.sma`, `ta.rsi`, dll) | Aktif, Apache v2.0 |
-| **OpenPineScript** | TypeScript | Local runtime engine, interpretasi Pine Script asli | Beta, community |
-| **PineTS** | TypeScript/JS | Transpiler, Pine-style di browser/Node.js | Eksperimental |
+| **PineTS** (LuxAlgo) | **TypeScript** | Native Transpiler & Runtime, 1:1 syntax compatibility | **Aktif (Rilis Apr 2026)** |
+| **PyneCore** | Python | AST transformation, Pine-compatible functions | Aktif |
+| **OpenPineScript** | TypeScript | Local runtime engine, interpretasi Pine Script asli | Beta |
 
-**Kesimpulan**: TradingView **tidak mendukung** eksekusi Pine Script secara native di luar platform mereka. Opsi terbaik per Mei 2026 adalah **PyneCore** — open source, Python, kompatibilitas tinggi dengan fungsi `ta.*` Pine Script, dan sudah terbukti akurasi 14-15 digit terhadap hasil TradingView.
+**Keputusan**: Menggunakan **PineTS** (LuxAlgo) sebagai runner utama.
+
+**Alasan**:
+- **Native Bun Support**: Berjalan langsung di proses API kita (TypeScript). Tidak perlu menambah kompleksitas infrastruktur dengan sidecar Python service.
+- **High Freshness**: Rilis terbaru (April 2026) menjamin dukungan terhadap fitur Pine Script v6 terbaru.
+- **Streaming Ready**: Memiliki API streaming yang bisa langsung di-pipe dari Redis Pub/Sub kita.
+
+> [!WARNING]
+> **Pertimbangan Lisensi**: PineTS menggunakan **AGPL-3.0**. Jika Anasys dipublikasikan sebagai SaaS, kita wajib membuka source code Anasys ke publik atau membeli lisensi komersial. Jika Anasys hanya digunakan secara internal/pribadi, lisensi ini tidak menjadi masalah.
 
 #### Alert Architecture per Mei 2026
 
@@ -38,11 +46,11 @@ Best practice industri menggunakan **Hot/Cold Path Separation**:
 |---|---|---|
 | Fondasi data real-time | ████████░░ 80% | Redis Pub/Sub ticks sudah ada |
 | Data OHLCV historis | ████░░░░░░ 40% | G1 ADR-0012 belum resolved — OHLCV tidak lengkap |
-| Indicator engine | ████░░░░░░ 40% | `@ixjb94/indicators` ada di packages/analysis, belum disambung ke pipeline |
+| Indicator engine | ████████░░ 80% | **PineTS** menggantikan manual implementation |
 | Alert state management | ░░░░░░░░░░ 0% | Belum ada schema, belum ada state machine |
 | Delivery pipeline | █████░░░░░ 50% | WebSocket ada, tapi broadcast bukan per-user |
 | Multi-asset logic | ██████░░░░ 60% | ANASYS_SCRAPE_SYMBOLS sudah multi-asset |
-| Pine Script runner | ░░░░░░░░░░ 0% | Belum ada, perlu komponen baru |
+| Pine Script runner | ██████░░░░ 60% | **PineTS** siap diintegrasikan |
 
 **Kesimpulan**: Alert system **belum bisa diimplementasikan dengan benar** tanpa menyelesaikan G1 (ADR-0012) terlebih dahulu. Alert berbasis indikator dari data OHLCV yang tidak lengkap lebih berbahaya dari tidak ada alert sama sekali — khususnya untuk algo trading.
 
@@ -119,110 +127,37 @@ await redis.set(cooldownKey, '1', 'EX', alert.cooldown_minutes * 60);
 await db.update(alerts).set({ status: 'COOLDOWN' }).where(eq(alerts.id, alertId));
 ```
 
-### Komponen 3 — Indicator Computation (Opsi B: BullMQ + API)
+### Komponen 3 — Indicator Computation & Pine Script Execution (Unified via PineTS)
 
-Untuk MVP, gunakan **Opsi B** (lebih mudah, pakai tooling yang sudah ada):
+Kita tidak lagi membedakan antara "alert sederhana" dan "Pine Script". Keduanya diproses oleh **PineTS** untuk konsistensi:
 
 ```typescript
-// BullMQ job — dipicu setiap candle close (per interval)
-async function evaluateAlertsForInterval(interval: string) {
-  const activeAlerts = await db.select()
-    .from(alerts)
-    .where(
-      and(
-        eq(alerts.interval, interval),
-        eq(alerts.status, 'ACTIVE')  // + COOLDOWN yang sudah expire
-      )
-    );
+import { PineTS } from 'pinets';
 
-  for (const alert of activeAlerts) {
-    // 1. Ambil N candles terakhir dari QuestDB
-    const candles = await questdb.query(
-      `SELECT * FROM candles WHERE symbol = $1 AND interval = $2 
-       ORDER BY timestamp DESC LIMIT 200`,
-      [alert.symbol, alert.interval]
-    );
-
-    // 2. Hitung indikator via @ixjb94/indicators (packages/analysis)
-    const currentValue = await computeIndicator(alert.condition_type, candles, alert.params);
-
-    // 3. Evaluasi kondisi
-    const shouldFire = evaluateCondition(alert.condition_type, currentValue, alert.threshold);
-
-    if (shouldFire) {
-      await fireAlert(alert, currentValue, candles.at(-1));
-    }
-  }
+// Di dalam BullMQ job atau Real-time stream handler:
+async function evaluateLogic(script: string, candles: any[]) {
+  const engine = new PineTS(candles);
+  const { plots, signals } = await engine.run(script);
+  
+  // Evaluasi apakah signal buy/sell muncul atau plot menembus threshold
+  return { triggered: signals.length > 0, data: plots };
 }
-
-// Supported condition types (MVP):
-type AlertConditionType =
-  | 'price_above'         // price > threshold
-  | 'price_below'         // price < threshold
-  | 'price_crosses_above' // crossover
-  | 'price_crosses_below' // crossunder
-  | 'rsi_overbought'      // RSI > 70 (atau custom threshold)
-  | 'rsi_oversold'        // RSI < 30
-  | 'ma_crossover'        // SMA/EMA crossover
-  | 'volume_spike';       // volume > N*avg_volume
 ```
 
-### Komponen 4 — Pine Script Runner (Via PyneCore)
+### Komponen 4 — Arsitektur Sederhana (Zero Sidecar)
 
-**Arsitektur yang dipilih: PyneCore sebagai sidecar Python service**
+Berbeda dengan rencana awal (PyneCore), kita tidak butuh sidecar Python.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    API (Bun/Elysia)                      │
+│                    API (Bun)                             │
 │                                                          │
-│  POST /api/market/pine/run                               │
-│  { script: string, symbol: string, interval: string }   │
-└────────────────────┬────────────────────────────────────┘
-                     │ HTTP atau Redis Queue
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│              PyneCore Runner (Python FastAPI)            │
-│                                                          │
-│  1. Terima Pine Script (v5/v6) atau Pyne Python code    │
-│  2. Ambil data candles dari QuestDB langsung            │
-│  3. Jalankan via PyneCore                               │
-│  4. Return: signal list, indicator values, backtest stats│
+│  1. Pull script dari DB                                 │
+│  2. Pull data dari QuestDB (historis) / Redis (live)    │
+│  3. Eksekusi via library 'pinets'                       │
+│  4. Emit alert jika kondisi terpenuhi                   │
 └─────────────────────────────────────────────────────────┘
 ```
-
-**Contoh flow untuk Pine Script runner:**
-
-```python
-# apps/pine-runner/main.py (FastAPI + PyneCore)
-from pynecore import Series
-from pynecore.lib import script, ta, strategy
-from pynecore.providers import CustomProvider  # inject data dari QuestDB
-
-@app.post("/run")
-async def run_pine_script(payload: RunRequest):
-    # 1. Compile Pine Script → Pyne Python (via pynesys.io API atau offline)
-    pyne_code = await compile_pine_to_pyne(payload.script)
-    
-    # 2. Load data dari QuestDB
-    candles = await fetch_from_questdb(payload.symbol, payload.interval, payload.from_date)
-    
-    # 3. Inject data ke PyneCore provider
-    provider = CustomProvider(ohlcv=candles)
-    
-    # 4. Eksekusi
-    result = pynecore.run(pyne_code, provider=provider)
-    
-    return {
-        "signals": result.signals,
-        "plots": result.plots,
-        "stats": result.stats  # Jika strategy: win rate, max drawdown, dll
-    }
-```
-
-**Catatan penting tentang Pine Script compilation**:
-- PyneCore menyediakan koneksi ke `pynesys.io` untuk compile Pine Script → Pyne Python
-- API key pynesys.io diperlukan untuk fitur ini
-- Alternatif offline: user menulis langsung dalam sintaks Pyne (Python-compatible), yang lebih sustainable jangka panjang
 
 ### Komponen 5 — Delivery Pipeline (Per-User WebSocket)
 
@@ -300,23 +235,21 @@ async function deliverAlertToUser(userId: string, alertEvent: AlertEvent) {
 - Delivery reliable: pesan tidak hilang saat user offline
 
 ### Negatif
-- **PyneCore dependency**: Python runtime baru di infrastruktur. Mitigasi: isolated Docker container, tidak mempengaruhi Bun/Rust services
-- **pynesys.io API key**: Diperlukan untuk compile Pine Script v5/v6 → Pyne. Alternatif: user menulis langsung di Pyne syntax
-- **Pine Script compatibility gap**: PyneCore belum 100% kompatibel dengan semua fitur Pine Script v6 (khususnya fitur yang baru ditambahkan setelah Jan 2026). Mitigasi: dokumentasikan fitur yang tidak didukung
-- **Kompleksitas meningkat**: Dari 2 bahasa (TypeScript + Rust) menjadi 3 bahasa (+ Python). Hanya dapat dibenarkan jika PyneCore memberikan nilai yang tidak bisa dicapai dengan `@ixjb94/indicators` saja
+- **Lisensi AGPL-3.0**: Perlu audit legal jika ingin komersialisasi Anasys secara tertutup.
+- **Dependency baru**: Menambah `pinets` library ke API service.
+- **Kompleksitas meningkat**: Meskipun bahasa sama (TS), eksekusi script dinamis membutuhkan penanganan memori dan isolasi yang hati-hati.
 
 ## Alternatif yang Dipertimbangkan
 
 | Opsi | Kelebihan | Kekurangan | Keputusan |
 |---|---|---|---|
-| OpenPineScript (TypeScript) | Same stack dengan frontend | Beta, belum stabil, Pine v6 support terbatas | ❌ Ditolak |
-| QuantConnect | Institutional grade | Berbayar, bukan self-hosted, lock-in | ❌ Ditolak |
-| Custom DSL (buat sendiri) | Full control | Engineering effort sangat tinggi | ❌ Ditolak |
-| PyneCore (Python) | Open source, Apache v2, akurasi tinggi | Tambah Python runtime | ✅ Dipilih |
-| @ixjb94/indicators only | Same stack, zero new service | Tidak support Pine Script syntax dari user | ✅ Dipilih untuk Tahap 1-2 |
+| **PineTS (LuxAlgo)** | Same stack (TS), rilis terbaru Apr 2026, 1:1 syntax | Lisensi AGPL-3.0 | ✅ Dipilih |
+| PyneCore (Python) | Akurasi tinggi | Tambah Python runtime | ❌ Ditolak (Complexity) |
+| OpenPineScript | Same stack | Beta, fitur terbatas | ❌ Ditolak |
+| Custom DSL | Full control | Effort tinggi | ❌ Ditolak |
 
 ## Referensi
-- PyneCore: https://pynecore.org — Pine Script-compatible Python framework
+- PineTS: https://github.com/LuxAlgo/PineTS — Pine Script-compatible TypeScript framework
 - OpenPineScript: https://github.com/OpenPineScript — TypeScript local runtime
 - ADR-0012: Data Pipeline Best Practices (G1 sebagai prasyarat mutlak)
 - ADR-0013: Incremental Sync (data freshness prasyarat alert)
