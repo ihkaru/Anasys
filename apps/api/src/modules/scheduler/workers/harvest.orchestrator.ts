@@ -1,12 +1,5 @@
 import { Worker, type Job } from "bullmq";
-import {
-	symbols,
-	symbolFinancials,
-	watchlistItems,
-	holdings,
-	backfillProgress,
-	alerts,
-} from "@packages/db/src/schema";
+import { symbols, symbolFinancials, watchlistItems, holdings, backfillProgress, alerts } from "@packages/db/src/schema";
 import { eq, isNull, sql, asc, inArray } from "drizzle-orm";
 import { db } from "../../../db";
 import { Logger } from "../../../utils/logger";
@@ -311,4 +304,3 @@ async function handleBackfill() {
 		await new Promise((r) => setTimeout(r, 50));
 	}
 }
-

@@ -42,13 +42,7 @@ export const backfillStatusEnum = pgEnum("backfill_status", [
  * ACTIVE/COOLDOWN → [user action] → PAUSED → ACTIVE
  * TRIGGERED → [condition cleared] → RESOLVED
  */
-export const alertStatusEnum = pgEnum("alert_status", [
-	"ACTIVE",
-	"PAUSED",
-	"TRIGGERED",
-	"COOLDOWN",
-	"RESOLVED",
-]);
+export const alertStatusEnum = pgEnum("alert_status", ["ACTIVE", "PAUSED", "TRIGGERED", "COOLDOWN", "RESOLVED"]);
 
 /**
  * Delivery status for notifications
@@ -76,6 +70,7 @@ export const symbols = pgTable("symbols", {
 	tradingviewExchange: text("tradingview_exchange"), // e.g. "COMEX", "NASDAQ"
 	isin: text("isin"), // International Securities Identification Number
 	figi: text("figi"), // Financial Instrument Global Identifier
+	lotSize: integer("lot_size").default(1), // Default 1 share, IDX = 100 shares/lot
 	metadataUpdatedAt: timestamp("metadata_updated_at", { withTimezone: true }),
 });
 
@@ -311,7 +306,6 @@ export const backfillProgress = pgTable("backfill_progress", {
 	backfillStatus: backfillStatusEnum("backfill_status").default("PENDING"),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
-
 
 /**
  * NEW: Corporate Actions Table

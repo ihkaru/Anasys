@@ -28,11 +28,21 @@ export class RealtimeService {
 		// because the Engine manages its own scraping lifecycle.
 		this.subscriptionManager = new SubscriptionManager(
 			this.clientManager,
-			(symbol, _channel, _interval, source) => {
+			async (symbol, _channel, _interval, source) => {
 				logger.debug(`Subscription added: ${symbol} (${source})`);
+				// Ensure the symbol is added to the engine's real-time harvesting universe
+				try {
+					const { redisConnection } = await import("../scheduler/queue");
+					await redisConnection.sadd("harvest:realtime:symbols", symbol.toUpperCase());
+					logger.info(`[Auto-Harvest] Symbol ${symbol} promoted to real-time set via subscription`);
+				} catch (err) {
+					logger.error(`Failed to promote ${symbol} to harvest set`, err);
+				}
 			},
 			(symbol) => {
 				logger.debug(`Subscription removed: ${symbol}`);
+				// We don't remove from Redis automatically here to avoid flapping,
+				// as multiple users or workers might still need it.
 			},
 		);
 

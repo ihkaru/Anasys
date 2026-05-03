@@ -13,7 +13,7 @@ async function execSQL(sql: string, label: string): Promise<void> {
 	console.log(`[QuestDB Init] ▶ ${label}`);
 	const url = `${QUESTDB_URL}/exec?query=${encodeURIComponent(sql)}`;
 	const res = await fetch(url);
-	const body = await res.json() as any;
+	const body = (await res.json()) as any;
 
 	if (!res.ok || body.error) {
 		throw new Error(`QuestDB error (${label}): ${body.error ?? res.statusText}`);
@@ -44,10 +44,7 @@ async function main() {
 	);
 
 	// Verify table exists
-	await execSQL(
-		`SELECT count() FROM candles`,
-		"Verify candles table",
-	);
+	await execSQL(`SELECT count() FROM candles`, "Verify candles table");
 
 	console.log("[QuestDB Init] 🎉 Initialization complete.");
 }

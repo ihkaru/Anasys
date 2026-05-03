@@ -24,8 +24,15 @@ export class CandleService {
 	 * Postgres market_data is still written to as a safety net but not served from.
 	 */
 	async getOHLCV(ticker: string, interval = "1d", limit = 100, before?: string, source = "YAHOO") {
-		const type = ticker.includes("-") ? "CRYPTO" : ("STOCK" as const);
-		const symbol = await this.symbolService.ensureSymbol(ticker, type);
+		// Safe fallback heuristic for brand new symbols only (existing symbols use DB type)
+		let guessedType: "STOCK" | "CRYPTO" = "STOCK";
+		const upperTicker = ticker.toUpperCase();
+		// Crypto usually has /USDT, -USD (Yahoo), or Binance prefix
+		if (upperTicker.includes("USD") || upperTicker.startsWith("BINANCE:") || upperTicker.includes("/")) {
+			guessedType = "CRYPTO";
+		}
+
+		const symbol = await this.symbolService.ensureSymbol(ticker, guessedType);
 		const beforeDate = before ? new Date(before) : undefined;
 
 		// ── Step 1: LRU in-process cache ─────────────────────────────────────

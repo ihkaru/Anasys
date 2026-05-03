@@ -1,7 +1,7 @@
 import { marketData, symbols } from "@packages/db/src/schema";
 import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { db } from "../../../db";
-import { QuestDBService, questDbService } from "../services/QuestDBService";
+import { type QuestDBService, questDbService } from "../services/QuestDBService";
 
 export class MarketDataRepository {
 	constructor(private qdb: QuestDBService = questDbService) {}
@@ -133,7 +133,7 @@ export class MarketDataRepository {
 			}
 		} catch (e) {
 			console.error("[MarketDataRepository] QuestDB sync failed during upsert:", e);
-			// We don't throw here to avoid failing the Postgres transaction, 
+			// We don't throw here to avoid failing the Postgres transaction,
 			// but we should eventually monitor this for data gaps.
 		}
 	}

@@ -3,6 +3,7 @@ import { Logger } from "../../../utils/logger";
 import type { Broadcaster } from "../broadcasting/Broadcaster";
 import type { QuoteUpdate } from "../realtime.types";
 import { CandleAggregator } from "../utils/CandleAggregator";
+import { StreamMonitorService } from "../services/StreamMonitorService";
 
 const logger = new Logger("RedisStreamHandler");
 
@@ -61,11 +62,17 @@ export class RedisStreamHandler {
 		// Map Rust Engine TickData to API QuoteUpdate
 		// Rust: { symbol: "BINANCE:BTCUSDT", price, volume, timestamp }
 		const symbol = data.symbol;
+		const timestampMs = data.timestamp * 1000;
+
+		// Record Lag Metric
+		const lagMs = Date.now() - timestampMs;
+		StreamMonitorService.getInstance().recordLag(symbol, lagMs);
+
 		const update: QuoteUpdate = {
 			symbol: symbol,
 			price: data.price,
 			volume: data.volume,
-			timestamp: data.timestamp * 1000,
+			timestamp: timestampMs,
 			change: 0,
 			changePercent: 0,
 		};

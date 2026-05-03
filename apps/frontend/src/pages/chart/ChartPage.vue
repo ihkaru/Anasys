@@ -38,7 +38,7 @@
 			</f7-nav-right>
 		</f7-navbar>
 
-		<TradingChart ref="chartRef" :key="marketStore.selectedSymbol"
+		<TradingChartView ref="chartRef" :key="marketStore.selectedSymbol"
 			:ohlcv-data="marketStore.ohlcvData" :signals="marketStore.signals" :loading="marketStore.historyLoading"
 			:on-load-more="handleLoadMore" />
 
@@ -77,7 +77,7 @@ import FinancialsSection from "./components/FinancialsSection.vue";
 import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
-import type TradingChart from "./components/TradingChart.vue";
+import type TradingChartView from "./components/TradingChart.vue";
 
 // Throttle helper for chart updates
 let lastChartUpdate = 0;
@@ -88,7 +88,7 @@ const props = defineProps<{
 }>();
 
 const marketStore = useMarketStore();
-const chartRef = ref<InstanceType<typeof TradingChart> | null>(null);
+const chartRef = ref<InstanceType<typeof TradingChartView> | null>(null);
 const selectedTimeframe = ref("1d");
 const selectedInterval = ref("1d"); // Default interval
 const isFullscreen = ref(false);

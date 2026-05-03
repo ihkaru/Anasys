@@ -6,7 +6,7 @@ export const sqliteConnection = new SQLiteConnection(CapacitorSQLite);
 
 export class SQLiteService {
 	db: SQLiteDBConnection | null = null;
-	dbName = "finance_db_v6"; // Bumped: added cached_at column for TTL-based invalidation
+	dbName = "finance_db_v8"; // Bumped: force schema update for cached_at column
 	private logger = createLogger("SQLite");
 
 	async init() {

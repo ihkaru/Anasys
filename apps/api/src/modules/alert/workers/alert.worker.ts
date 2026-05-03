@@ -1,4 +1,4 @@
-import { Job, Worker } from "bullmq";
+import { type Job, Worker } from "bullmq";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../../../db";
 import { alertHistory, alerts, symbols } from "@packages/db/src/schema";
@@ -144,10 +144,7 @@ export class AlertWorker {
 				.then(() => {
 					// After notification completes, transition back to ACTIVE
 					// (cooldown is managed by Redis TTL, not Postgres status)
-					return db
-						.update(alerts)
-						.set({ status: "ACTIVE", updatedAt: new Date() })
-						.where(eq(alerts.id, alert.id));
+					return db.update(alerts).set({ status: "ACTIVE", updatedAt: new Date() }).where(eq(alerts.id, alert.id));
 				})
 				.catch((e) => {
 					this.logger.error(`Notification dispatch failed for alert ${alert.id}:`, e);

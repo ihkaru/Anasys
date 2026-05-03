@@ -55,8 +55,20 @@ export class SyncService {
 			// Enable Pre/Post market data for US stocks to match TradingView and fix alignment gaps
 			// Disable for IDX (.JK) stocks — IDX doesn't have meaningful pre/post market,
 			// and Yahoo returns flat closing auction candles that corrupt hourly data
-			const isIDX = ticker.toUpperCase().endsWith(".JK");
-			chartOptions.includePrePost = !isIDX;
+			// Explicit Extended Hours Config (ADR-0017)
+			// Avoids auction noise in IDX/HKEX while keeping US gap analysis
+			const EXTENDED_HOURS_CONFIG: Record<string, boolean> = {
+				NASDAQ: true,
+				NYSE: true,
+				AMEX: true,
+				ARCA: true,
+				IDX: false,
+				HKEX: false,
+				DEFAULT: false,
+			};
+
+			const exchange = (symbol.exchange || "DEFAULT").toUpperCase();
+			chartOptions.includePrePost = EXTENDED_HOURS_CONFIG[exchange] ?? EXTENDED_HOURS_CONFIG.DEFAULT;
 
 			this.logger.debug(
 				`Fetching ${ticker} (${interval}) range: ${queryOptions.period1} -> ${queryOptions.period2 || "now"}`,
@@ -155,10 +167,16 @@ export class SyncService {
 
 			const finalDate = new Date(candle.timestamp);
 
-			// Normalize macroscopic intervals to prevent duplicate daily candles with different times
-			if (isMacroscopic) {
-				finalDate.setUTCHours(0, 0, 0, 0);
+			// Industry Standard: floor(timestamp, interval) normalization (ADR-0016)
+			const ts = finalDate.getTime();
+			let normalizedTs = ts;
 
+			if (interval === "1m") normalizedTs = Math.floor(ts / 60000) * 60000;
+			else if (interval === "5m") normalizedTs = Math.floor(ts / 300000) * 300000;
+			else if (interval === "15m") normalizedTs = Math.floor(ts / 900000) * 900000;
+			else if (interval === "1h") normalizedTs = Math.floor(ts / 3600000) * 3600000;
+			else if (isMacroscopic) {
+				finalDate.setUTCHours(0, 0, 0, 0);
 				if (interval === "1wk") {
 					const day = finalDate.getUTCDay();
 					const diff = finalDate.getUTCDate() - day + (day === 0 ? -6 : 1);
@@ -166,9 +184,11 @@ export class SyncService {
 				} else if (interval === "1mo") {
 					finalDate.setUTCDate(1);
 				}
+				normalizedTs = finalDate.getTime();
 			}
 
-			const timestamp = finalDate.getTime();
+			const timestamp = normalizedTs;
+			finalDate.setTime(normalizedTs);
 			const candleValue = {
 				symbolId: symbolId,
 				timestamp: finalDate,

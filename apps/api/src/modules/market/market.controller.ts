@@ -4,6 +4,7 @@ import { Elysia, t } from "elysia";
 import { config, getJwtSecret } from "../../config";
 import { Logger } from "../../utils/logger";
 import { marketService } from "./market.service";
+import { StreamMonitorService } from "../realtime/services/StreamMonitorService";
 
 const logger = new Logger("MarketController");
 
@@ -61,6 +62,12 @@ export const marketController = new Elysia({ prefix: "/market" })
 				return { success: false, error: "Unauthorized" };
 			}
 		},
+	})
+	.get("/monitoring/stream-stats", () => {
+		return {
+			success: true,
+			data: StreamMonitorService.getInstance().getStats(),
+		};
 	})
 	// Market Overview (GET) - default indices
 	.get("/overview", async () => {
