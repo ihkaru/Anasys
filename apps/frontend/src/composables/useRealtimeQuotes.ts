@@ -62,7 +62,6 @@ function getWsUrl(): string {
 	// In production, use the current window host so it works across the internet
 	const host = import.meta.env.DEV ? "localhost:28081" : window.location.host;
 	return `${protocol}//${host}/ws/market`;
-
 }
 
 /**
