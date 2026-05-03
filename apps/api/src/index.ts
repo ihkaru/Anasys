@@ -58,7 +58,7 @@ const app = new Elysia()
 	// })
 
 	// Health check (Deep Healthcheck for production orchestration)
-	.get("/health", async () => {
+	.get("/health", async ({ set }) => {
 		const checks: Record<string, any> = {
 			api: "ok",
 			timestamp: new Date().toISOString(),
@@ -89,6 +89,10 @@ const app = new Elysia()
 		}
 
 		const isHealthy = Object.values(checks).every((v) => v === "ok" || v === "connected");
+
+		if (!isHealthy) {
+			set.status = 503;
+		}
 
 		return {
 			status: isHealthy ? "healthy" : "unhealthy",

@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
-import { symbols } from "@packages/db/src/schema";
+import { symbols, backfillProgress } from "@packages/db/src/schema";
 import { db } from "../../db";
+import { redisConnection } from "../scheduler/queue";
 import { Logger } from "../../utils/logger";
 import { CacheService } from "./cache/cache.service";
 import { DataProviderFactory } from "./providers/provider.factory";
@@ -332,6 +333,102 @@ export class MarketService {
 		return {
 			totalTickers,
 			gaps: coverage,
+			timestamp: new Date().toISOString(),
+		};
+	}
+
+	/**
+	 * Get high-resolution monitoring stats for the harvesting engine.
+	 * Uses Redis to calculate deltas between snapshots for real-time throughput.
+	 */
+	async getMonitoringStats() {
+		const MONITORING_CACHE_KEY = "anasys:monitoring:snapshot";
+
+		// 1. Current State (Postgres)
+		const completedTasksRes = await db
+			.select({ count: sql`count(*)` })
+			.from(backfillProgress)
+			.where(sql`is_completed = true`);
+		const completedTasks = Number(completedTasksRes[0]?.count || 0);
+
+		const totalTasksRes = await db.select({ count: sql`count(*)` }).from(backfillProgress);
+		const totalTasks = Number(totalTasksRes[0]?.count || 0);
+
+		// 2. Current State (QuestDB Candles)
+		let candleCount = 0;
+		try {
+			const qdbRes = await questDbService.query("SELECT count(*) FROM candles");
+			const qdbData = questDbService.formatResult<any>(qdbRes);
+			candleCount = Number(qdbData[0]?.count || 0);
+		} catch (e) {
+			logger.warn("Failed to get candle count from QuestDB", e);
+		}
+
+		// 3. Get Previous Snapshot from Redis
+		const prevSnapshotRaw = await redisConnection.get(MONITORING_CACHE_KEY);
+		const now = Date.now();
+		let tps = 0;
+		let cps = 0;
+		let timeRemaining = "Unknown";
+
+		if (prevSnapshotRaw) {
+			const prev = JSON.parse(prevSnapshotRaw);
+			const timeDeltaSec = (now - prev.timestamp) / 1000;
+
+			if (timeDeltaSec > 0) {
+				tps = Math.max(0, (completedTasks - prev.completedTasks) / timeDeltaSec);
+				cps = Math.max(0, (candleCount - prev.candleCount) / timeDeltaSec);
+
+				// Estimation
+				const remaining = totalTasks - completedTasks;
+				if (tps > 0) {
+					const secondsLeft = remaining / tps;
+					const hours = Math.floor(secondsLeft / 3600);
+					const minutes = Math.floor((secondsLeft % 3600) / 60);
+					timeRemaining = `${hours}h ${minutes}m`;
+				}
+			}
+		}
+
+		// 4. Update Snapshot in Redis (don't overwrite too frequently, min 2s)
+		if (!prevSnapshotRaw || now - JSON.parse(prevSnapshotRaw).timestamp > 2000) {
+			await redisConnection.set(
+				MONITORING_CACHE_KEY,
+				JSON.stringify({
+					timestamp: now,
+					completedTasks,
+					candleCount,
+				}),
+				"EX",
+				60 * 60, // 1 hour expiry
+			);
+		}
+
+		// 5. Status Breakdown
+		const statusBreakdown = await db.execute(sql`
+			SELECT 
+				interval,
+				count(*) filter (where is_completed = true) as completed,
+				count(*) as total
+			FROM backfill_progress
+			GROUP BY interval
+		`);
+
+		return {
+			tasks: {
+				completed: completedTasks,
+				total: totalTasks,
+				percentage: totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(2) : "0",
+				tps: tps.toFixed(2),
+			},
+			candles: {
+				total: candleCount,
+				cps: cps.toFixed(2),
+			},
+			estimate: {
+				timeRemaining,
+			},
+			breakdown: statusBreakdown,
 			timestamp: new Date().toISOString(),
 		};
 	}

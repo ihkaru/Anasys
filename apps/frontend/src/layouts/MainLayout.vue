@@ -14,6 +14,9 @@
       <f7-tab id="tab-explore" class="page-content">
         <ExplorePage />
       </f7-tab>
+      <f7-tab id="tab-monitoring" class="page-content">
+        <MonitoringPage />
+      </f7-tab>
       <f7-tab id="tab-settings" class="page-content">
         <SettingsPage />
       </f7-tab>
@@ -31,6 +34,8 @@
       </f7-link>
       <f7-link tab-link="#tab-explore" icon-ios="f7:compass_fill" icon-md="material:explore" text="Explore">
       </f7-link>
+      <f7-link tab-link="#tab-monitoring" icon-ios="f7:bolt_fill" icon-md="material:bolt" text="Harvest">
+      </f7-link>
       <f7-link tab-link="#tab-settings" icon-ios="f7:gear_alt_fill" icon-md="material:settings" text="Settings">
       </f7-link>
     </f7-toolbar>
@@ -42,6 +47,7 @@ import { onUpdated } from "vue";
 import ExplorePage from "../pages/explore/ExplorePage.vue";
 import HomePage from "../pages/home/HomePage.vue";
 import PortfolioPage from "../pages/portfolio/PortfolioPage.vue";
+import MonitoringPage from "../pages/monitoring/MonitoringPage.vue";
 import SettingsPage from "../pages/settings/SettingsPage.vue";
 import StrategyPage from "../pages/strategy/StrategyPage.vue";
 import { createLogger } from "../utils/logger";

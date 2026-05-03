@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         loop {
             let now = chrono::Utc::now().to_rfc3339();
-            if let Err(e) = std::fs::write("/tmp/engine_heartbeat", now) {
+            if let Err(e) = std::fs::write("heartbeat.txt", now) {
                 error!("🚨 Failed to write heartbeat: {}", e);
             }
             time::sleep(Duration::from_secs(10)).await;

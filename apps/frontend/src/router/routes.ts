@@ -1,6 +1,7 @@
 import MainLayout from "../layouts/MainLayout.vue";
 import LoginPage from "../pages/auth/LoginPage.vue";
 import ChartPage from "../pages/chart/ChartPage.vue";
+import MonitoringPage from "../pages/monitoring/MonitoringPage.vue";
 import HoldingsPage from "../pages/holdings/HoldingsPage.vue";
 import StrategyDetailPage from "../pages/strategy/StrategyDetailPage.vue";
 import StrategyPage from "../pages/strategy/StrategyPage.vue";
@@ -40,6 +41,10 @@ export const routes = [
 	{
 		path: "/chart/",
 		component: ChartPage,
+	},
+	{
+		path: "/monitoring/",
+		component: MonitoringPage,
 	},
 	// Future routes for deep navigation
 	// { path: '/transaction/:id', component: TransactionDetail },

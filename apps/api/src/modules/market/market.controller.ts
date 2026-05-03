@@ -394,6 +394,14 @@ export const internalMarketController = new Elysia({ prefix: "/market/internal" 
 			return { success: false, error: (e as Error).message };
 		}
 	})
+	.get("/monitoring", async () => {
+		try {
+			const stats = await marketService.getMonitoringStats();
+			return { success: true, data: stats };
+		} catch (e) {
+			return { success: false, error: (e as Error).message };
+		}
+	})
 	.group("/backfill", (app) =>
 		app
 			.get("/tasks", async () => {
