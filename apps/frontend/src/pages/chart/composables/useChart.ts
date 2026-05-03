@@ -1,5 +1,5 @@
 import { useElementSize } from "@vueuse/core";
-import { createChart, type IChartApi } from "lightweight-charts";
+import { createChart, CandlestickSeries, type IChartApi } from "lightweight-charts";
 import { markRaw, onUnmounted, type Ref, shallowRef, watch } from "vue";
 import { useSettingsStore } from "../../../stores/settings";
 import { useThemeStore } from "../../../stores/theme";
@@ -57,15 +57,15 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
 			);
 
 			// 2. Call the method BEFORE giving it to Vue's reactivity system
-			if (!rawChart || typeof rawChart.addCandlestickSeries !== "function") {
-				console.error("[Chart] rawChart is invalid or missing addCandlestickSeries", rawChart);
+			if (!rawChart || typeof rawChart.addSeries !== "function") {
+				console.error("[Chart] rawChart is invalid or missing addSeries", rawChart);
 				// Diagnostic dump
 				const proto = rawChart ? Object.getPrototypeOf(rawChart) : null;
 				console.log("rawChart Prototype methods:", proto ? Object.getOwnPropertyNames(proto) : "null");
 				return;
 			}
 
-			const rawCandleSeries = rawChart.addCandlestickSeries(getCandlestickSeriesOptions(getTheme()));
+			const rawCandleSeries = rawChart.addSeries(CandlestickSeries, getCandlestickSeriesOptions(getTheme()));
 
 			// 3. ONLY THEN assign to shallowRefs
 			chart.value = rawChart;
