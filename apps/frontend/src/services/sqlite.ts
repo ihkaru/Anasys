@@ -6,7 +6,7 @@ export const sqliteConnection = new SQLiteConnection(CapacitorSQLite);
 
 export class SQLiteService {
 	db: SQLiteDBConnection | null = null;
-	dbName = "finance_db_v5"; // Bump version to force fresh DB and clear 1M vs 1d cache conflicts
+	dbName = "finance_db_v6"; // Bumped: added cached_at column for TTL-based invalidation
 	private logger = createLogger("SQLite");
 
 	async init() {
@@ -82,6 +82,7 @@ export class SQLiteService {
                 close REAL,
                 volume REAL,
                 source TEXT NOT NULL DEFAULT 'YAHOO',
+                cached_at INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (symbol, interval, timestamp, source)
             );
             CREATE INDEX IF NOT EXISTS idx_ohlcv_query ON ohlcv(symbol, interval, source, timestamp DESC);
@@ -110,30 +111,28 @@ export class SQLiteService {
 		}, 1000); // Debounce 1 second
 	}
 
-	// OHLCV Cache - OPTIMIZED with batching
-	async saveOHLCV(symbol: string, interval: string, data: any[]) {
+	// OHLCV Cache - OPTIMIZED with batching and cached_at for TTL tracking
+	async saveOHLCV(symbol: string, interval: string, data: any[], source?: string) {
 		if (!this.db) await this.init();
 		if (data.length === 0) return;
 
 		const saveStart = performance.now();
-		const BATCH_SIZE = 50; // Process in smaller batches
+		const cachedAt = Date.now();
+		const BATCH_SIZE = 50;
 		const batches: string[][] = [];
 
-		// Split into batches
 		for (let i = 0; i < data.length; i += BATCH_SIZE) {
 			const batch = data.slice(i, i + BATCH_SIZE);
 			const statements = batch.map((d) => {
-				const source = d.source || "YAHOO";
-				return `INSERT OR REPLACE INTO ohlcv (symbol, interval, timestamp, open, high, low, close, volume, source) 
-                    VALUES ('${symbol}', '${interval}', ${new Date(d.timestamp).getTime()}, ${d.open}, ${d.high}, ${d.low}, ${d.close}, ${d.volume}, '${source}');`;
+				const src = source || d.source || "YAHOO";
+				return `INSERT OR REPLACE INTO ohlcv (symbol, interval, timestamp, open, high, low, close, volume, source, cached_at) 
+                    VALUES ('${symbol}', '${interval}', ${new Date(d.timestamp).getTime()}, ${d.open}, ${d.high}, ${d.low}, ${d.close}, ${d.volume}, '${src}', ${cachedAt});`;
 			});
 			batches.push(statements);
 		}
 
-		// Execute batches with yielding to main thread
 		for (let i = 0; i < batches.length; i++) {
 			await this.db?.execute(batches[i].join("\n"));
-			// Yield to main thread between batches
 			await new Promise((resolve) => setTimeout(resolve, 0));
 		}
 
@@ -141,8 +140,39 @@ export class SQLiteService {
 			`[SQLite] saveOHLCV ${symbol}/${interval}: ${data.length} rows in ${Math.round(performance.now() - saveStart)}ms`,
 		);
 
-		// Debounced save to store (non-blocking)
 		this.debouncedSaveToStore();
+	}
+
+	/**
+	 * Check if cached OHLCV data for a symbol/interval/source is expired.
+	 * Returns true if data should be re-fetched from the API.
+	 */
+	async isCacheExpired(symbol: string, interval: string, source: string): Promise<boolean> {
+		if (!this.db) await this.init();
+
+		const TTL_MS: Record<string, number> = {
+			"1m": 5 * 60_000,
+			"5m": 5 * 60_000,
+			"15m": 15 * 60_000,
+			"30m": 15 * 60_000,
+			"1h": 60 * 60_000,
+			"4h": 60 * 60_000,
+			"1d": 4 * 60 * 60_000,
+			"1wk": 4 * 60 * 60_000,
+			"1mo": 4 * 60 * 60_000,
+		};
+
+		const ttl = TTL_MS[interval] ?? 60 * 60_000; // Default 1 hour
+
+		const res = await this.db?.query(
+			`SELECT MAX(cached_at) as last_cached FROM ohlcv WHERE symbol = ? AND interval = ? AND source = ?`,
+			[symbol, interval, source],
+		);
+
+		const lastCached = res?.values?.[0]?.last_cached;
+		if (!lastCached || lastCached === 0) return true; // No cache → expired
+
+		return Date.now() - lastCached > ttl;
 	}
 
 	async getOHLCV(symbol: string, interval: string, limit: number, before?: number, source: string = "YAHOO") {

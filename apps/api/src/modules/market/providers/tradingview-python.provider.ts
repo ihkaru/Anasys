@@ -21,29 +21,15 @@ export class TradingViewPythonProvider implements IDataProvider {
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
 		this.logger.debug(`Fetching ${ticker} from TradingView...`);
 
-		const period1Ms = options.period1 ? new Date(options.period1).getTime() : 0;
-		const period2Ms = options.period2 ? new Date(options.period2).getTime() : Date.now();
-		const spanMs = period2Ms - period1Ms;
-
-		let limit = 200; // Default
-
-		// Calculate needed limit based on the span we need to cover
-		// TradingView always returns the LATEST N candles from now,
-		// so we must request enough candles to cover the entire range back to period1.
-		if (period1Ms > 0) {
-			// How many candles cover the span from period1 to NOW?
-			const spanToNow = Date.now() - period1Ms;
-			const intervalMs = this.getIntervalMs(options.interval);
-			if (intervalMs > 0) {
-				limit = Math.ceil(spanToNow / intervalMs) + 50; // Add buffer
-				if (limit > 5000) limit = 5000;
-			}
-		} else if (options.limit) {
-			limit = Number(options.limit);
-		}
+		// ── Greedy Single-Fetch Strategy ─────────────────────────────────────────
+		// ALWAYS request the maximum number of candles available (up to 5000).
+		// This minimises TradingView WebSocket connections (1 connection = all history).
+		// Date filtering is done by QuestDB after the data is stored.
+		const MAX_LIMIT = 5000;
+		const limit = options.limit && options.limit < MAX_LIMIT ? options.limit : MAX_LIMIT;
 
 		this.logger.debug(
-			`[TradingViewProvider] Requesting ${limit} candles for ${ticker} (${options.interval}), period: ${options.period1 || "N/A"} -> ${options.period2 || "now"}`,
+			`[TradingViewProvider] Requesting ${limit} candles for ${ticker} (${options.interval}) [Greedy fetch — no date filter]`,
 		);
 
 		// Construct full symbol if exchange provided (TradingView requires UPPERCASE)
@@ -65,56 +51,74 @@ export class TradingViewPythonProvider implements IDataProvider {
 			this.logger.info(`[TradingViewProvider] Applied heuristic mapping: ${ticker} -> ${symbol}`);
 		}
 
-		const result = await this.executePython("chart", {
-			symbol: symbol,
-			interval: options.interval,
-			period: options.period,
-			limit: limit,
-		});
+		// ── Retry with exponential backoff + jitter for rate limits ──────────────
+		const MAX_RETRIES = 3;
+		let lastErr: Error | null = null;
 
-		// Map raw data to UnifiedCandle
-		// Bridge script returns [{time, open, high, low, close, volume}, ...]
-		const mapped = result
-			.map((c: any) => {
-				let ts = c.time || c.date || c.timestamp;
-				// Unix timestamp in seconds? Convert to ms
-				if (typeof ts === "number" && ts < 2000000000) {
-					ts *= 1000;
-				}
-				return {
-					timestamp: new Date(ts),
-					open: Number(c.open),
-					high: Number(c.high),
-					low: Number(c.low),
-					close: Number(c.close),
-					volume: Number(c.volume || 0),
-				};
-			})
-			.filter((c: UnifiedCandle) => {
-				// Reject NaN / non-positive candles
-				if (Number.isNaN(c.open) || Number.isNaN(c.high) || Number.isNaN(c.low) || Number.isNaN(c.close)) {
-					this.logger.warn(`[TradingViewProvider] Rejected NaN candle at ${c.timestamp.toISOString()}`);
-					return false;
-				}
-				if (c.open <= 0 || c.high <= 0 || c.low <= 0 || c.close <= 0) {
-					this.logger.warn(`[TradingViewProvider] Rejected non-positive candle at ${c.timestamp.toISOString()}`);
-					return false;
-				}
-				// CRITICAL: Filter by date range.
-				// TradingView always returns the N most recent candles regardless of period1/period2.
-				// We must filter to only include candles within the requested window,
-				// otherwise old backfill requests would overwrite newer data with stale candles.
-				const candleMs = c.timestamp.getTime();
-				if (period1Ms > 0 && candleMs < period1Ms) return false;
-				// Only apply upper bound filter if period2 was explicitly set (backfill mode)
-				if (options.period2 && candleMs > period2Ms) return false;
-				return true;
-			});
+		for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+			try {
+				const result = await this.executePython("chart", {
+					symbol: symbol,
+					interval: options.interval,
+					period: options.period,
+					limit: limit,
+				});
 
-		this.logger.debug(
-			`[TradingViewProvider] Received ${mapped.length} valid candles from Python (span filter: ${new Date(period1Ms).toISOString().split("T")[0]} - ${new Date(period2Ms).toISOString().split("T")[0]})`,
-		);
-		return mapped;
+				// Map raw data to UnifiedCandle — no date filter here
+				const mapped = result
+					.map((c: any) => {
+						let ts = c.time || c.date || c.timestamp;
+						if (typeof ts === "number" && ts < 2000000000) ts *= 1000;
+						return {
+							timestamp: new Date(ts),
+							open: Number(c.open),
+							high: Number(c.high),
+							low: Number(c.low),
+							close: Number(c.close),
+							volume: Number(c.volume || 0),
+						};
+					})
+					.filter((c: UnifiedCandle) => {
+						// Reject NaN / non-positive candles only
+						if (
+							Number.isNaN(c.open) ||
+							Number.isNaN(c.high) ||
+							Number.isNaN(c.low) ||
+							Number.isNaN(c.close)
+						) {
+							this.logger.warn(`[TradingViewProvider] Rejected NaN candle at ${c.timestamp.toISOString()}`);
+							return false;
+						}
+						if (c.open <= 0 || c.high <= 0 || c.low <= 0 || c.close <= 0) {
+							this.logger.warn(`[TradingViewProvider] Rejected non-positive candle at ${c.timestamp.toISOString()}`);
+							return false;
+						}
+						return true;
+					});
+
+				this.logger.debug(
+					`[TradingViewProvider] Received ${mapped.length} valid candles (attempt ${attempt})`,
+				);
+				return mapped;
+			} catch (err: any) {
+				lastErr = err;
+				const isRateLimit =
+					err.message?.includes("429") || err.message?.includes("Too Many Requests");
+
+				if (isRateLimit && attempt < MAX_RETRIES) {
+					// Exponential backoff: 30s, 60s, 120s + random jitter (0-30s)
+					const backoffMs = 30_000 * Math.pow(2, attempt - 1) + Math.random() * 30_000;
+					this.logger.warn(
+						`[TradingViewProvider] Rate limited (429). Retry ${attempt}/${MAX_RETRIES} after ${Math.round(backoffMs / 1000)}s...`,
+					);
+					await new Promise((r) => setTimeout(r, backoffMs));
+				} else {
+					break;
+				}
+			}
+		}
+
+		throw lastErr || new Error(`TradingView fetch failed for ${ticker}`);
 	}
 
 	private getIntervalMs(interval: string): number {

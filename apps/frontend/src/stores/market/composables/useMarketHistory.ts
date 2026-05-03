@@ -18,7 +18,6 @@ export function useMarketHistory(logger: Logger) {
 				`Fetching history for ${ticker} (interval=${interval}, limit=${limit}, before=${before}, source=${source})`,
 			);
 			// Cache key MUST include source to prevent cross-provider cache pollution
-			// (e.g., BTCUSD:1d:TRADINGVIEW vs BTCUSD:1d:YAHOO must be separate entries)
 			const cacheKey = `${ticker}:${interval}:${source || "AUTO"}`;
 
 			if (!before) {
@@ -31,36 +30,39 @@ export function useMarketHistory(logger: Logger) {
 				}
 			}
 
-			// 1. Try SQLite Cache
-			// console.time('[FetchHistory] SQLite getOHLCV');
+			// 1. Try SQLite Cache (with TTL check for latest data)
 			let cachedData: any[] = [];
+			let sqliteExpired = false;
 			try {
 				const beforeTs = before ? new Date(before).getTime() : undefined;
-				cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs, source);
+
+				// TTL check: only for latest data (not backfill/before requests)
+				if (!before && source) {
+					sqliteExpired = await sqliteService.isCacheExpired(ticker, interval, source);
+				}
+
+				if (!sqliteExpired) {
+					cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs, source);
+				} else {
+					logger.debug(`[FetchHistory] SQLite TTL expired for ${ticker}/${interval}/${source} — skipping cache`);
+				}
 			} catch (err) {
 				logger.warn("SQLite Cache Read Failed", err);
 			}
-			// console.timeEnd('[FetchHistory] SQLite getOHLCV');
-			// console.log(`[FetchHistory] SQLite returned ${cachedData.length} rows`);
 
 			if (cachedData.length > 0) {
 				if (before) {
 					if (cachedData.length >= limit) {
-						if (cachedData.length >= limit) {
-							const newData = mergeOHLCVData(ohlcvData.value, cachedData, true);
-
-							// OPTIMIZATION: Defer assignment to next frame to break up long task
-							// This allows browser to respond to user input before reactivity cascade
-							requestAnimationFrame(() => {
-								ohlcvData.value = newData;
-							});
-
-							return cachedData;
-						}
+						const newData = mergeOHLCVData(ohlcvData.value, cachedData, true);
+						// Defer to next frame to reduce long task blocking
+						requestAnimationFrame(() => {
+							ohlcvData.value = newData;
+						});
+						return cachedData;
 					}
 				} else {
 					ohlcvData.value = cachedData;
-					if (!before) ohlcvCache.value.set(cacheKey, cachedData);
+					ohlcvCache.value.set(cacheKey, cachedData);
 					historyLoading.value = false;
 				}
 			} else {
@@ -75,30 +77,29 @@ export function useMarketHistory(logger: Logger) {
 						limit: String(limit),
 						interval,
 						before,
-						source, // Pass source if explicitly provided
+						source,
 					});
 
 					if (response.data.success) {
 						const newData = response.data.data || [];
 
-						// Save to Cache
-						const dataToSave = newData.map((d: any) => ({ ...d }));
-						sqliteService.saveOHLCV(ticker, interval, dataToSave).catch((e) => logger.error("Cache Save Failed", e));
+						// Save to SQLite with source for accurate TTL tracking
+						const resolvedSource = source || newData[0]?.source || "YAHOO";
+						sqliteService
+							.saveOHLCV(ticker, interval, newData, resolvedSource)
+							.catch((e) => logger.error("Cache Save Failed", e));
 
 						if (before) {
 							if (newData.length > 0) {
 								const merged = mergeOHLCVData(ohlcvData.value, newData, true);
 								ohlcvData.value = merged;
-								return newData;
 							}
 							return newData;
 						} else {
-							// Initial/Latest Fetch
 							const current = ohlcvData.value;
-							// Check deduplication handled in merge
 							const merged = mergeOHLCVData(current, newData, false);
 							ohlcvData.value = merged;
-							if (!before) ohlcvCache.value.set(cacheKey, merged);
+							ohlcvCache.value.set(cacheKey, merged);
 							return newData;
 						}
 					} else {
@@ -117,6 +118,7 @@ export function useMarketHistory(logger: Logger) {
 			})();
 
 			if (cachedData.length > 0 && !before) {
+				// Serve from cache immediately, refresh in background
 				networkPromise.catch((e) => logger.warn("Background fetch failed", e));
 				return cachedData;
 			} else {

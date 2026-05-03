@@ -1,0 +1,154 @@
+# ADR-0012: Data Pipeline Best Practices & Gap Resolution
+
+## Status
+Accepted (Mei 2026)
+
+## Konteks
+
+Audit Mei 2026 setelah sesi debugging intensif menemukan beberapa gap antara
+arsitektur yang diputuskan di ADR sebelumnya (0007, 0009) dengan implementasi aktual.
+
+### Gap yang Ditemukan
+
+| # | Gap | ADR Asal | Dampak |
+|---|---|---|---|
+| G1 | OHLCV dari TV/Yahoo masuk ke Postgres, **tidak naik ke QuestDB** | ADR-0007, ADR-0009 | Engine tidak tahu data sudah ada — scrape ulang sia-sia |
+| G2 | `INGEST-PENDING` signal hanya berupa log string, **tidak dikirim ke Engine** | ADR-0007 | Engine tidak bisa bereaksi terhadap demand dari user |
+| G3 | SQLite browser cache **tanpa TTL per interval** | ADR-0007 | Data stale ditampilkan tanpa user sadar |
+| G4 | `return` invalid di `bridge_tradingview.py` (bug kritis) | ADR-0011 | **100% backfill dari TradingView gagal silently** |
+| G5 | `console.time()` blocking pada concurrent fetch | — | Timeframe switching menyebabkan chart kosong silently |
+| G6 | Cache key tanpa `source` identifier | ADR-0007 | Polusi cache antar provider (Yahoo vs TradingView) |
+
+---
+
+## Keputusan Arsitektur
+
+### 1. Tetap Gunakan Unofficial TradingView Scraper
+
+**Keputusan**: Unofficial TradingView Python scraper (`bridge_tradingview.py`) dipertahankan
+sebagai sumber data historis untuk aset non-crypto.
+
+**Alasan**:
+- Provider resmi (Polygon.io, Twelve Data) memerlukan biaya atau memiliki batasan ticker
+- TradingView memiliki cakupan instrumen paling luas (saham global, forex, komoditas, crypto)
+- Dengan guardrails yang tepat (rate limiter, retry, error handling), risiko dapat dikelola
+
+**Guardrails yang harus ada**:
+- ✅ Rate limiter dengan exponential backoff sudah ada (`rate-limiter.ts`)
+- ✅ Error handling ketat — tidak ada silent fallback ke provider lain
+- ✅ Bridge syntax validated sebelum deploy
+- 🔲 TODO: Health check endpoint untuk deteksi TV rate limit dini
+
+### 2. Arsitektur Storage: Postgres sebagai Operational Store, QuestDB sebagai Analytical Store
+
+Menggantikan ambiguitas sebelumnya, peran masing-masing storage dikunci:
+
+```
+┌──────────────────────────────────────────────────────┐
+│                    DATA SOURCES                      │
+│  TradingView Scraper (Python)  │  Yahoo Finance      │
+│  Binance klines API (Rust)     │  TradingView WS     │
+└────────────┬─────────────────────────────────────────┘
+             │
+      ┌──────▼──────────────────────────────────┐
+      │           API (Bun/Elysia)              │
+      │  On-demand backfill (user request)      │
+      │  Market data Proxy (Smart Routing)      │
+      └──────┬──────────────────────────────────┘
+             │
+     ┌───────▼───────┐      ┌───────────────────┐
+     │   Postgres    │      │     QuestDB        │
+     │  (Operational)│      │   (Analytical)     │
+     │               │      │                    │
+     │  • symbols    │      │  • candles (OHLCV) │
+     │  • users      │      │  • ticks           │
+     │  • watchlist  │      │                    │
+     │  • portfolios │      │  ← diisi Engine    │
+     │  • market_data│ ──── │    (via Redis pub) │
+     │    (cache     │ pub  │                    │
+     │     sementara)│      │                    │
+     └───────────────┘      └───────────────────┘
+```
+
+**Aturan**:
+- `market_data` di Postgres adalah **operational cache** sementara
+- QuestDB adalah **source of truth** untuk data OHLCV jangka panjang
+- Data dari Postgres **HARUS** dipromosikan ke QuestDB via Engine (lihat G1)
+
+### 3. Fix INGEST-PENDING: Redis Pub/Sub ke Engine (TODO Priority High)
+
+**Saat ini**: `INGEST-PENDING` hanya berupa log string — Engine tidak tahu.
+
+**Target**:
+```typescript
+// Setelah backfill berhasil di candle.service.ts:
+await redisClient.publish('harvest:ingest-pending', JSON.stringify({
+  ticker,
+  interval,
+  source,
+  latestTimestamp: candles.at(-1)?.timestamp,
+}));
+```
+
+```rust
+// Engine Rust subscribe ke channel ini:
+// harvest:ingest-pending → tambahkan ke harvest:realtime:symbols
+// → Engine mulai scrape ticker ini secara real-time
+```
+
+### 4. SQLite Browser Cache: TTL Per Interval
+
+**Saat ini**: Tidak ada TTL — data lama mungkin tersimpan selamanya.
+
+**Target**: TTL dikonfigurasi per interval:
+
+| Interval | TTL Cache |
+|---|---|
+| 1m, 5m | 5 menit |
+| 15m, 30m | 15 menit |
+| 1h, 4h | 1 jam |
+| 1d, 1wk, 1mo | 4 jam |
+
+Implementasi: tambah kolom `cachedAt` di SQLite, query cek apakah `now - cachedAt > TTL`.
+
+### 5. Source-Aware Cache Key (Sudah Diimplementasikan ✅)
+
+Cache key format: `TICKER:INTERVAL:SOURCE`
+- Contoh: `BTCUSD:1d:TRADINGVIEW`, `BTCUSD:1d:YAHOO`
+- Mencegah polusi cache antar provider
+
+### 6. Bridge Syntax Validation pada CI/CD
+
+Tambahkan step di pipeline:
+```yaml
+- name: Validate Python bridge syntax
+  run: python3 -m py_compile apps/api/src/scripts/bridge_tradingview.py
+```
+
+---
+
+## Gap Status
+
+| Gap | Status | Target |
+|---|---|---|
+| G1: OHLCV tidak naik ke QuestDB | 🔲 Belum | Redis pub/sub ke Engine |
+| G2: INGEST-PENDING signal tidak nyata | 🔲 Belum | Redis publish setelah backfill |
+| G3: SQLite tanpa TTL | 🔲 Belum | TTL per interval di useMarketCache |
+| G4: `return` invalid di bridge | ✅ Fixed | — |
+| G5: `console.time()` blocking | ✅ Fixed | `performance.now()` |
+| G6: Cache key tanpa source | ✅ Fixed | `TICKER:INTERVAL:SOURCE` |
+
+---
+
+## Prioritas Pekerjaan Selanjutnya
+
+1. **HIGH**: Implementasi Redis pub/sub dari API ke Engine untuk INGEST-PENDING (G1, G2)
+2. **MEDIUM**: SQLite TTL per interval (G3)
+3. **LOW**: CI/CD step untuk Python syntax validation
+
+## Referensi
+- ADR-0007: Unified Market Data Lake Strategy
+- ADR-0009: Autonomous Harvesting Pipeline
+- `apps/api/src/modules/market/services/candle.service.ts` — titik backfill
+- `apps/api/src/modules/market/providers/tradingview-python.provider.ts` — bridge
+- `apps/frontend/src/stores/market/composables/useMarketCache.ts` — SQLite cache

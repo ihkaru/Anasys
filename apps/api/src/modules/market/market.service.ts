@@ -78,72 +78,43 @@ export class MarketService {
 	}
 
 	/**
-	 * Unified OHLCV fetch — Smart Proxy routing.
+	 * Unified OHLCV fetch — QuestDB as single source of truth.
 	 *
-	 * Strategy (Unified Data Lake):
-	 * 1. Try QuestDB (Engine) first — our local high-performance store.
-	 *    If data exists, downsample from ticks and return immediately.
-	 * 2. Fallback to external provider (Yahoo/TV via Postgres/CandleService).
-	 * 3. Fire-and-forget: signal Engine to begin ingesting this ticker asynchronously
-	 *    so future requests will be served from our local store.
+	 * Flow (owned by CandleService):
+	 * 1. LRU in-process cache (30s TTL)
+	 * 2. QuestDB query (source-aware)
+	 * 3. On MISS: backfill from TV/Yahoo → promote to QuestDB → serve from QuestDB
 	 *
-	 * The caller (frontend) never needs to specify a "source" —
-	 * that routing decision lives entirely in this layer.
+	 * Source resolution:
+	 * - Explicit source from frontend → use it
+	 * - No source → look up symbol's pinned provider in DB
+	 * - Unknown symbol → TRADINGVIEW for intraday, YAHOO for daily+
 	 */
 	async getOHLCV(ticker: string, interval: string, limit: number, before?: string, explicitSource?: string) {
-		// Step 1: Try Engine (QuestDB) if it's explicitly requested or as primary source
-		const useEngine = explicitSource === "ENGINE" || explicitSource === "QUESTDB" || !explicitSource;
+		// Resolve source: explicit → DB-pinned → smart default
+		let source = explicitSource;
 
-		if (useEngine) {
-			try {
-				const engineData = await this.getHistoricalOHLCV(ticker, interval, limit);
-				if (engineData.length > 0) {
-					logger.debug(`[getOHLCV] Engine cache HIT for ${ticker} (${engineData.length} candles)`);
-					return engineData;
-				}
-				logger.debug(`[getOHLCV] Engine cache MISS for ${ticker}`);
-			} catch (err) {
-				logger.warn(`[getOHLCV] Engine query failed for ${ticker}`, err);
-			}
-		}
-
-		// Step 2: Fallback to external provider
-		// If frontend sent an explicit source (YAHOO/TRADINGVIEW), use it.
-		// Otherwise, check if we already have this symbol in DB and use its preferred provider.
-		let smartSource = explicitSource;
-
-		if (!smartSource) {
+		if (!source) {
 			const existing = await symbolRepo.findByTicker(ticker);
-			if (existing && existing.provider) {
-				// Map DB provider to internal source names
+			if (existing?.provider) {
 				const providerMap: Record<string, string> = {
 					tradingview: "TRADINGVIEW",
 					yahoo: "YAHOO",
 					ccxt: "CCXT",
 				};
-				smartSource = providerMap[existing.provider.toLowerCase()] || existing.provider.toUpperCase();
-				logger.debug(`[getOHLCV] Using DB-pinned source for ${ticker}: ${smartSource}`);
+				source = providerMap[existing.provider.toLowerCase()] || existing.provider.toUpperCase();
+				logger.debug(`[getOHLCV] DB-pinned source for ${ticker}: ${source}`);
 			}
 		}
 
-		// Final fallback for new discovery
-		if (!smartSource) {
+		if (!source) {
 			const intradayIntervals = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h"];
-			smartSource = intradayIntervals.includes(interval) ? "TRADINGVIEW_PW" : "YAHOO";
-			logger.debug(`[getOHLCV] No explicit or DB source for ${ticker}, using smartSource: ${smartSource}`);
+			source = intradayIntervals.includes(interval) ? "TRADINGVIEW" : "YAHOO";
+			logger.debug(`[getOHLCV] No source for ${ticker}, defaulting to ${source}`);
 		}
 
-		const externalData = await candleService.getOHLCV(ticker, interval, limit, before, smartSource);
-
-		// Step 3: Fire-and-forget ingestion signal
-		if (externalData.length > 0) {
-			logger.info(
-				`[getOHLCV] [INGEST-PENDING] ${ticker} (${interval}) served from ${smartSource}. ` +
-					`Engine should ingest this ticker to serve future requests locally.`,
-			);
-		}
-
-		return externalData;
+		// CandleService owns: LRU → QuestDB → backfill → promote → QuestDB
+		return candleService.getOHLCV(ticker, interval, limit, before, source);
 	}
 
 	async getDownsampledCandles(ticker: string, resolution: string, limit: number) {
@@ -333,45 +304,20 @@ export class MarketService {
 	 * Fetches historical OHLCV data from QuestDB (Anasys Engine).
 	 * Data is retrieved from the 'candles' table which stores pre-aggregated OHLCV data.
 	 */
-	async getHistoricalOHLCV(symbol: string, interval: string = "1d", limit: number = 500) {
-		const qdbSymbol = symbol;
-
-		// We query the 'candles' table which already stores OHLCV data per interval
-		const sql = `
-			SELECT 
-				timestamp, 
-				open, 
-				high, 
-				low, 
-				close, 
-				volume 
-			FROM candles 
-			WHERE symbol = '${qdbSymbol}' 
-			AND interval = '${interval}'
-			ORDER BY timestamp DESC
-			LIMIT ${limit};
-		`;
-
-		logger.debug(`[QuestDB] Executing: ${sql.trim()}`);
-
+	/**
+	 * Direct QuestDB query — used by Engine health checks and admin endpoints.
+	 * For chart serving, use getOHLCV() which goes through CandleService.
+	 */
+	async getHistoricalOHLCV(symbol: string, interval = "1d", limit = 500, source?: string) {
 		try {
-			const response = await questDbService.query(sql);
-			const formatted = questDbService.formatResult<any>(response);
-
-			logger.debug(`[QuestDB] ${symbol} (${interval}) returned ${formatted.length} rows`);
-
-			return formatted
-				.map((item) => ({
-					timestamp: new Date(item.timestamp).toISOString(),
-					open: item.open,
-					high: item.high,
-					low: item.low,
-					close: item.close,
-					volume: item.volume,
-				}))
-				.reverse(); // Reverse because we ordered by DESC but chart needs ASC
+			return await questDbService.getCandles(
+				symbol,
+				interval,
+				source || "YAHOO",
+				limit,
+			);
 		} catch (err) {
-			logger.error(`[QuestDB] Failed to fetch history for ${symbol}`, err);
+			logger.error(`[QuestDB] getHistoricalOHLCV failed for ${symbol}`, err);
 			return [];
 		}
 	}
