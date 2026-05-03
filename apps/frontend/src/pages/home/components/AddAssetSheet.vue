@@ -15,7 +15,7 @@
             </div>
             <f7-list media-list v-else>
                 <f7-list-item v-for="(asset, index) in searchResults" :key="(asset.ticker || 'unk') + (asset.source || '') + index"
-                    :title="asset.ticker" :subtitle="asset.name" @click="$emit('add', asset)">
+                    :title="asset.ticker" :subtitle="asset.name" link="#" @click="$emit('add', asset)">
                     <template #after>
                         <span class="badge-row">
                             <span v-if="asset.exchange" class="badge exchange">{{ asset.exchange }}</span>

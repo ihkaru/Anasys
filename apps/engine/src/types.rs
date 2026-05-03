@@ -26,3 +26,16 @@ pub struct CandleData {
     pub source: String,
     pub timestamp: i64,
 }
+
+/// Harvesting task dari API.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BackfillTask {
+    pub id: i32,
+    pub ticker: String,
+    pub interval: String,
+    pub target_start_date: String,
+    pub asset_type: String,
+    pub tradingview_symbol: Option<String>,
+    pub tradingview_exchange: Option<String>,
+}

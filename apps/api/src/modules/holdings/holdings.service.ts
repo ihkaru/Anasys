@@ -114,7 +114,20 @@ export class HoldingsService {
 			return { success: false, error: "Symbol not found" };
 		}
 
-		const source = input.source || "YAHOO";
+		// Resolve source from DB if not explicitly provided
+		// This ensures portfolio sparkline queries against the correct provider's candle data
+		let source = input.source;
+		if (!source) {
+			const providerMap: Record<string, string> = {
+				tradingview: "TRADINGVIEW",
+				ccxt: "CCXT",
+			};
+			const providerField = symbol.provider?.toLowerCase();
+			source = (providerField && providerMap[providerField]) || "YAHOO";
+			if (source !== "YAHOO") {
+				logger.info(`[HoldingsService] Resolved source for ${input.ticker} from DB: ${source}`);
+			}
+		}
 
 		// Check if user already has this holding with same source
 		const [existing] = await db

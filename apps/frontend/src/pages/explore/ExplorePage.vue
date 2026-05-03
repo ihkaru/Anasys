@@ -168,12 +168,8 @@ function onSearchClear() {
 
 function openAsset(item: any) {
 	logger.debug("Open asset:", item.ticker, item.source);
-	marketStore.selectSymbol(item.ticker);
-	if (item.source) {
-		marketStore.selectSource(item.source);
-	} else {
-		marketStore.selectSource("YAHOO"); // Default
-	}
+	// Passing the whole item as symbolData prevents context loss (source, exchange, etc)
+	marketStore.selectSymbol(item.ticker, item);
 	f7.views.main.router.navigate("/chart/", { props: { ticker: item.ticker } });
 }
 </script>

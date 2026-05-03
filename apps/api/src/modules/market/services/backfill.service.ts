@@ -45,17 +45,44 @@ export class BackfillService {
 	/**
 	 * Update progress for a specific backfill task.
 	 */
-	async updateProgress(id: number, lastTimestamp: string, isCompleted = false) {
-		logger.info(`Updating backfill progress for ID ${id}: last=${lastTimestamp}, completed=${isCompleted}`);
+	async updateProgress(id: number, lastTimestamp: string, isCompleted = false, metadata?: any) {
+		logger.info(
+			`Updating backfill progress for ID ${id}: last=${lastTimestamp}, completed=${isCompleted}, hasMeta=${!!metadata}`,
+		);
 
-		await db
-			.update(backfillProgress)
-			.set({
-				lastBackfilledAt: new Date(lastTimestamp),
-				isCompleted,
-				updatedAt: new Date(),
-			})
-			.where(eq(backfillProgress.id, id));
+		await db.transaction(async (tx) => {
+			// 1. Update progress table
+			await tx
+				.update(backfillProgress)
+				.set({
+					lastBackfilledAt: new Date(lastTimestamp),
+					isCompleted,
+					updatedAt: new Date(),
+				})
+				.where(eq(backfillProgress.id, id));
+
+			// 2. Update symbol metadata if provided
+			if (metadata && metadata.name) {
+				// Find symbolId for this backfill record first
+				const progress = await tx
+					.select({ symbolId: backfillProgress.symbolId })
+					.from(backfillProgress)
+					.where(eq(backfillProgress.id, id))
+					.limit(1);
+
+				if (progress.length > 0) {
+					logger.debug(`Updating symbol metadata for symbolId=${progress[0].symbolId}: ${metadata.name}`);
+					await tx
+						.update(symbols)
+						.set({
+							description: metadata.name,
+							exchange: metadata.exchange,
+							updatedAt: new Date(),
+						})
+						.where(eq(symbols.id, progress[0].symbolId));
+				}
+			}
+		});
 	}
 }
 

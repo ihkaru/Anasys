@@ -14,8 +14,10 @@ services:
       - REDIS_URL=redis://redis:6379
       - QUESTDB_URL=http://questdb:9000
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/finance_db
+      - API_URL=http://api:3000/api
       - ANASYS_SCRAPE_SYMBOLS=${ANASYS_SCRAPE_SYMBOLS:-BINANCE:BTCUSDT,BINANCE:ETHUSDT,FX:EURUSD,COMEX:GC1!}
       - RUST_LOG=info
+      - RUST_BACKTRACE=1
     volumes:
       - .:/app
       - engine_target:/app/apps/engine/target # Preserve target folder in container

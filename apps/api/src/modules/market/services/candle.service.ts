@@ -52,6 +52,7 @@ export class CandleService {
 				await this.syncService.syncSymbolData(ticker, symbol.type, interval, beforeDate, source);
 				this.logger.info(`[getOHLCV] Backfill sync took ${Date.now() - startBackfill}ms`);
 
+				// After backfill, fetch again — use a generous limit to return data older than `before`
 				const startQuery = Date.now();
 				candles = await this.marketDataRepo.getRawCandles(symbol.id, interval, limit, beforeDate, source);
 				this.logger.info(

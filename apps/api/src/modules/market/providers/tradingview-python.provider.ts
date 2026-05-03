@@ -21,27 +21,31 @@ export class TradingViewPythonProvider implements IDataProvider {
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
 		this.logger.debug(`Fetching ${ticker} from TradingView...`);
 
+		const period1Ms = options.period1 ? new Date(options.period1).getTime() : 0;
+		const period2Ms = options.period2 ? new Date(options.period2).getTime() : Date.now();
+		const spanMs = period2Ms - period1Ms;
+
 		let limit = 200; // Default
 
-		// Calculate needed limit if period1 (start date) is provided
-		if (options.period1) {
-			const start = new Date(options.period1).getTime();
-			const now = Date.now();
-			const diffMs = now - start;
+		// Calculate needed limit based on the span we need to cover
+		// TradingView always returns the LATEST N candles from now,
+		// so we must request enough candles to cover the entire range back to period1.
+		if (period1Ms > 0) {
+			// How many candles cover the span from period1 to NOW?
+			const spanToNow = Date.now() - period1Ms;
 			const intervalMs = this.getIntervalMs(options.interval);
 			if (intervalMs > 0) {
-				limit = Math.ceil(diffMs / intervalMs) + 50; // Add buffer
-				// Cap at reasonable max for TradingView to avoid timeouts/blocks
+				limit = Math.ceil(spanToNow / intervalMs) + 50; // Add buffer
 				if (limit > 5000) limit = 5000;
 			}
 		} else if (options.limit) {
 			limit = Number(options.limit);
 		}
 
-		this.logger.debug(`[TradingViewProvider] Requesting ${limit} candles for ${ticker} (${options.interval})`);
+		this.logger.debug(`[TradingViewProvider] Requesting ${limit} candles for ${ticker} (${options.interval}), period: ${options.period1 || 'N/A'} -> ${options.period2 || 'now'}`);
 
-		// Construct full symbol if exchange provided
-		let symbol = options.exchange ? `${options.exchange}:${ticker}` : ticker;
+		// Construct full symbol if exchange provided (TradingView requires UPPERCASE)
+		let symbol = options.exchange ? `${options.exchange.toUpperCase()}:${ticker.toUpperCase()}` : ticker.toUpperCase();
 
 		// Heuristic Mapping for common tickers where Yahoo != TradingView
 		const mapping: Record<string, string> = {
@@ -85,7 +89,7 @@ export class TradingViewPythonProvider implements IDataProvider {
 				};
 			})
 			.filter((c: UnifiedCandle) => {
-				// Reject candles where Number() conversion produced NaN or non-positive prices
+				// Reject NaN / non-positive candles
 				if (Number.isNaN(c.open) || Number.isNaN(c.high) || Number.isNaN(c.low) || Number.isNaN(c.close)) {
 					this.logger.warn(`[TradingViewProvider] Rejected NaN candle at ${c.timestamp.toISOString()}`);
 					return false;
@@ -94,10 +98,18 @@ export class TradingViewPythonProvider implements IDataProvider {
 					this.logger.warn(`[TradingViewProvider] Rejected non-positive candle at ${c.timestamp.toISOString()}`);
 					return false;
 				}
+				// CRITICAL: Filter by date range.
+				// TradingView always returns the N most recent candles regardless of period1/period2.
+				// We must filter to only include candles within the requested window,
+				// otherwise old backfill requests would overwrite newer data with stale candles.
+				const candleMs = c.timestamp.getTime();
+				if (period1Ms > 0 && candleMs < period1Ms) return false;
+				// Only apply upper bound filter if period2 was explicitly set (backfill mode)
+				if (options.period2 && candleMs > period2Ms) return false;
 				return true;
 			});
 
-		this.logger.debug(`[TradingViewProvider] Received ${mapped.length} valid candles from Python`);
+		this.logger.debug(`[TradingViewProvider] Received ${mapped.length} valid candles from Python (span filter: ${new Date(period1Ms).toISOString().split('T')[0]} - ${new Date(period2Ms).toISOString().split('T')[0]})`);
 		return mapped;
 	}
 
@@ -116,12 +128,13 @@ export class TradingViewPythonProvider implements IDataProvider {
 			case "d":
 				multiplier = 24 * 60 * 60 * 1000;
 				break;
+			case "wk":
 			case "w":
 				multiplier = 7 * 24 * 60 * 60 * 1000;
 				break;
 			case "mo":
 				multiplier = 30 * 24 * 60 * 60 * 1000;
-				break; // Approx
+				break;
 			default:
 				return 0;
 		}

@@ -115,7 +115,7 @@ export class SQLiteService {
 		if (!this.db) await this.init();
 		if (data.length === 0) return;
 
-		console.time("[SQLite] saveOHLCV TOTAL");
+		const saveStart = performance.now();
 		const BATCH_SIZE = 50; // Process in smaller batches
 		const batches: string[][] = [];
 
@@ -136,6 +136,8 @@ export class SQLiteService {
 			// Yield to main thread between batches
 			await new Promise((resolve) => setTimeout(resolve, 0));
 		}
+
+		this.logger.debug(`[SQLite] saveOHLCV ${symbol}/${interval}: ${data.length} rows in ${Math.round(performance.now() - saveStart)}ms`);
 
 		// Debounced save to store (non-blocking)
 		this.debouncedSaveToStore();

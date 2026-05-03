@@ -15,7 +15,7 @@ export const useMarketStore = defineStore("market", () => {
 	const logger = createLogger("MarketStore");
 
 	// Shared State
-	const selectedSymbol = useLocalStorage<string>("selected_symbol", "AAPL");
+	const selectedTicker = useLocalStorage<string>("selected_symbol", "AAPL");
 	const selectedStrategy = useLocalStorage<string>("selected_strategy", "SMA_CROSSOVER");
 
 	// Quotes State
@@ -53,8 +53,11 @@ export const useMarketStore = defineStore("market", () => {
 	});
 
 	// Actions
-	function selectSymbol(ticker: string) {
-		selectedSymbol.value = ticker;
+	function selectSymbol(ticker: string, symbolData?: any) {
+		selectedTicker.value = ticker;
+		if (symbolData) {
+			symbolManagement.selectedSymbolData.value = symbolData;
+		}
 	}
 
 	function selectStrategy(strategyId: string) {
@@ -63,7 +66,7 @@ export const useMarketStore = defineStore("market", () => {
 
 	return {
 		// State
-		selectedSymbol,
+		selectedSymbol: selectedTicker,
 		selectedStrategy,
 		currentStrategy,
 		quotes,

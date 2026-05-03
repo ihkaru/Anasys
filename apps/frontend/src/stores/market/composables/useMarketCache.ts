@@ -174,7 +174,7 @@ export function useMarketCache(logger: Logger, quotes: Ref<Map<string, MarketMov
 	async function fetchOverview(tickers: string[], period?: string, source?: string): Promise<any[]> {
 		const _startTotal = performance.now();
 		try {
-			const src = source || "YAHOO";
+			const src = source || "AUTO"; // 'AUTO' = let backend smart-route via DB, never force YAHOO
 			const p = period || "7d";
 
 			if (tickers.length === 0) return [];
@@ -293,16 +293,18 @@ export function useMarketCache(logger: Logger, quotes: Ref<Map<string, MarketMov
 				const batchedQuotes = new Map(quotes.value);
 				const returnedTickers = new Set<string>();
 
-				newQuotes.forEach((q: any) => {
-					const key = `${q.ticker}:${src}`;
-					const basePrice = q.price != null && q.change != null ? q.price - q.change : undefined;
-					batchedQuotes.set(key, {
-						...q,
-						source: src,
-						period: p,
-						periodBasePrice: basePrice,
-					});
-					overviewDataCache.set(`${q.ticker}:${src}:${p}`, q);
+			newQuotes.forEach((q: any) => {
+						// Use source returned by backend (actual resolved source), not our 'AUTO' placeholder
+						const resolvedSrc = q.source || src;
+						const key = `${q.ticker}:${resolvedSrc}`;
+						const basePrice = q.price != null && q.change != null ? q.price - q.change : undefined;
+						batchedQuotes.set(key, {
+							...q,
+							source: resolvedSrc,
+							period: p,
+							periodBasePrice: basePrice,
+						});
+						overviewDataCache.set(`${q.ticker}:${resolvedSrc}:${p}`, q);
 					returnedTickers.add(q.ticker);
 				});
 

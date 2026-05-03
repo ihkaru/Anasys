@@ -31,7 +31,7 @@ const symbolService = new SymbolService(symbolRepo, dataProvider, logger, tvProv
 const syncService = new SyncService(symbolService, marketDataRepo, providerFactory, logger);
 const candleService = new CandleService(symbolService, syncService, marketDataRepo, logger);
 const overviewService = new OverviewService(symbolRepo, marketDataRepo, logger);
-const quoteService = new QuoteService(symbolRepo, marketDataRepo, dataProvider, tvProvider, cacheService, logger);
+const quoteService = new QuoteService(symbolRepo, marketDataRepo, providerFactory, cacheService, logger);
 const moversService = new MoversService(quoteService, cacheService, logger);
 const financialsService = new FinancialsService(dataProvider);
 
@@ -90,23 +90,48 @@ export class MarketService {
 	 * The caller (frontend) never needs to specify a "source" —
 	 * that routing decision lives entirely in this layer.
 	 */
-	async getOHLCV(ticker: string, interval: string, limit: number, before?: string) {
-		// Step 1: Try Engine (QuestDB) first
-		try {
-			const engineData = await this.getHistoricalOHLCV(ticker, interval, limit);
-			if (engineData.length > 0) {
-				logger.debug(`[getOHLCV] Engine cache HIT for ${ticker} (${engineData.length} candles)`);
-				return engineData;
+	async getOHLCV(ticker: string, interval: string, limit: number, before?: string, explicitSource?: string) {
+		// Step 1: Try Engine (QuestDB) if it's explicitly requested or as primary source
+		const useEngine = explicitSource === "ENGINE" || explicitSource === "QUESTDB" || !explicitSource;
+
+		if (useEngine) {
+			try {
+				const engineData = await this.getHistoricalOHLCV(ticker, interval, limit);
+				if (engineData.length > 0) {
+					logger.debug(`[getOHLCV] Engine cache HIT for ${ticker} (${engineData.length} candles)`);
+					return engineData;
+				}
+				logger.debug(`[getOHLCV] Engine cache MISS for ${ticker}`);
+			} catch (err) {
+				logger.warn(`[getOHLCV] Engine query failed for ${ticker}`, err);
 			}
-			logger.debug(`[getOHLCV] Engine cache MISS for ${ticker} — falling back to external provider`);
-		} catch (err) {
-			// Engine unavailable or table missing — silently fall through
-			logger.warn(`[getOHLCV] Engine query failed for ${ticker}, falling through to external provider`, err);
 		}
 
-		// Step 2: Fallback to external provider with smart source selection
-		const intradayIntervals = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h"];
-		const smartSource = intradayIntervals.includes(interval) ? "TRADINGVIEW_PW" : "YAHOO";
+		// Step 2: Fallback to external provider
+		// If frontend sent an explicit source (YAHOO/TRADINGVIEW), use it.
+		// Otherwise, check if we already have this symbol in DB and use its preferred provider.
+		let smartSource = explicitSource;
+		
+		if (!smartSource) {
+			const existing = await symbolRepo.findByTicker(ticker);
+			if (existing && existing.provider) {
+				// Map DB provider to internal source names
+				const providerMap: Record<string, string> = {
+					'tradingview': 'TRADINGVIEW',
+					'yahoo': 'YAHOO',
+					'ccxt': 'CCXT'
+				};
+				smartSource = providerMap[existing.provider.toLowerCase()] || existing.provider.toUpperCase();
+				logger.debug(`[getOHLCV] Using DB-pinned source for ${ticker}: ${smartSource}`);
+			}
+		}
+
+		// Final fallback for new discovery
+		if (!smartSource) {
+			const intradayIntervals = ["1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h"];
+			smartSource = intradayIntervals.includes(interval) ? "TRADINGVIEW_PW" : "YAHOO";
+			logger.debug(`[getOHLCV] No explicit or DB source for ${ticker}, using smartSource: ${smartSource}`);
+		}
 
 		const externalData = await candleService.getOHLCV(ticker, interval, limit, before, smartSource);
 
@@ -138,11 +163,65 @@ export class MarketService {
 	// ===== Delegate to QuoteService =====
 
 	/**
-	 * Get real-time quotes for multiple tickers.
-	 * Quotes always come from external providers (Yahoo/TV) — Engine handles historical OHLCV only.
+	 * Get real-time quotes with smart routing.
+	 * Group tickers by their pinned provider in DB to ensure correct sourcing.
 	 */
-	async getQuotes(tickers: string[], period: string = "7d", source: string = "YAHOO") {
-		return quoteService.getQuotes(tickers, period, source);
+	async getQuotes(tickers: string[], period: string = "7d", explicitSource?: string) {
+		if (tickers.length === 0) return [];
+
+		// If a source is explicitly provided (e.g. from a specific UI context), use it for all.
+		if (explicitSource && explicitSource !== "AUTO") {
+			return quoteService.getQuotes(tickers, period, explicitSource);
+		}
+
+		// Otherwise, look up each ticker in DB to find its provider
+		const syms = await symbolRepo.findByTickers(tickers);
+		const providerMap = new Map<string, string>(); // Ticker -> Source
+		
+		for (const s of syms) {
+			const provider = s.provider?.toLowerCase();
+			let source = "YAHOO";
+			if (provider === "tradingview") source = "TRADINGVIEW";
+			else if (provider === "ccxt") source = "CCXT";
+			providerMap.set(s.ticker.toUpperCase(), source);
+		}
+
+		// Group tickers by source
+		const groups = new Map<string, string[]>();
+		for (const ticker of tickers) {
+			const upper = ticker.toUpperCase();
+			const source = providerMap.get(upper) || "YAHOO"; // Fallback to YAHOO for new symbols
+			if (!groups.has(source)) groups.set(source, []);
+			groups.get(source)!.push(upper);
+		}
+
+		// Fetch from each source in parallel
+		const promises = Array.from(groups.entries()).map(([source, groupTickers]) => {
+			return quoteService.getQuotes(groupTickers, period, source);
+		});
+
+		const results = await Promise.all(promises);
+		return results.flat();
+	}
+
+	/**
+	 * Resolve the preferred data source (provider) for a symbol from the DB.
+	 * Used by sync and other operations that need to know the correct provider
+	 * without the frontend specifying it explicitly.
+	 * Falls back to 'YAHOO' only for symbols not yet in DB (new discovery).
+	 */
+	async resolveSymbolSource(ticker: string): Promise<string> {
+		try {
+			const sym = await symbolRepo.findByTicker(ticker.toUpperCase());
+			if (sym?.provider) {
+				const p = sym.provider.toLowerCase();
+				if (p === "tradingview") return "TRADINGVIEW";
+				if (p === "ccxt") return "CCXT";
+			}
+		} catch (e) {
+			logger.warn(`[resolveSymbolSource] DB lookup failed for ${ticker}`, e);
+		}
+		return "YAHOO"; // Only for genuinely new/unknown symbols
 	}
 
 	/**
@@ -252,38 +331,47 @@ export class MarketService {
 
 	/**
 	 * Fetches historical OHLCV data from QuestDB (Anasys Engine).
-	 * Raw ticks are downsampled to the requested interval on-the-fly using QuestDB SAMPLE BY.
-	 * This enables any timeframe (even non-standard ones) without pre-aggregating.
+	 * Data is retrieved from the 'candles' table which stores pre-aggregated OHLCV data.
 	 */
 	async getHistoricalOHLCV(symbol: string, interval: string = "1d", limit: number = 500) {
-		// QuestDB uses underscores for symbols (e.g. FX:EURUSD → FX_EURUSD)
-		const qdbSymbol = symbol.replace(":", "_");
+		const qdbSymbol = symbol;
 
+		// We query the 'candles' table which already stores OHLCV data per interval
 		const sql = `
 			SELECT 
 				timestamp, 
-				first(price) as open, 
-				max(price) as high, 
-				min(price) as low, 
-				last(price) as close, 
-				sum(volume) as volume 
-			FROM ticks 
+				open, 
+				high, 
+				low, 
+				close, 
+				volume 
+			FROM candles 
 			WHERE symbol = '${qdbSymbol}' 
-			SAMPLE BY ${interval} ALIGN TO CALENDAR
-			LIMIT -${limit};
+			AND interval = '${interval}'
+			ORDER BY timestamp DESC
+			LIMIT ${limit};
 		`;
 
-		const response = await questDbService.query(sql);
-		const formatted = questDbService.formatResult<any>(response);
+		logger.debug(`[QuestDB] Executing: ${sql.trim()}`);
 
-		return formatted.map((item) => ({
-			timestamp: new Date(item.timestamp).toISOString(),
-			open: item.open,
-			high: item.high,
-			low: item.low,
-			close: item.close,
-			volume: item.volume,
-		}));
+		try {
+			const response = await questDbService.query(sql);
+			const formatted = questDbService.formatResult<any>(response);
+
+			logger.debug(`[QuestDB] ${symbol} (${interval}) returned ${formatted.length} rows`);
+
+			return formatted.map((item) => ({
+				timestamp: new Date(item.timestamp).toISOString(),
+				open: item.open,
+				high: item.high,
+				low: item.low,
+				close: item.close,
+				volume: item.volume,
+			})).reverse(); // Reverse because we ordered by DESC but chart needs ASC
+		} catch (err) {
+			logger.error(`[QuestDB] Failed to fetch history for ${symbol}`, err);
+			return [];
+		}
 	}
 
 	/**
@@ -357,7 +445,7 @@ export class MarketService {
 		// 2. Current State (QuestDB Candles)
 		let candleCount = 0;
 		try {
-			const qdbRes = await questDbService.query("SELECT count(*) FROM candles");
+			const qdbRes = await questDbService.query("SELECT count(*) as count FROM candles");
 			const qdbData = questDbService.formatResult<any>(qdbRes);
 			candleCount = Number(qdbData[0]?.count || 0);
 		} catch (e) {
@@ -373,34 +461,73 @@ export class MarketService {
 
 		if (prevSnapshotRaw) {
 			const prev = JSON.parse(prevSnapshotRaw);
+			// Gunakan CPS dan TPS yang tersimpan di cache untuk ditampilkan ke UI
+			tps = prev.tps || 0;
+			cps = prev.cps || 0;
+			timeRemaining = prev.timeRemaining || "Unknown";
+
+			// Preserve the absolute start of this monitoring session for global average
+			const firstTimestamp = prev.firstTimestamp || prev.timestamp;
+			const firstCompletedTasks = prev.firstCompletedTasks || prev.completedTasks;
+
 			const timeDeltaSec = (now - prev.timestamp) / 1000;
 
-			if (timeDeltaSec > 0) {
-				tps = Math.max(0, (completedTasks - prev.completedTasks) / timeDeltaSec);
-				cps = Math.max(0, (candleCount - prev.candleCount) / timeDeltaSec);
+			// Perbarui rata-rata throughput setiap 60 detik (sangat stabil untuk batch besar)
+			if (timeDeltaSec >= 60) {
+				const globalTimeElapsedSec = Math.max(1, (now - firstTimestamp) / 1000);
+				
+				// Calculate Global TPS for ETA (Tasks take a long time, 60s is too small)
+				const globalTps = Math.max(0, (completedTasks - firstCompletedTasks) / globalTimeElapsedSec);
+				
+				// Calculate Moving Average CPS (Candles move fast, 60s is good)
+				const newCps = Math.max(0, (candleCount - prev.candleCount) / timeDeltaSec);
 
-				// Estimation
+				let newTimeRemaining = "Unknown";
 				const remaining = totalTasks - completedTasks;
-				if (tps > 0) {
-					const secondsLeft = remaining / tps;
+				
+				if (globalTps > 0) {
+					const secondsLeft = remaining / globalTps;
 					const hours = Math.floor(secondsLeft / 3600);
 					const minutes = Math.floor((secondsLeft % 3600) / 60);
-					timeRemaining = `${hours}h ${minutes}m`;
+					newTimeRemaining = `${hours}h ${minutes}m`;
 				}
-			}
-		}
 
-		// 4. Update Snapshot in Redis (don't overwrite too frequently, min 2s)
-		if (!prevSnapshotRaw || now - JSON.parse(prevSnapshotRaw).timestamp > 2000) {
+				await redisConnection.set(
+					MONITORING_CACHE_KEY,
+					JSON.stringify({
+						timestamp: now,
+						firstTimestamp,
+						firstCompletedTasks,
+						completedTasks,
+						candleCount,
+						tps: globalTps,
+						cps: newCps,
+						timeRemaining: newTimeRemaining
+					}),
+					"EX",
+					60 * 60 * 24, // 24 hours expiry so global average persists longer
+				);
+
+				tps = globalTps;
+				cps = newCps;
+				timeRemaining = newTimeRemaining;
+			}
+		} else {
+			// Inisialisasi awal
 			await redisConnection.set(
 				MONITORING_CACHE_KEY,
 				JSON.stringify({
 					timestamp: now,
+					firstTimestamp: now,
+					firstCompletedTasks: completedTasks,
 					completedTasks,
 					candleCount,
+					tps: 0,
+					cps: 0,
+					timeRemaining: "Unknown"
 				}),
 				"EX",
-				60 * 60, // 1 hour expiry
+				60 * 60 * 24,
 			);
 		}
 

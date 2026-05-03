@@ -22,6 +22,15 @@ export class SubscriptionManager {
 
 		const channel = msg.channel || "quote";
 		const interval = msg.interval || "1m";
+
+		// STRICT: source must always be provided by client. Fallback to YAHOO but log a warning.
+		// If this warning fires, it indicates a bug in the frontend — source is being lost.
+		if (!msg.source) {
+			_logger.warn(
+				`[SubscriptionManager] ⚠️ MISSING SOURCE in subscribe for ${msg.symbols?.join(",")} (channel=${channel}). ` +
+				`Defaulting to YAHOO — this may cause invalid data routing for institutional assets!`
+			);
+		}
 		const source = msg.source || "YAHOO";
 
 		for (const symbol of msg.symbols) {
@@ -46,6 +55,8 @@ export class SubscriptionManager {
 
 		const channel = msg.channel || "quote";
 		const interval = msg.interval || "1m";
+
+		// No warning needed for unsubscribe — source is only critical for subscribe routing
 		const source = msg.source || "YAHOO";
 
 		for (const symbol of msg.symbols) {

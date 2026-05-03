@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 async function runSeeder() {
 	console.log("🌱 Starting Seed Script for Missing Backfill Tasks...");
 
-	const intervals = ["1d", "1h", "15m", "1m"];
+	const intervals = ["1m", "15m", "1h", "1d"];
 
 	// Find all (symbol_id, interval) pairs that are MISSING from backfill_progress
 	console.log("🔍 Checking for missing symbol-interval pairs...");
@@ -27,7 +27,7 @@ async function runSeeder() {
 		process.exit(0);
 	}
 
-	const defaultTargetDate = new Date("2025-05-01T00:00:00Z");
+	const defaultTargetDate = new Date("2018-01-01T00:00:00Z");
 
 	const batchSize = 1000;
 	let totalInserted = 0;

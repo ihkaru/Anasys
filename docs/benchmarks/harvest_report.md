@@ -1,5 +1,5 @@
 # 📊 Anasys Institutional Harvesting Benchmark
-Generated at: 2026-05-01T11:23:58.500Z
+Generated at: 2026-05-03T05:58:54.238Z
 
 ## 🚀 Real-time Throughput & Estimate
 
@@ -8,20 +8,20 @@ Generated at: 2026-05-01T11:23:58.500Z
 | **Total Symbols** | 13,283 |
 | **Total Expected Tasks** | 53,132 |
 | **Completed Tasks** | 0 (0.00%) |
-| **Activity TPS** | **0.00 tasks/sec** (Movement) |
+| **Activity TPS** | **0.97 tasks/sec** (Movement) |
 | **Completion TPS** | **0.00 tasks/sec** (Done) |
-| **QuestDB Candle Ingestion** | **0.00 rows/sec** |
-| **Yahoo Rate Limits (429)** | **1 errors** in 30s |
-| **Estimated Completion** | **∞ hours** |
+| **QuestDB Candle Ingestion** | **1229.90 rows/sec** |
+| **Yahoo Rate Limits (429)** | **0 errors** in 30s |
+| **Estimated Completion** | **304.31 hours** |
 
 ## 📋 Harvesting Task Status Breakdown
 
 | Interval | Completed | In Progress | Never Started | Total | % Done |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `15m` | 0 | 9 | 13,274 | 13,283 | **0.00%** |
-| `1d` | 0 | 8 | 13,275 | 13,283 | **0.00%** |
-| `1h` | 0 | 10 | 13,273 | 13,283 | **0.00%** |
-| `1m` | 0 | 10 | 13,273 | 13,283 | **0.00%** |
+| `15m` | 0 | 5 | 13,278 | 13,283 | **0.00%** |
+| `1d` | 0 | 12 | 13,271 | 13,283 | **0.00%** |
+| `1h` | 0 | 12 | 13,271 | 13,283 | **0.00%** |
+| `1m` | 0 | 12 | 13,271 | 13,283 | **0.00%** |
 
 
 ## 🌍 Asset Diversity & Provider Coverage
@@ -41,8 +41,8 @@ Generated at: 2026-05-01T11:23:58.500Z
 
 | Provider | Candles Ingested | Role |
 | :--- | :--- | :--- |
-| **YAHOO** | 6,847 | Fallback (Institution) |
-| **TRADINGVIEW** | 18,693 | Primary (High Precision) |
+| **TRADINGVIEW** | 34,635 | Primary (High Precision) |
+| **YAHOO** | 20,762 | Fallback (Institution) |
 
 
 ## 📦 Database Overview (Row Counts)
@@ -51,21 +51,21 @@ Generated at: 2026-05-01T11:23:58.500Z
 
 | Table | Row Count | Description |
 | :--- | :--- | :--- |
-| `candles` | 25,540 | OHLCV time-series market data (intraday & daily) |
+| `candles` | 55,397 | OHLCV time-series market data (intraday & daily) |
 
 ### 🐘 PostgreSQL Tables
 
 | Table | Row Count |
 | :--- | :--- |
 | `symbols` | 13,283 |
-| `symbol_financials` | 19 |
-| `symbol_earnings` | 6 |
-| `analyst_ratings` | 7 |
+| `symbol_financials` | 37 |
+| `symbol_earnings` | 16 |
+| `analyst_ratings` | 17 |
 | `corporate_actions` | 0 |
-| `insider_transactions` | 198 |
+| `insider_transactions` | 467 |
 | `macro_data` | 0 |
 | `backfill_progress` | 53,132 |
-| `market_data` | 440,262 |
+| `market_data` | 584,493 |
 | `categories` | 6 |
 | `symbol_categories` | 23,531 |
 | `watchlists` | 2 |
@@ -84,8 +84,8 @@ Generated at: 2026-05-01T11:23:58.500Z
 
 | symbol | interval | source | open | high | low | close | volume | timestamp |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| BTC-USD | 15m | YAHOO | 77478.203125 | 77478.203125 | 77478.203125 | 77478.203125 | 0 | 2026-05-01T11:22:54.000000Z |
-| BTC-USD | 15m | YAHOO | 77318.0625 | 77445.6015625 | 77300 | 77443.9296875 | 62717952 | 2026-05-01T11:15:00.000000Z |
+| CVX | 1h | YAHOO | 190.6300048828125 | 190.6300048828125 | 190.6300048828125 | 190.6300048828125 | 0 | 2026-05-01T20:00:00.000000Z |
+| UNH | 1h | YAHOO | 368.7799987792969 | 368.7799987792969 | 368.7799987792969 | 368.7799987792969 | 0 | 2026-05-01T20:00:00.000000Z |
 
 ---
 
@@ -102,8 +102,8 @@ Generated at: 2026-05-01T11:23:58.500Z
 
 | id | symbolId | interval | targetStartDate | lastBackfilledAt | isCompleted | updatedAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 25 | 7 | 1d | 2025-05-01T00:00:00.000Z | 2025-05-01T13:30:00.000Z | false | 2026-05-01T11:23:49.954Z |
-| 12 | 3 | 1m | 2025-05-01T00:00:00.000Z | 2026-04-24T13:30:00.000Z | false | 2026-05-01T11:23:47.928Z |
+| 59 | 15 | 15m | 2018-01-01T00:00:00.000Z | 2018-01-01T00:00:00.000Z | false | 2026-05-03T05:59:03.646Z |
+| 7 | 2 | 15m | 2018-01-01T00:00:00.000Z | 2018-01-01T00:00:00.000Z | false | 2026-05-03T05:59:03.163Z |
 
 ---
 
@@ -113,22 +113,22 @@ Generated at: 2026-05-01T11:23:58.500Z
 
 | id | symbolId | trailingPE | forwardPE | priceToBook | dividendYield | exDividendDate | beta | fiftyTwoWeekHigh | fiftyTwoWeekLow | fiftyDayAverage | twoHundredDayAverage | averageVolume | marketCap | totalRevenue | revenuePerShare | grossProfit | ebitda | netIncomeToCommon | grossMargins | operatingMargins | profitMargins | returnOnEquity | returnOnAssets | debtToEquity | currentRatio | quickRatio | freeCashflow | targetMeanPrice | targetHighPrice | targetLowPrice | recommendationMean | recommendationKey | numberOfAnalystOpinions | sharesOutstanding | floatShares | sharesShort | shortRatio | heldPercentInsiders | heldPercentInstitutions | bookValue | enterpriseValue | trailingEps | forwardEps | pegRatio | updatedAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 19 | 3 | 29.329268 | 28.444496 |  | 0.0023999999 | 2026-03-09T00:00:00.000Z | 1.128 | 385.84 | 147.84 | 313.855 | 280.11926 | 32977985 | 4662022373376 | 402835996672 | 33.248 | 240300998656 | 150175006720 |  | 0.59652 | 0.31568 | 0.32810003 | 0.35705003 | 0.15427 | 16.133 | 2.005 | 1.847 | 38088376320 | 378.50394 | 443 | 185 | 1.39394 | strong_buy | 56 | 5823665113 | 10836734540 | 78071445 | 2.72 | 0.00564 | 0.808 | 34.353 | 4173377306624 | 13.12 | 13.5281 |  | 2026-05-01T08:34:11.466Z |
-| 18 | 2 | 24.27262 | 21.130917 |  | 0.0089 | 2026-05-21T00:00:00.000Z | 1.107 | 555.45 | 356.28 | 395.7908 | 468.4585 | 36482890 | 3029167243264 | 318272995328 | 42.836 | 217409994752 | 184457003008 |  | 0.68309 | 0.46326 | 0.39341998 | 0.34013999 | 0.14814 | 30.271 | 1.283 | 1.142 | 37011251200 | 570.7213 | 730 | 392 | 1.28571 | strong_buy | 54 | 7428434704 | 7417589189 | 83407242 | 2.53 | 0.00079 | 0.7593 | 52.615 | 3076370989056 | 16.8 | 19.29779 |  | 2026-05-01T08:33:36.580Z |
+| 4 | 11781 |  |  |  |  |  |  | 5586.2 | 3125 | 4833.16 | 4265.066 | 2224 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 2026-05-03T04:45:33.264Z |
+| 17 | 1 | 33.915257 | 29.386591 |  | 0.0039 | 2026-05-11T00:00:00.000Z |  | 288.62 | 193.25 | 261.2186 | 255.1833 | 44885765 | 4109006274560 | 451442016256 | 30.534 | 216070995968 | 159975997440 |  | 0.47862 | 0.32275 | 0.27152002 | 1.4147099 | 0.26229 | 79.548 | 1.07 | 0.906 | 100480753664 | 301.35953 | 355 | 215 | 1.875 | buy | 42 | 14667688000 | 14642606254 | 134422787 | 3.24 | 0.01642 | 0.65318 | 5.998 | 4125210181632 | 8.26 | 9.53292 | 2.44 | 2026-05-03T04:45:16.046Z |
 
 #### `symbol_earnings` — Earnings — EPS history, revenue trend, next earnings date
 
 | id | symbolId | nextEarningsDate | nextExDividendDate | nextDividendDate | earningsHistory | revenueHistory | earningsTrend | updatedAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 6 | 11228 |  |  |  | [{"date":"Tue Sep 30 2025 00:00:00 GMT+0000 (Coordinated Universal Time)","ep... | [{"date":"1Q2025","revenue":0,"earnings":-74038520},{"date":"2Q2025","revenue... | [{"period":"0q","endDate":"2026-03-31T00:00:00.000Z","growth":null,"earningsE... | 2026-05-01T08:07:40.449Z |
-| 5 | 7594 | 2026-05-07T20:00:00.000Z |  |  | [{"date":"Mon Mar 31 2025 00:00:00 GMT+0000 (Coordinated Universal Time)","ep... | [{"date":"1Q2025","revenue":0,"earnings":-23508000},{"date":"2Q2025","revenue... | [{"period":"0q","endDate":"2026-03-31T00:00:00.000Z","growth":-0.3689,"earnin... | 2026-05-01T08:07:37.152Z |
+| 16 | 1 | 2026-07-30T20:00:00.000Z | 2026-05-11T00:00:00.000Z | 2026-02-12T00:00:00.000Z | [{"date":"Mon Jun 30 2025 00:00:00 GMT+0000 (Coordinated Universal Time)","ep... | [{"date":"2Q2025","revenue":94036000000,"earnings":23434000000},{"date":"3Q20... | [{"period":"0q","endDate":"2026-06-30T00:00:00.000Z","growth":0.1993,"earning... | 2026-05-03T04:45:16.891Z |
+| 15 | 4007 |  | 2026-05-12T00:00:00.000Z | 2019-03-29T00:00:00.000Z | [] | [] | [{"period":"0q","endDate":null,"growth":null,"earningsEstimate":null,"revenue... | 2026-05-03T04:34:04.691Z |
 
 #### `analyst_ratings` — Analyst Ratings — Buy/Hold/Sell breakdown & trend
 
 | id | symbolId | strongBuy | buy | hold | sell | strongSell | ratingsTrend | updatedAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 7 | 8012 | 0 | 0 | 0 | 0 | 0 | [] | 2026-05-01T08:07:49.879Z |
-| 6 | 11228 | 0 | 5 | 0 | 0 | 0 | [{"period":"0m","strongBuy":0,"buy":5,"hold":0,"sell":0,"strongSell":0},{"per... | 2026-05-01T08:07:40.277Z |
+| 17 | 1 | 7 | 25 | 14 | 1 | 1 | [{"period":"0m","strongBuy":7,"buy":25,"hold":14,"sell":1,"strongSell":1},{"p... | 2026-05-03T04:45:16.029Z |
+| 16 | 4007 | 0 | 0 | 0 | 0 | 0 | [] | 2026-05-03T04:34:04.539Z |
 
 #### `corporate_actions` — Corporate Actions — Dividends & stock splits
 
@@ -138,8 +138,8 @@ Generated at: 2026-05-01T11:23:58.500Z
 
 | id | symbolId | insiderName | position | transactionDate | transactionType | shares | price | value | source | createdAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 1 | 1 | Unknown |  | 2026-04-23T00:00:00.000Z | Sale at price 275.00 per share. | 1534 | 275 | 421850 | YAHOO | 2026-05-01T08:32:24.254Z |
-| 2 | 1 | Unknown |  | 2026-04-15T00:00:00.000Z | UNKNOWN | 10928 | 0 |  | YAHOO | 2026-05-01T08:32:24.254Z |
+| 278 | 4108 | SALEM MATTHEW A | Chief Executive Officer | 2026-04-24T00:00:00.000Z | Purchase at price 6.04 per share. | 60000 | 6.0412 | 362472 | YAHOO | 2026-05-03T04:33:32.604Z |
+| 279 | 4108 | MATTSON W PATRICK | President | 2026-04-24T00:00:00.000Z | Purchase at price 6.03 per share. | 40000 | 6.0268 | 241072 | YAHOO | 2026-05-03T04:33:32.604Z |
 
 #### `macro_data` — Macro Data — Fed rates, CPI, GDP indicators
 
@@ -153,8 +153,8 @@ Generated at: 2026-05-01T11:23:58.500Z
 
 | symbolId | timestamp | open | high | low | close | adjClose | volume | source | interval |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 33 | 2026-05-01T11:01:53.000Z | 83.94000244140625 | 83.94000244140625 | 83.94000244140625 | 83.94000244140625 |  | 0 | YAHOO | 1h |
-| 34 | 2026-05-01T11:00:08.000Z | 617.1099853515625 | 617.1099853515625 | 617.1099853515625 | 617.1099853515625 |  | 0 | YAHOO | 1h |
+| 36 | 2026-05-03T05:12:02.000Z | 0.1080000028014183 | 0.1080000028014183 | 0.1080000028014183 | 0.1080000028014183 |  | 0 | YAHOO | 1h |
+| 33 | 2026-05-03T05:11:49.000Z | 83.80999755859375 | 83.80999755859375 | 83.80999755859375 | 83.80999755859375 |  | 0 | YAHOO | 1h |
 
 ---
 

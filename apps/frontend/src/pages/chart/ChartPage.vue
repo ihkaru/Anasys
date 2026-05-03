@@ -77,7 +77,7 @@ import FinancialsSection from "./components/FinancialsSection.vue";
 import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
-import type TradingChart from "./components/TradingChart.vue";
+import TradingChart from "./components/TradingChart.vue";
 
 // Throttle helper for chart updates
 let lastChartUpdate = 0;
@@ -223,13 +223,16 @@ function setupRealtimeSubscriptions(ticker: string, interval: string, source: st
 
 // Watch for symbol/interval changes and set up real-time subscriptions
 watch(
-	() => [marketStore.selectedSymbol, selectedInterval.value] as const,
-	([symbol, interval]) => {
-		console.log(`[ChartPage] Watcher triggered: ${symbol} ${interval}`);
+	() => [marketStore.selectedSymbol, selectedInterval.value, marketStore.selectedSymbolData?.provider] as const,
+	([symbol, interval, provider]) => {
+		console.log(`[ChartPage] Watcher triggered: ${symbol} ${interval} (Provider: ${provider})`);
 		if (symbol) {
-			// Quotes are always subscribed via YAHOO (live price feed)
-			// Historical data routing is handled by backend Smart Proxy
-			setupRealtimeSubscriptions(symbol, interval, "YAHOO");
+			// Resolve source: prioritaskan field 'source' (dari search), lalu 'provider' (dari details), fallback 'YAHOO'
+			const source = (marketStore.selectedSymbolData?.source || 
+						   marketStore.selectedSymbolData?.provider || 
+						   "YAHOO").toUpperCase();
+			
+			setupRealtimeSubscriptions(symbol, interval, source);
 		}
 	},
 	{ immediate: true },
@@ -297,8 +300,12 @@ async function handleTimeframeChange(interval: string) {
 	chartRef.value?.resetScroll(); // Reset infinite scroll history state
 
 	const limit = getIntervalLimit(interval);
+	const source = (marketStore.selectedSymbolData?.source || 
+				   marketStore.selectedSymbolData?.provider || 
+				   "YAHOO").toUpperCase();
 
-	await marketStore.fetchHistory(marketStore.selectedSymbol, interval, limit);
+	console.log(`[ChartPage] handleTimeframeChange to ${interval} using source: ${source}`);
+	await marketStore.fetchHistory(marketStore.selectedSymbol, interval, limit, undefined, source);
 	chartRef.value?.fitContent();
 }
 
@@ -306,33 +313,33 @@ const lastLoadedTimestamp = ref<string | null>(null);
 
 async function handleLoadMore() {
 	if (!marketStore.selectedSymbol || marketStore.ohlcvData.length === 0) {
-		// console.debug('[ChartPage] LoadMore skipped: No symbol or data');
 		return 0;
 	}
 
 	const oldestCandle = marketStore.ohlcvData[0];
 	if (!oldestCandle) return 0;
 
-	// Prevent infinite loop if we're requesting the same timestamp
 	if (lastLoadedTimestamp.value === oldestCandle.timestamp) {
-		// console.debug('[ChartPage] Duplicate load request for timestamp:', oldestCandle.timestamp);
-		return 0; // Explicitly return 0 to stop spinner but maybe not stop infinite scroll permanently?
-		// Actually if we return 0, useInfiniteScroll sets hasMoreHistory=false.
-		// This is correct if we truly have no more data.
+		return 0;
 	}
 
 	lastLoadedTimestamp.value = oldestCandle.timestamp;
 
 	try {
+		const source = (marketStore.selectedSymbolData?.source || 
+					   marketStore.selectedSymbolData?.provider || 
+					   "YAHOO").toUpperCase();
+		
 		const result = await marketStore.fetchHistory(
 			marketStore.selectedSymbol,
 			selectedInterval.value,
 			500,
 			oldestCandle.timestamp,
+			source
 		);
 
 		const count = result ? result.length : 0;
-		console.log(`[ChartPage] handleLoadMore fetched ${count} items`);
+		console.log(`[ChartPage] handleLoadMore fetched ${count} items from ${source}`);
 		return count;
 	} catch (e) {
 		console.error("[ChartPage] handleLoadMore error:", e);
@@ -342,7 +349,7 @@ async function handleLoadMore() {
 
 async function loadInitialData(ticker: string) {
 	marketStore.selectSymbol(ticker);
-	marketStore.selectedSymbolData = null;
+	
 	marketStore.signals = [];
 	recommendations.value = [];
 	financials.value = null;
@@ -351,20 +358,24 @@ async function loadInitialData(ticker: string) {
 	currentQuote.value = null;
 	lastLoadedTimestamp.value = null; // Reset loop guard
 
-	// We don't block UI with await here to allow skeleton or loader to show
-	// Optimize: Prioritize History (Chart) over Symbol Details (Metadata)
-	console.time("LoadHistory");
-	console.log("[ChartPage] Starting fetchHistory...");
+	console.log(`[ChartPage] Loading initial data for ${ticker}...`);
 
-	// The selector model holds the interval directly natively
+	// CRITICAL: Await symbol details FIRST to get correct 'source/provider' metadata.
+	// This prevents fetchHistory from defaulting to 'YAHOO' for Crypto/TV assets.
+	await marketStore.fetchSymbolDetails(ticker);
+	
 	const interval = selectedTimeframe.value;
 	selectedInterval.value = interval;
 	const limit = getIntervalLimit(interval);
+	
+	// Resolve source from newly fetched metadata
+	const source = (marketStore.selectedSymbolData?.source || 
+				   marketStore.selectedSymbolData?.provider || 
+				   "YAHOO").toUpperCase();
 
-	await marketStore.fetchHistory(ticker, interval, limit);
-	console.log("[ChartPage] fetchHistory done.");
-	console.timeEnd("LoadHistory");
-
+	console.log(`[ChartPage] Starting fetchHistory for ${ticker} (${interval}) from ${source}...`);
+	await marketStore.fetchHistory(ticker, interval, limit, undefined, source);
+	
 	// Fit content immediately after history loaded
 	nextTick(() => {
 		if (chartRef.value?.fitContent) {
@@ -372,12 +383,7 @@ async function loadInitialData(ticker: string) {
 		}
 	});
 
-	// Fetch details in parallel/background (delayed to avoid UI freeze/patch error during mount)
-	setTimeout(() => {
-		marketStore.fetchSymbolDetails(ticker);
-	}, 300);
-
-	// Fetch background data
+	// Fetch other background data
 	loadBackgroundData(ticker);
 }
 

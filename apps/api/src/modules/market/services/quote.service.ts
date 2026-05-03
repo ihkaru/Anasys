@@ -21,7 +21,7 @@ export interface QuoteWithSparkline extends QuoteResult {
 	postMarketChangePercent?: number;
 }
 
-import type { TradingViewPythonProvider } from "../providers/tradingview-python.provider";
+import type { DataProviderFactory } from "../providers/provider.factory";
 
 export class QuoteService {
 	private readonly QUOTE_CACHE_TTL = 5 * 1000; // 5 seconds cache for quotes
@@ -31,8 +31,7 @@ export class QuoteService {
 	constructor(
 		private symbolRepo: SymbolRepository,
 		private marketDataRepo: MarketDataRepository,
-		private dataProvider: YahooFinanceProvider,
-		private tvProvider: TradingViewPythonProvider,
+		private providerFactory: DataProviderFactory,
 		private cacheService: CacheService,
 		private logger: Logger,
 	) {}
@@ -76,14 +75,8 @@ export class QuoteService {
 			const batch = tickersToFetch.slice(i, i + BATCH_SIZE);
 
 			try {
-				let quotes: QuoteResult[];
-				if (source === "TRADINGVIEW") {
-					// Use TradingView Provider
-					quotes = await this.tvProvider.fetchQuotes(batch);
-				} else {
-					// Default to Yahoo
-					quotes = await this.dataProvider.fetchQuotes(batch);
-				}
+				const provider = this.providerFactory.getProvider(source);
+				const quotes = await provider.fetchQuotes(batch);
 
 				// Enrich and Cache
 				for (const quote of quotes) {
@@ -96,8 +89,11 @@ export class QuoteService {
 						const isFastSource = source === "TRADINGVIEW" || isCrypto;
 						const ttl = isFastSource ? 1 : this.QUOTE_CACHE_TTL;
 
-						this.cacheService.set(`quote:${quote.ticker}:${period}:${source}`, enriched, ttl);
-						results.push(enriched);
+						// Stamp the source on every enriched quote so the frontend
+						// can use the actual provider (YAHOO/TRADINGVIEW/CCXT) as a store key
+						const enrichedWithSource = { ...enriched, source };
+						this.cacheService.set(`quote:${quote.ticker}:${period}:${source}`, enrichedWithSource, ttl);
+						results.push(enrichedWithSource);
 					}
 				}
 			} catch (e) {
@@ -267,7 +263,8 @@ export class QuoteService {
 		this.logger.debug(`Searching for: ${query}`);
 
 		// Search Yahoo Finance
-		const results = await this.dataProvider.search(query, limit);
+		const provider = this.providerFactory.getProvider("YAHOO");
+		const results = await provider.search(query, limit);
 
 		// Cache results
 		if (results.length > 0) {
@@ -290,7 +287,8 @@ export class QuoteService {
 		this.logger.debug(`Fetching trending symbols for region: ${region}`);
 
 		// Get trending tickers from Yahoo
-		const trending = await this.dataProvider.fetchTrending(region, count);
+		const provider = this.providerFactory.getProvider("YAHOO");
+		const trending = await provider.fetchTrending!(region, count);
 
 		if (trending.length === 0) {
 			return [];
@@ -316,8 +314,8 @@ export class QuoteService {
 		const cached = this.cacheService.get<QuoteWithSparkline[]>(cacheKey);
 		if (cached) return cached;
 
-		this.logger.debug(`Fetching daily gainers (count=${count})`);
-		const result = await this.dataProvider.fetchDailyGainers(count);
+		const provider = this.providerFactory.getProvider("YAHOO");
+		const result = await provider.fetchDailyGainers!(count);
 
 		if (result.length === 0) return [];
 
@@ -338,8 +336,8 @@ export class QuoteService {
 		const cached = this.cacheService.get<QuoteWithSparkline[]>(cacheKey);
 		if (cached) return cached;
 
-		this.logger.debug(`Fetching daily losers (count=${count})`);
-		const result = await this.dataProvider.fetchDailyLosers(count);
+		const provider = this.providerFactory.getProvider("YAHOO");
+		const result = await provider.fetchDailyLosers!(count);
 
 		if (result.length === 0) return [];
 
@@ -364,7 +362,8 @@ export class QuoteService {
 
 		this.logger.debug(`Fetching recommendations for: ${ticker}`);
 
-		const recommendedTickers = await this.dataProvider.fetchRecommendations(ticker);
+		const provider = this.providerFactory.getProvider("YAHOO");
+		const recommendedTickers = await provider.fetchRecommendations!(ticker);
 
 		if (recommendedTickers.length === 0) {
 			return [];

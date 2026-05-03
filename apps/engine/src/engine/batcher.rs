@@ -50,7 +50,7 @@ impl Batcher {
         for t in batch {
             ilp.push_str(&format!(
                 "ticks,symbol={} price={},volume={},bid={},ask={} {}\n",
-                t.symbol.replace(':', "_"),
+                t.symbol,
                 t.price, t.volume, t.bid, t.ask,
                 t.timestamp * 1_000_000_000
             ));
@@ -84,7 +84,7 @@ impl Batcher {
         for c in batch {
             ilp.push_str(&format!(
                 "candles,symbol={},interval={},source={} open={},high={},low={},close={},volume={} {}\n",
-                c.symbol.replace(':', "_"),
+                c.symbol,
                 c.interval,
                 c.source,
                 c.open, c.high, c.low, c.close, c.volume,

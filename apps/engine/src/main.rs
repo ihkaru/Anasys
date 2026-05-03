@@ -15,13 +15,21 @@ use tokio::time::{self, Duration};
 async fn main() -> anyhow::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     
+    // 2. Inisialisasi Rustls Crypto Provider (MANDATORY: panggil tepat 1x untuk mencegah panic)
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     info!("🚀 Starting Anasys Performance Engine...");
 
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     
     // 1. Initialize Components
+    info!("🔗 Connecting to Redis at {}...", redis_url);
     let broadcaster = Arc::new(Broadcaster::new(&redis_url).await?);
-    let batcher     = Arc::new(Batcher::new(5, 1000)); // Flush every 5s or 1000 items
+    
+    let questdb_url = env::var("QUESTDB_URL").unwrap_or_else(|_| "http://127.0.0.1:9000".to_string());
+    info!("📊 QuestDB API: {}", questdb_url);
+
+    let batcher = Arc::new(Batcher::new(5, 1000)); // Flush every 5s or 1000 items
     
     // Start batcher background timer (flushes both ticks and candles)
     batcher.clone().start_timer().await?;
@@ -30,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         loop {
             let now = chrono::Utc::now().to_rfc3339();
-            if let Err(e) = std::fs::write("heartbeat.txt", now) {
+            if let Err(e) = std::fs::write("/tmp/heartbeat.txt", now) {
                 error!("🚨 Failed to write heartbeat: {}", e);
             }
             time::sleep(Duration::from_secs(10)).await;
@@ -39,8 +47,11 @@ async fn main() -> anyhow::Result<()> {
  
     // 3. Start Backfiller (background task)
     let backfiller = Arc::new(backfiller::Backfiller::new(batcher.clone()));
+    let backfiller_batcher = batcher.clone();
     let backfiller_handle = tokio::spawn(async move {
-        backfiller.run().await;
+        if let Err(e) = backfiller.run(backfiller_batcher).await {
+            error!("🚨 Backfiller fatal error: {}", e);
+        }
     });
 
     // 4. Dynamic symbol list via Redis Set
@@ -58,6 +69,10 @@ async fn main() -> anyhow::Result<()> {
                 .filter(|s| !s.is_empty())
                 .collect()
         });
+
+    // 5. Sequential Warmup: Tunda scraper agar backfiller punya headstart (mencegah TLS collision)
+    info!("🕒 Sequential Warmup: Delaying real-time scraper for 10s...");
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
     info!("📡 Starting real-time scraper for {} symbols...", initial_symbols.len());
 

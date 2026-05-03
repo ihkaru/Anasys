@@ -252,13 +252,24 @@ function resubscribeAll() {
 	}
 
 	for (const [interval, symbols] of byInterval) {
-		console.log(`%c[WS] 📝 Resubscribing to OHLCV: ${symbols.join(", ")} @ ${interval}`, "color: #2196F3");
-		sendMessage({
-			type: "subscribe",
-			symbols,
-			channel: "ohlcv",
-			interval,
-		});
+		// Group symbols by source for this interval
+		const intervalBySource = new Map<string, string[]>();
+		for (const s of symbols) {
+			const src = symbolSources.get(s) || "YAHOO";
+			if (!intervalBySource.has(src)) intervalBySource.set(src, []);
+			intervalBySource.get(src)!.push(s);
+		}
+
+		for (const [src, sList] of intervalBySource) {
+			console.log(`%c[WS] 📝 Resubscribing to OHLCV (source=${src}): ${sList.join(", ")} @ ${interval}`, "color: #2196F3");
+			sendMessage({
+				type: "subscribe",
+				symbols: sList,
+				channel: "ohlcv",
+				interval,
+				source: src,
+			});
+		}
 	}
 }
 
@@ -433,6 +444,11 @@ export function useRealtimeQuotes(symbols: Ref<string[]>, onUpdate: QuoteCallbac
 
 		// Subscribe to new symbols
 		if (symbols.value.length > 0) {
+			// We assume source is either passed as a ref or we use a reactive way to get it
+			// For now, if it's a list of symbols, they might have different sources
+			// But the current useRealtimeQuotes is used for Watchlist which usually has a mix
+			// This part is tricky. Let's make it accept a source Ref or just default to YAHOO for now
+			// but allow override.
 			unsubscribe = subscribeQuotes(symbols.value, onUpdate);
 		}
 	};
@@ -455,7 +471,12 @@ export function useRealtimeQuotes(symbols: Ref<string[]>, onUpdate: QuoteCallbac
 /**
  * Vue composable for real-time OHLCV updates (for charts)
  */
-export function useRealtimeOHLCV(symbol: Ref<string>, interval: Ref<string>, onUpdate: OHLCVCallback) {
+export function useRealtimeOHLCV(
+	symbol: Ref<string>,
+	interval: Ref<string>,
+	onUpdate: OHLCVCallback,
+	source: Ref<string> = ref("YAHOO"),
+) {
 	let unsubscribe: (() => void) | null = null;
 
 	const setupSubscription = () => {
@@ -465,7 +486,7 @@ export function useRealtimeOHLCV(symbol: Ref<string>, interval: Ref<string>, onU
 		}
 
 		if (symbol.value) {
-			unsubscribe = subscribeOHLCV(symbol.value, interval.value, onUpdate);
+			unsubscribe = subscribeOHLCV(symbol.value, interval.value, onUpdate, source.value);
 		}
 	};
 

@@ -37,7 +37,7 @@ export class SyncService {
 			const symbol = await this.symbolService.ensureSymbol(ticker, type);
 			const provider = this.providerFactory.getProvider(source);
 
-			const queryOptions = await this.determineQueryOptions(symbol.id, interval, endDate);
+			const queryOptions = await this.determineQueryOptions(symbol.id, interval, endDate, source);
 
 			if (queryOptions.status === "uptodate") {
 				return { count: 0, status: "uptodate" };
@@ -200,7 +200,7 @@ export class SyncService {
 		return { values, rejected };
 	}
 
-	private async determineQueryOptions(symbolId: number, interval: string, endDate?: Date): Promise<any> {
+	private async determineQueryOptions(symbolId: number, interval: string, endDate?: Date, source: string = "YAHOO"): Promise<any> {
 		const options: any = {};
 
 		if (endDate) {
@@ -215,8 +215,10 @@ export class SyncService {
 			options.period1 = start;
 			options.period2 = endDate;
 		} else {
-			// FORWARD FILL
-			const lastTimestamp = await this.marketDataRepo.getLastTimestamp(symbolId, interval);
+			// FORWARD FILL — must query timestamp for the correct source!
+			// Without this, a TRADINGVIEW symbol would always appear "never synced"
+			// because getLastTimestamp defaults to YAHOO and finds nothing.
+			const lastTimestamp = await this.marketDataRepo.getLastTimestamp(symbolId, interval, source);
 
 			if (lastTimestamp) {
 				options.period1 = lastTimestamp;

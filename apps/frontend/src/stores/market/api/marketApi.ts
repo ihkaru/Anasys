@@ -29,7 +29,7 @@ export const marketApi = {
 		return api.post<{ success: boolean; error?: string }>("/market/sync", { ticker, type, source });
 	},
 
-	async fetchHistory(ticker: string, params: { limit: string; interval: string; before?: string }) {
+	async fetchHistory(ticker: string, params: { limit: string; interval: string; before?: string; source?: string }) {
 		return api.get<{ success: boolean; data: OHLCV[]; error?: string }>(`/market/history/${ticker}`, { params });
 	},
 

@@ -374,26 +374,35 @@ watch(
 );
 
 function openAssetDetail(item: any) {
-	logger.debug("Open asset detail:", item.ticker);
-	marketStore.selectSymbol(item.ticker);
+	// Passing the whole item as symbolData prevents context loss (source, exchange, etc)
+	marketStore.selectSymbol(item.ticker, item);
 	f7.views.main.router.navigate("/chart/", { props: { ticker: item.ticker } });
 }
 
 async function handleAddAsset(asset: any) {
-	if (!selectedWatchlistId.value) return;
-
 	try {
+		let targetId = selectedWatchlistId.value;
+
+		// If no watchlist exists (common after a reset), create a default one first
+		if (!targetId) {
+			logger.info("No active watchlist found. Creating default watchlist...");
+			const newWatchlist = await watchlistStore.createWatchlist("My Assets", true);
+			targetId = newWatchlist.id;
+			selectedWatchlistId.value = targetId;
+		}
+
+		logger.info(`Adding ${asset.ticker} to watchlist ${targetId}`);
 		await watchlistStore.addSymbolToWatchlist(
-			selectedWatchlistId.value,
+			targetId!,
 			asset.ticker,
 			asset.type,
 			asset.source,
-			asset.exchange, // User-confirmed exchange from search result (e.g. "BMV" for TV listing)
+			asset.exchange,
 		);
 		addAssetSheetOpen.value = false;
 		f7.toast.show({ text: `Added ${asset.ticker}`, closeTimeout: 2000 });
-		// Will trigger watch above
 	} catch (e) {
+		logger.error("Failed to add asset", e);
 		f7.toast.show({ text: (e as Error).message || "Failed to add", closeTimeout: 2000 });
 	}
 }

@@ -10,25 +10,23 @@ export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>
 	const settingsStore = useSettingsStore();
 
 	function updateData() {
-		if (!candleSeries.value || ohlcvData.value.length === 0) return;
-
-		if (ohlcvData.value.length > 0) {
-			const first = ohlcvData.value[0];
-			const last = ohlcvData.value[ohlcvData.value.length - 1];
-			logger.debug(`Range: ${first.timestamp} -> ${last.timestamp}`);
-			console.log(`[useChartData] Updating chart with ${ohlcvData.value.length} candles. Sample:`, first);
-		} else {
-			console.log("[useChartData] No data to update.");
-		}
+		if (!candleSeries.value) return;
 
 		console.time("[ChartFormat]");
-		const chartData = formatOHLCVForChart(ohlcvData.value, settingsStore.timezoneMode);
+		const chartData = ohlcvData.value.length > 0 
+			? formatOHLCVForChart(ohlcvData.value, settingsStore.timezoneMode)
+			: [];
 		console.timeEnd("[ChartFormat]");
-		console.log(`[useChartData] Formatted chart data length: ${chartData.length}`);
 
 		try {
 			candleSeries.value.setData(chartData);
-			console.log("[useChartData] setData successful.");
+			if (chartData.length > 0) {
+				const first = chartData[0];
+				const last = chartData[chartData.length - 1];
+				logger.debug(`Chart updated with ${chartData.length} candles. Range: ${first.time} -> ${last.time}`);
+			} else {
+				logger.debug("Chart cleared (no data)");
+			}
 		} catch (e) {
 			console.error("[useChartData] Error in setData", e);
 		}

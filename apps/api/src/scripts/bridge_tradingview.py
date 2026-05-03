@@ -144,7 +144,7 @@ try:
             filters = [{'left': 'name', 'operation': 'equal', 'right': raw_symbol.upper()}]
             columns = ['name', 'exchange', 'description']
             
-            found_exchange = "NASDAQ" # Default fallback
+            found_exchange = None
             
             # Try major markets
             markets_to_try = ['america', 'crypto', 'global']
@@ -170,15 +170,17 @@ try:
                 # Fallback to default if search fails
                 pass
                 
+            if not found_exchange:
+                respond(None, f"Could not resolve exchange for symbol: {raw_symbol}. Please specify as 'EXCHANGE:SYMBOL'")
+                # respond() calls sys.exit() — no 'return' needed here (would cause SyntaxError outside function)
+                
             exchange = found_exchange
             curr_symbol = raw_symbol
             
-        # Map interval to TV format if needed (simple check)
-        # TV Scraper uses: 1m, 5m, 1h, 1D, 1W, 1M
+        # Map interval to TV format expected by custom_streamer's timeframe_map
         tv_interval = interval
-        if interval.endswith('d'): tv_interval = interval.upper() # 1d -> 1D
-        if interval.endswith('w'): tv_interval = interval.upper()
-        if interval.endswith('m') and not interval.endswith('mo'): tv_interval = interval # 15m -> 15m
+        if interval == '1wk': tv_interval = '1w'
+        if interval == '1mo': tv_interval = '1M'
         
         # Fetch data
         # Note: stream() returns a dict when export_result=True

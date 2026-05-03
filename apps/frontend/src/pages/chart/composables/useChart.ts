@@ -1,6 +1,6 @@
 import { useElementSize } from "@vueuse/core";
-import { createChart, type IChartApi } from "lightweight-charts";
-import { onUnmounted, type Ref, shallowRef, watch } from "vue";
+import { createChart, CandlestickSeries, type IChartApi } from "lightweight-charts";
+import { markRaw, onUnmounted, type Ref, shallowRef, watch } from "vue";
 import { useSettingsStore } from "../../../stores/settings";
 import { useThemeStore } from "../../../stores/theme";
 import {
@@ -41,18 +41,40 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
 	function initChart() {
 		if (!containerRef.value) return;
 
-		chart.value = createChart(
-			containerRef.value,
-			getChartOptions(
-				getTheme(),
-				width.value,
-				height.value,
-				isFullscreen.value,
-				settingsStore.timezoneMode === "local" ? "local" : "America/New_York",
-			),
-		);
+		try {
+			// console.log(`%c[Chart] Creating chart instance...`, 'color: #9C27B0');
+			
+			// 1. Create a pure, non-reactive instance first
+			const rawChart = createChart(
+				containerRef.value,
+				getChartOptions(
+					getTheme(),
+					width.value,
+					height.value,
+					isFullscreen.value,
+					settingsStore.timezoneMode === "local" ? "local" : "America/New_York",
+				),
+			);
 
-		candleSeries.value = chart.value.addCandlestickSeries(getCandlestickSeriesOptions(getTheme()));
+			// 2. Call the method BEFORE giving it to Vue's reactivity system
+			if (!rawChart || typeof rawChart.addSeries !== 'function') {
+				console.error("[Chart] rawChart is invalid or missing addSeries", rawChart);
+				// Diagnostic dump
+				const proto = rawChart ? Object.getPrototypeOf(rawChart) : null;
+				console.log("rawChart Prototype methods:", proto ? Object.getOwnPropertyNames(proto) : 'null');
+				return;
+			}
+
+			const rawCandleSeries = rawChart.addSeries(CandlestickSeries, getCandlestickSeriesOptions(getTheme()));
+			
+			// 3. ONLY THEN assign to shallowRefs
+			chart.value = rawChart;
+			candleSeries.value = rawCandleSeries;
+
+			// console.log("[Chart] Chart initialized successfully");
+		} catch (e) {
+			console.error("[Chart] Exception during initChart:", e);
+		}
 	}
 
 	function destroyChart() {

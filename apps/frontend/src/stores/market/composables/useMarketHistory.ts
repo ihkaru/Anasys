@@ -11,11 +11,13 @@ export function useMarketHistory(logger: Logger) {
 	const historyLoading = ref(false);
 	const error = ref<string | null>(null);
 
-	async function fetchHistory(ticker: string, interval = "1h", limit = 500, before?: string) {
+	async function fetchHistory(ticker: string, interval = "1h", limit = 500, before?: string, source?: string) {
+		const fetchStart = performance.now();
 		try {
-			console.time("[FetchHistory] TOTAL");
-			logger.debug(`Fetching history for ${ticker} (interval=${interval}, limit=${limit}, before=${before})`);
-			const cacheKey = `${ticker}:${interval}`;
+			logger.debug(`Fetching history for ${ticker} (interval=${interval}, limit=${limit}, before=${before}, source=${source})`);
+			// Cache key MUST include source to prevent cross-provider cache pollution
+			// (e.g., BTCUSD:1d:TRADINGVIEW vs BTCUSD:1d:YAHOO must be separate entries)
+			const cacheKey = `${ticker}:${interval}:${source || "AUTO"}`;
 
 			if (!before) {
 				const ramData = ohlcvCache.value.get(cacheKey);
@@ -32,7 +34,7 @@ export function useMarketHistory(logger: Logger) {
 			let cachedData: any[] = [];
 			try {
 				const beforeTs = before ? new Date(before).getTime() : undefined;
-				cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs);
+				cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs, source);
 			} catch (err) {
 				logger.warn("SQLite Cache Read Failed", err);
 			}
@@ -71,7 +73,7 @@ export function useMarketHistory(logger: Logger) {
 						limit: String(limit),
 						interval,
 						before,
-						// No source param — Smart Proxy on backend decides the data origin
+						source, // Pass source if explicitly provided
 					});
 
 					if (response.data.success) {
@@ -125,6 +127,7 @@ export function useMarketHistory(logger: Logger) {
 			if (!before && ohlcvData.value.length === 0) ohlcvData.value = [];
 		} finally {
 			historyLoading.value = false;
+			logger.debug(`[FetchHistory] TOTAL ${Math.round(performance.now() - fetchStart)}ms`);
 		}
 	}
 

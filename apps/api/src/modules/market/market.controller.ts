@@ -16,6 +16,18 @@ export const marketController = new Elysia({ prefix: "/market" })
 	)
 	.use(cookie())
 	.derive(async ({ jwt, cookie: { auth }, headers }) => {
+		const isDev = process.env.NODE_ENV !== "production";
+		const secret = headers["x-dev-secret"] ?? headers["X-Dev-Secret"];
+
+		// Dev backdoor for testing
+		if (isDev && secret === "dev_secret_123") {
+			logger.info("🔓 Market Dev Backdoor Access GRANTED");
+			return {
+				user: { id: 9999, name: "Dev Superuser", email: "dev@analisis.local" },
+				isDevAdmin: true,
+			};
+		}
+
 		let token: string | undefined = auth?.value as string | undefined;
 		const authHeader = headers.authorization;
 
@@ -75,8 +87,9 @@ export const marketController = new Elysia({ prefix: "/market" })
 				if (tickers.length === 0) {
 					return { success: true, data: [] };
 				}
-				// Use real-time quotes service instead of DB-based overview
-				const quotes = await marketService.getQuotes(tickers, body.period || "7d", body.source || "YAHOO");
+				// Pass source as undefined if not provided — getQuotes() will smart-route via DB
+				// Never hardcode "YAHOO" here: it would bypass DB-pinned provider routing
+				const quotes = await marketService.getQuotes(tickers, body.period || "7d", body.source || undefined);
 				return { success: true, data: quotes };
 			} catch (e) {
 				logger.error("Failed to get quotes", e);
@@ -207,12 +220,15 @@ export const marketController = new Elysia({ prefix: "/market" })
 			const { body, user } = context;
 			logger.info(`SYNC ${body.ticker} requested by ${user?.email || "Unknown"}`);
 			try {
+				// If source not provided, look up the symbol's pinned provider in DB
+				// This prevents backfilling a TradingView symbol from Yahoo Finance
+				const resolvedSource = body.source || await marketService.resolveSymbolSource(body.ticker);
 				const result = await marketService.syncSymbolData(
 					body.ticker,
 					body.type as "STOCK" | "CRYPTO",
 					body.interval || "1d",
 					undefined, // endDate
-					body.source || "YAHOO",
+					resolvedSource,
 				);
 				return { success: true, ...result };
 			} catch (e) {
@@ -235,8 +251,13 @@ export const marketController = new Elysia({ prefix: "/market" })
 			logger.debug(`GET /history/${params.ticker} interval=${query.interval} before=${query.before}`);
 			try {
 				const limit = query.limit ? parseInt(query.limit, 10) : 500;
-				// Source is no longer a frontend concern — Smart Proxy decides internally
-				const data = await marketService.getOHLCV(params.ticker, query.interval || "1d", limit, query.before);
+				const data = await marketService.getOHLCV(
+					params.ticker,
+					query.interval || "1d",
+					limit,
+					query.before,
+					query.source,
+				);
 				return { success: true, data };
 			} catch (e) {
 				logger.error(`GET /history/${params.ticker} failed`, e);
@@ -248,6 +269,7 @@ export const marketController = new Elysia({ prefix: "/market" })
 				limit: t.Optional(t.String()),
 				interval: t.Optional(t.String()),
 				before: t.Optional(t.String()), // ISO timestamp for pagination
+				source: t.Optional(t.String()),
 			}),
 		},
 	)
@@ -339,7 +361,9 @@ export const marketController = new Elysia({ prefix: "/market" })
 			logger.debug(`GET /quote/${ticker} source=${query.source}`);
 
 			try {
-				const quotes = await marketService.getQuotes([ticker], "1d", query.source || "YAHOO");
+				// Pass source as undefined if not provided — getQuotes() will smart-route via DB
+				// Never hardcode "YAHOO" here: it would bypass DB-pinned provider routing
+				const quotes = await marketService.getQuotes([ticker], "1d", query.source || undefined);
 				if (!quotes || quotes.length === 0) {
 					return { success: false, error: "Quote not found" };
 				}
@@ -413,7 +437,7 @@ export const internalMarketController = new Elysia({ prefix: "/market/internal" 
 				"/report",
 				async ({ body }) => {
 					const { backfillService } = await import("./services/backfill.service");
-					await backfillService.updateProgress(body.id, body.lastTimestamp, body.isCompleted);
+					await backfillService.updateProgress(body.id, body.lastTimestamp, body.isCompleted, body.metadata);
 					return { success: true };
 				},
 				{
@@ -421,6 +445,7 @@ export const internalMarketController = new Elysia({ prefix: "/market/internal" 
 						id: t.Number(),
 						lastTimestamp: t.String(),
 						isCompleted: t.Optional(t.Boolean()),
+						metadata: t.Optional(t.Any()),
 					}),
 				},
 			),

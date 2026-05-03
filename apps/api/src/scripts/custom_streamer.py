@@ -171,7 +171,7 @@ class ExtendedStreamer:
                 if len(ohlc_json_data) >= numb_price_candles:
                     break
 
-                if i > 15:
+                if i > 60:
                     logging.warning(f"Timeout reached after {i} packets. Collected: OHLC={len(ohlc_json_data)}")
                     if not ohlc_json_data:
                         raise DataNotFoundError("No 'OHLC' packet found within the timeout period.")

@@ -24,8 +24,7 @@ impl TradingViewScraper {
     pub async fn run(&self, symbols: Vec<String>) -> Result<()> {
         let url = "wss://data.tradingview.com/socket.io/websocket";
         
-        // Setup rustls crypto provider (required for tokio-tungstenite + rustls)
-        let _ = rustls::crypto::ring::default_provider().install_default();
+        // Scraper setup
 
         info!("🔗 Connecting to TradingView WebSocket...");
         let mut request = url.into_client_request()?;

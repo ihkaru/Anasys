@@ -127,10 +127,16 @@ export class TradingViewPlaywrightProvider implements IDataProvider {
 			"2h": "120",
 			"4h": "240",
 			"1d": "D",
+			"1wk": "W",
 			"1w": "W",
+			"1mo": "M",
 			"1M": "M",
 		};
-		return map[interval] || "60";
+		const mapped = map[interval];
+		if (!mapped) {
+			throw new Error(`Unsupported interval for TradingView: ${interval}`);
+		}
+		return mapped;
 	}
 
 	async fetchQuotes(_tickers: string[]): Promise<QuoteResult[]> {

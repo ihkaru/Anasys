@@ -8,15 +8,29 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use std::time::Duration;
 use tokio::time::{timeout, sleep};
+use std::collections::HashMap;
+use tokio::sync::RwLock;
 
-pub struct ObscuraFetcher {}
+pub struct ObscuraFetcher {
+    symbol_cache: RwLock<HashMap<String, String>>,
+}
 
 impl ObscuraFetcher {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            symbol_cache: RwLock::new(HashMap::new()),
+        }
     }
 
     pub async fn search_symbol(&self, ticker: &str, expected_type: &str) -> Result<String> {
+        let cache_key = format!("{}:{}", expected_type, ticker);
+        {
+            let cache = self.symbol_cache.read().await;
+            if let Some(canonical) = cache.get(&cache_key) {
+                return Ok(canonical.clone());
+            }
+        }
+
         let url = format!("https://symbol-search.tradingview.com/symbol_search/v3/?text={}", ticker);
         let client = reqwest::Client::new();
         
@@ -47,11 +61,17 @@ impl ObscuraFetcher {
         let symbol_name = best_match["symbol"].as_str().ok_or_else(|| anyhow!("Missing symbol field"))?;
         let exchange = best_match["exchange"].as_str().or_else(|| best_match["source_id"].as_str()).unwrap_or("");
 
-        if exchange.is_empty() {
-            Ok(symbol_name.to_string())
+        let final_symbol = if exchange.is_empty() {
+            symbol_name.to_string()
         } else {
-            Ok(format!("{}:{}", exchange, symbol_name))
-        }
+            format!("{}:{}", exchange, symbol_name)
+        };
+
+        // Simpan ke memori (cache)
+        let mut cache = self.symbol_cache.write().await;
+        cache.insert(cache_key, final_symbol.clone());
+
+        Ok(final_symbol)
     }
 
     pub async fn fetch_candles(
@@ -62,7 +82,7 @@ impl ObscuraFetcher {
         override_canonical: Option<String>,
         start: i64,
         _end: i64,
-    ) -> Result<Vec<CandleData>> {
+    ) -> Result<(Vec<CandleData>, Option<Value>)> {
         info!("📥 Institutional Fetch (WS): {} ({})", ticker, interval);
 
         // 1. RESOLVE CANONICAL SYMBOL
@@ -124,13 +144,15 @@ impl ObscuraFetcher {
             json!("s1"), 
             json!("sds_sym_1"), 
             json!(tv_interval), 
-            json!(3000) 
+            json!(10000) 
         ]).await?;
 
         debug!("  → Subscriptions sent for {}. Awaiting data...", canonical_symbol);
 
         let mut candles = Vec::new();
+        let mut symbol_metadata: Option<Value> = None;
         let mut timeout_retry = 0;
+        let mut loaded_all = false;
 
         loop {
             match timeout(Duration::from_secs(10), ws.next()).await {
@@ -161,21 +183,44 @@ impl ObscuraFetcher {
                                             candles.push(CandleData {
                                                 symbol:    ticker.to_string(),
                                                 interval:  interval.to_string(),
-                                                timestamp: row[0].as_f64().unwrap_or(0.0) as i64,
-                                                open:      row[1].as_f64().unwrap_or(0.0),
-                                                high:      row[2].as_f64().unwrap_or(0.0),
-                                                low:       row[3].as_f64().unwrap_or(0.0),
-                                                close:     row[4].as_f64().unwrap_or(0.0),
-                                                volume:    row[5].as_f64().unwrap_or(0.0),
+                                                timestamp: row.get(0).and_then(|v| v.as_f64()).unwrap_or(0.0) as i64,
+                                                open:      row.get(1).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                                high:      row.get(2).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                                low:       row.get(3).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                                close:     row.get(4).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                                volume:    row.get(5).and_then(|v| v.as_f64()).unwrap_or(0.0),
                                                 source:    "TRADINGVIEW".to_string(),
                                             });
                                         }
                                     }
-                                    if !candles.is_empty() {
+
+                                    let oldest_ts = candles.iter().map(|c| c.timestamp).min().unwrap_or(i64::MAX);
+                                    if oldest_ts > start && !loaded_all && candles.len() < 500_000 {
+                                        debug!("  → {} needs more data (oldest: {} > target: {}). Requesting 10k more...", ticker, oldest_ts, start);
+                                        self.send(&mut ws, "request_more_data", vec![
+                                            json!(chart_session),
+                                            json!("sds_1"),
+                                            json!(10000)
+                                        ]).await?;
+                                    } else {
+                                        loaded_all = true;
                                         break; 
                                     }
                                 }
-                            } else if m == "critical_error" || m == "error" {
+                            } else if m == "symbol_resolved" {
+                                let p = &json["p"];
+                                let details = &p[2];
+                                symbol_metadata = Some(json!({
+                                    "name": details["description"].as_str(),
+                                    "exchange": details["exchange"].as_str(),
+                                    "type": details["type"].as_str(),
+                                    "currency": details["currency_code"].as_str(),
+                                    "tradingview_symbol": details["symbol"].as_str(),
+                                    "tradingview_exchange": details["exchange"].as_str(),
+                                }));
+                                debug!("  → Metadata resolved for {}: {:?}", ticker, symbol_metadata);
+                            } else if m == "critical_error" || m == "error" || m == "symbol_error" {
+                                warn!("  → Obscura WS error for {}: {}", ticker, m);
                                 break;
                             }
                         }
@@ -189,11 +234,21 @@ impl ObscuraFetcher {
             }
         }
 
+        let raw_count = candles.len();
         candles.retain(|c| c.timestamp >= start);
         candles.sort_by_key(|c| c.timestamp);
 
-        info!("✅ Obscura (WS): {} candles untuk {} ({})", candles.len(), ticker, interval);
-        Ok(candles)
+        if !candles.is_empty() {
+            info!("✅ Obscura (WS): {}/{} candles (start: {}) untuk {} ({})", 
+                candles.len(), 
+                raw_count,
+                candles.first().map(|c| c.timestamp).unwrap_or(0),
+                ticker, 
+                interval
+            );
+        }
+
+        Ok((candles, symbol_metadata))
     }
 
     async fn send(&self, ws: &mut tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, method: &str, params: Vec<Value>) -> Result<()> {
