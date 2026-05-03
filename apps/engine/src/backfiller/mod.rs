@@ -12,13 +12,11 @@ use binance::BinanceFetcher;
 use obscura::ObscuraFetcher;
 use serde::{Deserialize, Serialize};
 use std::env;
-use anyhow::anyhow;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct BackfillTask {
     id: i32,
-    symbol_id: i32,
     ticker: String,
     interval: String,
     asset_type: String,
