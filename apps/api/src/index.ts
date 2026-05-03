@@ -68,7 +68,7 @@ const app = new Elysia()
 		try {
 			await db.execute(sql`SELECT 1`);
 			checks.postgres = "connected";
-		} catch (e) {
+		} catch (_e) {
 			checks.postgres = "disconnected";
 		}
 
@@ -76,7 +76,7 @@ const app = new Elysia()
 		try {
 			const status = await redisConnection.ping();
 			checks.redis = status === "PONG" ? "connected" : "error";
-		} catch (e) {
+		} catch (_e) {
 			checks.redis = "disconnected";
 		}
 
@@ -84,7 +84,7 @@ const app = new Elysia()
 		try {
 			const res = await fetch(`${config.questdbUrl}/`);
 			checks.questdb = res.ok ? "connected" : "error";
-		} catch (e) {
+		} catch (_e) {
 			checks.questdb = "disconnected";
 		}
 
