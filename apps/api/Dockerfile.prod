@@ -28,6 +28,8 @@ FROM oven/bun:1.2-slim
 # Install system dependencies for Chromium to run via Playwright
 # This replaces the need for the heavy Playwright base image
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -45,6 +47,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
     libasound2 \
     curl \
+    && pip3 install --break-system-packages tradingview-scraper pandas --no-cache-dir \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
