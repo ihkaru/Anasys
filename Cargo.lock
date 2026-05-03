@@ -1595,7 +1595,7 @@ dependencies = [
 [[package]]
 name = "obscura-browser"
 version = "0.1.0"
-source = "git+https://github.com/h4ckf0r0day/obscura.git#53a04fa90565507058f02dbe07f80d24be50ffe1"
+source = "git+https://github.com/h4ckf0r0day/obscura.git?tag=v0.1.1#99e75f1e62930f864302db9c4d18e91e7ee3f0bd"
 dependencies = [
  "anyhow",
  "futures",
@@ -1612,7 +1612,7 @@ dependencies = [
 [[package]]
 name = "obscura-dom"
 version = "0.1.0"
-source = "git+https://github.com/h4ckf0r0day/obscura.git#53a04fa90565507058f02dbe07f80d24be50ffe1"
+source = "git+https://github.com/h4ckf0r0day/obscura.git?tag=v0.1.1#99e75f1e62930f864302db9c4d18e91e7ee3f0bd"
 dependencies = [
  "cssparser",
  "html5ever",
@@ -1627,10 +1627,9 @@ dependencies = [
 [[package]]
 name = "obscura-js"
 version = "0.1.0"
-source = "git+https://github.com/h4ckf0r0day/obscura.git#53a04fa90565507058f02dbe07f80d24be50ffe1"
+source = "git+https://github.com/h4ckf0r0day/obscura.git?tag=v0.1.1#99e75f1e62930f864302db9c4d18e91e7ee3f0bd"
 dependencies = [
  "anyhow",
- "base64",
  "deno_core",
  "deno_error",
  "html5ever",
@@ -1648,7 +1647,7 @@ dependencies = [
 [[package]]
 name = "obscura-net"
 version = "0.1.0"
-source = "git+https://github.com/h4ckf0r0day/obscura.git#53a04fa90565507058f02dbe07f80d24be50ffe1"
+source = "git+https://github.com/h4ckf0r0day/obscura.git?tag=v0.1.1#99e75f1e62930f864302db9c4d18e91e7ee3f0bd"
 dependencies = [
  "async-trait",
  "reqwest",
