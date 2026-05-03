@@ -95,7 +95,7 @@ services:
     volumes:
       - questdb_dev_data:/root/.questdb
     healthcheck:
-      test: ["CMD-SHELL", "curl -fL http://localhost:9000/ || exit 1"]
+      test: ["CMD-SHELL", "curl -fL http://127.0.0.1:9000/ || exit 1"]
       interval: 5s
       timeout: 5s
       retries: 5

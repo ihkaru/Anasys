@@ -56,7 +56,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/health || exit 1"]
       interval: 20s
       timeout: 5s
       retries: 3
@@ -81,7 +81,7 @@ services:
       api:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/ || exit 1"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -120,7 +120,7 @@ services:
     networks:
       - anasys-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -fL http://localhost:9000/ || exit 1"]
+      test: ["CMD-SHELL", "curl -fL http://127.0.0.1:9000/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
