@@ -102,7 +102,7 @@ export class SyncService {
 			}
 
 			const startUpsert = Date.now();
-			await this.marketDataRepo.upsert(values);
+			await this.marketDataRepo.upsert(values, ticker);
 			this.logger.debug(`[SyncService] DB Upsert (${values.length} items) took ${Date.now() - startUpsert}ms`);
 
 			this.logger.info(

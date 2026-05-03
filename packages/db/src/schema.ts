@@ -21,6 +21,40 @@ import { boolean, doublePrecision, integer, pgEnum, primaryKey } from "drizzle-o
 export const assetTypeEnum = pgEnum("asset_type", ["STOCK", "CRYPTO", "FOREX", "INDEX", "COMMODITY", "FUTURES"]);
 export const dataSourceEnum = pgEnum("data_source", ["YAHOO", "TRADINGVIEW", "CCXT"]);
 
+/**
+ * Backfill status lifecycle (ADR-0013)
+ * PENDING → IN_PROGRESS → COMPLETED → INCREMENTAL (loop)
+ *                        ↓
+ *                      FAILED (manual retry needed)
+ */
+export const backfillStatusEnum = pgEnum("backfill_status", [
+	"PENDING",
+	"IN_PROGRESS",
+	"COMPLETED",
+	"INCREMENTAL",
+	"FAILED",
+	"SKIPPED",
+]);
+
+/**
+ * Alert status lifecycle (ADR-0014)
+ * ACTIVE → [trigger] → TRIGGERED → [notify] → COOLDOWN → ACTIVE
+ * ACTIVE/COOLDOWN → [user action] → PAUSED → ACTIVE
+ * TRIGGERED → [condition cleared] → RESOLVED
+ */
+export const alertStatusEnum = pgEnum("alert_status", [
+	"ACTIVE",
+	"PAUSED",
+	"TRIGGERED",
+	"COOLDOWN",
+	"RESOLVED",
+]);
+
+/**
+ * Delivery status for notifications
+ */
+export const deliveryStatusEnum = pgEnum("delivery_status", ["PENDING", "SENT", "FAILED"]);
+
 export const symbols = pgTable("symbols", {
 	id: serial("id").primaryKey(),
 	ticker: text("ticker").notNull().unique(), // e.g. "AAPL", "BTC/USDT"
@@ -260,6 +294,7 @@ export const analystRatings = pgTable("analyst_ratings", {
 
 /**
  * Track historical data ingestion (backfill) progress for each symbol and interval.
+ * ADR-0013: status enum replaces the boolean isCompleted field.
  */
 export const backfillProgress = pgTable("backfill_progress", {
 	id: serial("id").primaryKey(),
@@ -269,9 +304,14 @@ export const backfillProgress = pgTable("backfill_progress", {
 	interval: text("interval").notNull(), // e.g., "1d", "1h", "1m"
 	targetStartDate: timestamp("target_start_date", { withTimezone: true }).notNull(),
 	lastBackfilledAt: timestamp("last_backfilled_at", { withTimezone: true }),
+	lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }), // ADR-0013: for incremental sync
+	// @deprecated — use backfillStatus instead. Kept for backward compat during migration.
 	isCompleted: boolean("is_completed").default(false).notNull(),
+	// ADR-0013: New lifecycle status
+	backfillStatus: backfillStatusEnum("backfill_status").default("PENDING"),
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
 
 /**
  * NEW: Corporate Actions Table
@@ -330,4 +370,40 @@ export const macroData = pgTable("macro_data", {
 	country: text("country").default("USA"),
 	source: text("source").notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+// Alerting System Tables (PineTS) — ADR-0014
+// Enum types declared at top of file to avoid temporal dead zones.
+// =============================================
+
+export const alerts = pgTable("alerts", {
+	id: serial("id").primaryKey(),
+	userId: integer("user_id")
+		.references(() => users.id, { onDelete: "cascade" })
+		.notNull(),
+	symbolId: integer("symbol_id")
+		.references(() => symbols.id, { onDelete: "cascade" })
+		.notNull(),
+	name: text("name").notNull(),
+	pineScript: text("pine_script").notNull(), // Pine Script code to evaluate
+	interval: text("interval").default("1h").notNull(),
+	status: alertStatusEnum("status").default("ACTIVE").notNull(),
+	lastTriggeredAt: timestamp("last_triggered_at", { withTimezone: true }),
+	cooldownMinutes: integer("cooldown_minutes").default(60),
+	// Extra delivery config: { webhook_url, telegram_chat_id, etc. }
+	params: text("params"), // JSON string for notification params
+	createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const alertHistory = pgTable("alert_history", {
+	id: serial("id").primaryKey(),
+	alertId: integer("alert_id")
+		.references(() => alerts.id, { onDelete: "cascade" })
+		.notNull(),
+	triggeredAt: timestamp("triggered_at", { withTimezone: true }).defaultNow().notNull(),
+	message: text("message"),
+	dataSnapshot: text("data_snapshot"), // JSON snapshot of indicator values at trigger time
+	// Notification delivery tracking
+	deliveryStatus: deliveryStatusEnum("delivery_status").default("PENDING").notNull(),
+	deliveredAt: timestamp("delivered_at", { withTimezone: true }),
 });

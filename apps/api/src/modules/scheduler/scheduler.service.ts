@@ -1,6 +1,7 @@
 import { Logger } from "../../utils/logger";
 import { harvestQueue, redisConnection, registerRecurringJobs } from "./queue";
 import { createHarvestWorker } from "./workers/harvest.orchestrator";
+import { alertWorker } from "../alert/workers/alert.worker";
 
 const logger = new Logger("SchedulerService");
 
@@ -15,6 +16,7 @@ const logger = new Logger("SchedulerService");
  */
 export class SchedulerService {
 	private worker: ReturnType<typeof createHarvestWorker> | null = null;
+	private alertWorker = alertWorker;
 
 	async start() {
 		logger.info("🚀 Starting BullMQ-based Scheduler...");
@@ -39,6 +41,7 @@ export class SchedulerService {
 		});
 
 		logger.info("✅ BullMQ Scheduler running. Central HarvestOrchestrator active.");
+		logger.info("✅ Alert evaluation worker active.");
 
 		// Trigger VIP sync segera saat startup (bukan tunggu 15 menit)
 		await harvestQueue.add(
@@ -53,6 +56,7 @@ export class SchedulerService {
 	async stop() {
 		logger.info("Stopping BullMQ Scheduler...");
 		if (this.worker) await this.worker.close();
+		await this.alertWorker.stop();
 		await redisConnection.quit();
 		logger.info("Scheduler stopped.");
 	}

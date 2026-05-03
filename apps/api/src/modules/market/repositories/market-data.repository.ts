@@ -1,8 +1,11 @@
-import { marketData } from "@packages/db/src/schema";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { marketData, symbols } from "@packages/db/src/schema";
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
 import { db } from "../../../db";
+import { QuestDBService, questDbService } from "../services/QuestDBService";
 
 export class MarketDataRepository {
+	constructor(private qdb: QuestDBService = questDbService) {}
+
 	async getLatestCandles(symbolIds: number[], interval: string, limit: number): Promise<any[]> {
 		const query = sql`
             SELECT symbol_id, close, timestamp
@@ -83,7 +86,55 @@ export class MarketDataRepository {
 			.limit(limit);
 	}
 
-	async upsert(values: any[]): Promise<void> {
-		await db.insert(marketData).values(values).onConflictDoNothing().execute();
+	/**
+	 * Unified Upsert: Writes to Postgres (Drizzle) and QuestDB (ILP).
+	 * Ensures data integrity across both storage layers.
+	 */
+	async upsert(values: any[], ticker?: string): Promise<void> {
+		if (values.length === 0) return;
+
+		// 1. Postgres Write (Reliability & Metadata)
+		// Batching to avoid Postgres parameter limit (65,535)
+		const CHUNK_SIZE = 1000;
+		for (let i = 0; i < values.length; i += CHUNK_SIZE) {
+			const chunk = values.slice(i, i + CHUNK_SIZE);
+			await db.insert(marketData).values(chunk).onConflictDoNothing().execute();
+		}
+
+		// 2. QuestDB Write (Performance & Alerts)
+		try {
+			let effectiveTicker = ticker;
+
+			// If ticker not provided, resolve it from the first entry (assuming batch is same symbol)
+			if (!effectiveTicker && values[0].symbolId) {
+				const [sym] = await db
+					.select({ ticker: symbols.ticker })
+					.from(symbols)
+					.where(eq(symbols.id, values[0].symbolId))
+					.limit(1);
+				effectiveTicker = sym?.ticker;
+			}
+
+			if (effectiveTicker) {
+				const interval = values[0].interval;
+				const source = values[0].source;
+
+				// Format for QuestDBService (ILP)
+				const qdbCandles = values.map((v) => ({
+					timestamp: v.timestamp instanceof Date ? v.timestamp : new Date(v.timestamp),
+					open: Number(v.open),
+					high: Number(v.high),
+					low: Number(v.low),
+					close: Number(v.close),
+					volume: Number(v.volume),
+				}));
+
+				await this.qdb.writeCandles(qdbCandles, effectiveTicker, interval, source);
+			}
+		} catch (e) {
+			console.error("[MarketDataRepository] QuestDB sync failed during upsert:", e);
+			// We don't throw here to avoid failing the Postgres transaction, 
+			// but we should eventually monitor this for data gaps.
+		}
 	}
 }

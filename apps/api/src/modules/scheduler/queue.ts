@@ -22,6 +22,20 @@ export const harvestQueue = new Queue("harvest", {
 	},
 });
 
+// Queue khusus untuk evaluasi alert algo trading
+export const alertQueue = new Queue("alerts", {
+	connection: redisConnection,
+	defaultJobOptions: {
+		removeOnComplete: 200,
+		removeOnFail: 100,
+		attempts: 2,
+		backoff: {
+			type: "fixed",
+			delay: 60000, // retry setelah 1 menit jika gagal
+		},
+	},
+});
+
 /**
  * Daftarkan semua recurring jobs.
  * Idempotent: aman dipanggil berkali-kali (BullMQ de-duplikasi berdasarkan jobId).
@@ -33,7 +47,7 @@ export async function registerRecurringJobs(): Promise<void> {
 		{},
 		{
 			repeat: { pattern: "*/15 * * * *" },
-			jobId: "recurring:vip-sync",
+			jobId: "recurring-vip-sync",
 		},
 	);
 
@@ -43,7 +57,7 @@ export async function registerRecurringJobs(): Promise<void> {
 		{},
 		{
 			repeat: { pattern: "0 * * * *" },
-			jobId: "recurring:standard-sync",
+			jobId: "recurring-standard-sync",
 		},
 	);
 
@@ -53,7 +67,7 @@ export async function registerRecurringJobs(): Promise<void> {
 		{},
 		{
 			repeat: { pattern: "0 2 * * *" },
-			jobId: "recurring:discovery",
+			jobId: "recurring-discovery",
 		},
 	);
 
@@ -63,7 +77,7 @@ export async function registerRecurringJobs(): Promise<void> {
 		{},
 		{
 			repeat: { pattern: "0 */6 * * *" },
-			jobId: "recurring:enrichment",
+			jobId: "recurring-enrichment",
 		},
 	);
 
@@ -73,7 +87,17 @@ export async function registerRecurringJobs(): Promise<void> {
 		{},
 		{
 			repeat: { pattern: "*/5 * * * *" },
-			jobId: "recurring:backfill",
+			jobId: "recurring-backfill",
+		},
+	);
+
+	// Alert Evaluator: evaluasi semua alert yang aktif — tiap menit
+	await harvestQueue.add(
+		"alert-evaluator",
+		{},
+		{
+			repeat: { pattern: "* * * * *" },
+			jobId: "recurring-alert-evaluator",
 		},
 	);
 

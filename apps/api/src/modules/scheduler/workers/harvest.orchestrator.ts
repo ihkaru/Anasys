@@ -1,9 +1,16 @@
 import { Worker, type Job } from "bullmq";
-import { symbols, symbolFinancials, watchlistItems, holdings, backfillProgress } from "@packages/db/src/schema";
+import {
+	symbols,
+	symbolFinancials,
+	watchlistItems,
+	holdings,
+	backfillProgress,
+	alerts,
+} from "@packages/db/src/schema";
 import { eq, isNull, sql, asc, inArray } from "drizzle-orm";
 import { db } from "../../../db";
 import { Logger } from "../../../utils/logger";
-import { redisConnection } from "../queue";
+import { redisConnection, alertQueue } from "../queue";
 import { marketService } from "../../market/market.service";
 
 const logger = new Logger("HarvestOrchestrator");
@@ -31,6 +38,8 @@ export function createHarvestWorker() {
 					return await handleEnrichment();
 				case "backfill":
 					return await handleBackfill();
+				case "alert-evaluator":
+					return await handleAlertEvaluator();
 				default:
 					logger.warn(`Unknown job type: ${job.name}`);
 			}
@@ -41,6 +50,20 @@ export function createHarvestWorker() {
 			lockDuration: 600000, // 10 menit lock per job
 		},
 	);
+}
+
+// ── HANDLER: Alert Evaluator ────────────────────────────────────────────────
+
+async function handleAlertEvaluator() {
+	const activeAlerts = await db.select({ id: alerts.id }).from(alerts).where(eq(alerts.status, "ACTIVE"));
+
+	for (const alert of activeAlerts) {
+		await alertQueue.add("evaluate-alert", { alertId: alert.id }, { jobId: `eval-alert-${alert.id}-${Date.now()}` });
+	}
+
+	if (activeAlerts.length > 0) {
+		logger.info(`[AlertEvaluator] Queued ${activeAlerts.length} active alerts`);
+	}
 }
 
 // ── HANDLER: VIP Sync ────────────────────────────────────────────────────────
@@ -168,7 +191,7 @@ async function upsertAndBackfill(ticker: string, type: "STOCK" | "CRYPTO", excha
 		.returning({ id: symbols.id });
 	if (!newSym) return;
 
-	// Add to backfill queue
+	// Add to backfill queue with explicit PENDING status (ADR-0013)
 	const now = new Date();
 	const targets = [
 		{ i: "1d", y: 10 },
@@ -180,7 +203,13 @@ async function upsertAndBackfill(ticker: string, type: "STOCK" | "CRYPTO", excha
 		start.setFullYear(start.getFullYear() - t.y);
 		await db
 			.insert(backfillProgress)
-			.values({ symbolId: newSym.id, interval: t.i, targetStartDate: start, isCompleted: false })
+			.values({
+				symbolId: newSym.id,
+				interval: t.i,
+				targetStartDate: start,
+				isCompleted: false,
+				backfillStatus: "PENDING",
+			})
 			.onConflictDoNothing();
 	}
 }
@@ -210,11 +239,17 @@ async function handleEnrichment() {
 // ── HANDLER: Backfill (Phase 5) ──────────────────────────────────────────────
 
 async function handleBackfill() {
-	// Ambil 10 backfill task yang belum selesai
+	// Ambil tasks yang belum selesai — gunakan enum status baru (ADR-0013)
+	// Fallback: juga include rows lama yang pakai isCompleted=false tapi belum punya status enum
 	const tasks = await db
 		.select()
 		.from(backfillProgress)
-		.where(eq(backfillProgress.isCompleted, false))
+		.where(
+			sql`(
+				${backfillProgress.backfillStatus} IN ('PENDING', 'IN_PROGRESS')
+				OR (${backfillProgress.backfillStatus} IS NULL AND ${backfillProgress.isCompleted} = false)
+			)`,
+		)
 		.orderBy(asc(backfillProgress.updatedAt))
 		.limit(1000);
 
@@ -226,9 +261,22 @@ async function handleBackfill() {
 				const symbol = await db.query.symbols.findFirst({ where: eq(symbols.id, task.symbolId) });
 				if (!symbol) return;
 
+				// Mark as IN_PROGRESS to prevent duplicate processing
+				await db
+					.update(backfillProgress)
+					.set({ backfillStatus: "IN_PROGRESS", updatedAt: new Date() })
+					.where(eq(backfillProgress.id, task.id));
+
 				try {
 					const isYahooCompatible = symbol.type === "STOCK" && (task.interval === "1d" || task.interval === "1h");
-					if (!isYahooCompatible) return;
+					if (!isYahooCompatible) {
+						// Skip unsupported combos — mark as SKIPPED to avoid infinite retries
+						await db
+							.update(backfillProgress)
+							.set({ backfillStatus: "SKIPPED", isCompleted: true, updatedAt: new Date() })
+							.where(eq(backfillProgress.id, task.id));
+						return;
+					}
 
 					logger.info(`⏳ [Backfill] ${symbol.ticker} (${task.interval}) via YAHOO`);
 
@@ -240,13 +288,22 @@ async function handleBackfill() {
 						"YAHOO",
 					);
 
+					// Mark COMPLETED — both enum (new) and isCompleted (legacy compat)
 					await db
 						.update(backfillProgress)
-						.set({ isCompleted: true, updatedAt: new Date() })
+						.set({
+							backfillStatus: "COMPLETED",
+							isCompleted: true,
+							lastSyncedAt: new Date(),
+							updatedAt: new Date(),
+						})
 						.where(eq(backfillProgress.id, task.id));
 				} catch (e: any) {
 					logger.error(`Backfill failed for ${symbol.ticker} ${task.interval}: ${e.message}`);
-					await db.update(backfillProgress).set({ updatedAt: new Date() }).where(eq(backfillProgress.id, task.id));
+					await db
+						.update(backfillProgress)
+						.set({ backfillStatus: "FAILED", updatedAt: new Date() })
+						.where(eq(backfillProgress.id, task.id));
 				}
 			}),
 		);
@@ -254,3 +311,4 @@ async function handleBackfill() {
 		await new Promise((r) => setTimeout(r, 50));
 	}
 }
+
