@@ -14,18 +14,20 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS cacher
 COPY --from=planner /app/recipe.json recipe.json
 # BuildKit Cache Mounts untuk mempercepat build antar-run
+# V8/rusty_v8 menyimpan binary di /usr/local/cargo/.rusty_v8
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/usr/local/cargo/.rusty_v8 \
     cargo chef cook --release --recipe-path recipe.json
 
 # Stage 4: Build application
 FROM chef AS builder
 COPY . .
 COPY --from=cacher /app/target target
-COPY --from=cacher /usr/local/cargo /usr/local/cargo
 # Build glibc binary (default for bookworm)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/usr/local/cargo/.rusty_v8 \
     cargo build --release
 
 # Stage 5: Runtime — Ubuntu 24.04 (glibc 2.39)
