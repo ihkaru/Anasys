@@ -96,10 +96,14 @@ export class SymbolService {
 			provider = type === "CRYPTO" ? "ccxt" : "yahoo";
 		}
 
+		// Automatic lotSize detection for IDX (1 lot = 100 shares)
+		const lotSize = ticker.endsWith(".JK") ? 100 : 1;
+
 		const newSym = await this.symbolRepo.create({
 			ticker,
 			type,
 			provider,
+			lotSize,
 			exchange: metadata?.exchange,
 			currency: metadata?.currency,
 			name: metadata?.name || ticker,

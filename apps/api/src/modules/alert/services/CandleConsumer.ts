@@ -138,17 +138,17 @@ export class CandleConsumer {
 		const matchingAlerts = await db
 			.select({ id: alerts.id, name: alerts.name })
 			.from(alerts)
+			.innerJoin(symbols, eq(alerts.symbolId, symbols.id))
 			.where(
 				and(
 					eq(alerts.status, "ACTIVE"),
 					eq(alerts.interval, entry.interval),
-					// Note: alert.symbol_id vs candle.symbol requires a join
-					// TODO: join with symbols table — for now, AlertWorker re-validates
+					eq(symbols.ticker, entry.symbol),
 				),
 			);
 
 		if (matchingAlerts.length === 0) {
-			return; // No active alerts need this candle
+			return; // No active alerts for this specific symbol/interval
 		}
 
 		// Enqueue one BullMQ job per alert
