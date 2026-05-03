@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { api } from '../../api/client';
+import { ref, onMounted, onUnmounted, computed } from "vue";
+import { api } from "../../api/client";
 
 const stats = ref<any>(null);
 const loading = ref(true);
@@ -8,32 +8,32 @@ const error = ref<string | null>(null);
 let timer: any = null;
 
 const fetchStats = async () => {
-  try {
-    const res = await api.get('/market/internal/monitoring');
-    if (res.data.success) {
-      stats.value = res.data.data;
-      error.value = null;
-    }
-  } catch (err: any) {
-    console.error('Failed to fetch monitoring stats:', err);
-    error.value = 'Connection Lost';
-  } finally {
-    loading.value = false;
-  }
+	try {
+		const res = await api.get("/market/internal/monitoring");
+		if (res.data.success) {
+			stats.value = res.data.data;
+			error.value = null;
+		}
+	} catch (err: any) {
+		console.error("Failed to fetch monitoring stats:", err);
+		error.value = "Connection Lost";
+	} finally {
+		loading.value = false;
+	}
 };
 
 onMounted(() => {
-  fetchStats();
-  timer = setInterval(fetchStats, 5000);
+	fetchStats();
+	timer = setInterval(fetchStats, 5000);
 });
 
 onUnmounted(() => {
-  if (timer) clearInterval(timer);
+	if (timer) clearInterval(timer);
 });
 
 const progressPercent = computed(() => {
-  if (!stats.value) return 0;
-  return parseFloat(stats.value.tasks.percentage);
+	if (!stats.value) return 0;
+	return parseFloat(stats.value.tasks.percentage);
 });
 </script>
 
