@@ -38,7 +38,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root user
-RUN groupadd -g 1000 anasys && useradd -u 1000 -g anasys -s /bin/sh anasys
+# Per Mei 2026: Ubuntu 24.04 sudah punya user 'ubuntu' dengan GID 1000.
+# Gunakan 1001 untuk menghindari collision.
+RUN groupadd -g 1001 anasys && useradd -u 1001 -g anasys -s /bin/sh anasys
 USER anasys
 
 WORKDIR /app
