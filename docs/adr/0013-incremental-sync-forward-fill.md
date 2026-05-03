@@ -159,6 +159,16 @@ CREATE TABLE IF NOT EXISTS candles (
 
 Dengan ini, insert candle yang sudah ada hanya akan di-upsert (tidak duplikat), membuat operasi incremental sync **idempotent** secara native.
 
+### 6. Greedy Historical Backfill Strategy (ADR-0013 Supplement ✅)
+
+**Konteks**: Pengisian data historis (backfill) awal seringkali lambat jika dilakukan dalam potongan kecil. Di sisi lain, provider memiliki batasan jumlah candle per request.
+
+**Keputusan**:
+1. **Autonomous Progress**: Engine Rust menggunakan field `last_backfilled_at` dari PostgreSQL sebagai *checkpoint*. 
+2. **Greedy Fetching**: Engine melakukan request dengan rentang waktu maksimal yang diizinkan provider (misal: 1 tahun untuk 1h, 10 tahun untuk 1d) dalam satu siklus kerja.
+3. **Backward Iteration**: Backfill bergerak mundur dari stempel waktu saat ini (atau stempel terakhir yang tercatat) hingga mencapai `target_start_date`.
+4. **Self-Reporting**: Setelah setiap *chunk* berhasil disimpan ke QuestDB, Engine melaporkan stempel waktu lilin paling awal sebagai `last_backfilled_at` baru ke API.
+
 ---
 
 ## Urutan Implementasi

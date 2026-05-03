@@ -68,4 +68,32 @@ export class Broadcaster {
 			}
 		}
 	}
+
+	/**
+	 * Send a targeted message to all active sessions of a specific user.
+	 */
+	sendToUser(userId: number, type: string, data: any) {
+		const message = JSON.stringify({ type, data });
+		let sentCount = 0;
+
+		// Iterasi semua client untuk mencari yang punya userId cocok
+		// (In production with thousands of users, we'd maintain a Map<userId, Set<clientId>>)
+		const allClients = (this.clientManager as any).clients as Map<string, any>;
+		if (!allClients) return;
+
+		for (const clientState of allClients.values()) {
+			if (clientState.userId === userId && clientState.ws) {
+				try {
+					clientState.ws.send(message);
+					sentCount++;
+				} catch (_e) {
+					// Ignore failures, ClientManager handles cleanup
+				}
+			}
+		}
+
+		if (sentCount > 0) {
+			_logger.debug(`Sent targeted message [${type}] to user ${userId} (${sentCount} sessions)`);
+		}
+	}
 }

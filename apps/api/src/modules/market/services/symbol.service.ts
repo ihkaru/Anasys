@@ -1,8 +1,9 @@
+import type Redis from "ioredis";
 import type { Logger } from "../../../utils/logger";
 import type { IDataProvider } from "../providers/data-provider.interface";
 import type { SymbolRepository } from "../repositories/symbol.repository";
 
-// Fallback profiles for major cryptocurrencies (Yahoo doesn't have assetProfile for crypto)
+// ... (CRYPTO_PROFILES remains same)
 const CRYPTO_PROFILES: Record<string, { name: string; description: string; website?: string }> = {
 	"BTC-USD": {
 		name: "Bitcoin",
@@ -73,6 +74,7 @@ export class SymbolService {
 	constructor(
 		private symbolRepo: SymbolRepository,
 		private dataProvider: IDataProvider,
+		private redis: Redis,
 		private logger: Logger,
 		private discoveryProvider?: IDataProvider,
 	) {}
@@ -86,7 +88,10 @@ export class SymbolService {
 
 		const existing = await this.symbolRepo.findByTicker(ticker);
 		if (existing) {
-			// Optional: Update metadata if missing? For now, just return.
+			// Sync lotSize to Redis (ADR-0012)
+			if (existing.lotSize) {
+				await this.redis.hset("harvest:lot-sizes", ticker.toUpperCase(), existing.lotSize.toString());
+			}
 			return existing;
 		}
 
@@ -109,7 +114,10 @@ export class SymbolService {
 			name: metadata?.name || ticker,
 		});
 
-		this.logger.info(`New symbol created: ${ticker} (Provider: ${provider})`);
+		// Sync lotSize to Redis (ADR-0012)
+		await this.redis.hset("harvest:lot-sizes", ticker.toUpperCase(), lotSize.toString());
+
+		this.logger.info(`New symbol created: ${ticker} (Provider: ${provider}, LotSize: ${lotSize})`);
 		return newSym;
 	}
 
@@ -175,6 +183,7 @@ export class SymbolService {
 			const profile = result.assetProfile;
 			const quoteType = result.quoteType;
 			const price = result.price;
+			const ks = result.defaultKeyStatistics;
 
 			const updates: Record<string, any> = {
 				metadataUpdatedAt: new Date(),

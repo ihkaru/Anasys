@@ -1,4 +1,5 @@
 import type { Logger } from "../../../utils/logger";
+import type Redis from "ioredis";
 import type { MarketDataRepository } from "../repositories/market-data.repository";
 import { questDbService } from "./QuestDBService";
 import { ohlcvLRUCache, OHLCVLRUCache } from "./OHLCVLRUCache";
@@ -10,6 +11,7 @@ export class CandleService {
 		private symbolService: SymbolService,
 		private syncService: SyncService,
 		private marketDataRepo: MarketDataRepository,
+		private redis: Redis,
 		private logger: Logger,
 	) {}
 

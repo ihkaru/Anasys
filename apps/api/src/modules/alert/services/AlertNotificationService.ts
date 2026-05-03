@@ -16,8 +16,9 @@
 
 import { Logger } from "../../../utils/logger";
 import { db } from "../../../db";
-import { alertHistory } from "@packages/db/src/schema";
 import { eq } from "drizzle-orm";
+import { realtimeService } from "../../realtime/realtime.service";
+import { alertHistory, alerts } from "@packages/db/src/schema";
 
 export interface AlertParams {
 	webhook_url?: string;
@@ -44,7 +45,7 @@ export class AlertNotificationService {
 	 * Tries all configured channels, marks delivery_status accordingly.
 	 */
 	async dispatch(payload: AlertNotificationPayload): Promise<void> {
-		const channels: Promise<void>[] = [this.sendLog(payload)];
+		const channels: Promise<void>[] = [this.sendLog(payload), this.sendWebSocket(payload)];
 
 		if (payload.params?.webhook_url) {
 			channels.push(this.sendWebhook(payload, payload.params.webhook_url));
@@ -75,6 +76,34 @@ export class AlertNotificationService {
 		this.logger.info(
 			`📣 ALERT [${payload.alertName}] — ${payload.symbolTicker}: ${payload.message} (at ${payload.triggeredAt.toISOString()})`,
 		);
+	}
+
+	// ── Channel: WebSocket (per-user) ────────────────────────────────────────
+	private async sendWebSocket(payload: AlertNotificationPayload): Promise<void> {
+		// 1. Get userId from the alert config
+		const [alert] = await db
+			.select({ userId: alerts.userId })
+			.from(alerts)
+			.where(eq(alerts.id, payload.alertId))
+			.limit(1);
+
+		if (!alert) {
+			this.logger.error(`Failed to find alert ${payload.alertId} for WS notification`);
+			return;
+		}
+
+		// 2. Dispatch via RealtimeService
+		realtimeService.sendToUser(alert.userId, "ALERT_TRIGGERED", {
+			id: payload.alertId,
+			historyId: payload.historyId,
+			name: payload.alertName,
+			symbol: payload.symbolTicker,
+			message: payload.message,
+			triggeredAt: payload.triggeredAt.toISOString(),
+			snapshot: payload.snapshot || {},
+		});
+
+		this.logger.info(`[WebSocket] ✅ Dispatched to user ${alert.userId}`);
 	}
 
 	// ── Channel: Generic Webhook ─────────────────────────────────────────────

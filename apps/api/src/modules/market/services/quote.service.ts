@@ -91,7 +91,7 @@ export class QuoteService {
 
 						// Stamp the source on every enriched quote so the frontend
 						// can use the actual provider (YAHOO/TRADINGVIEW/CCXT) as a store key
-						const enrichedWithSource = { ...enriched, source };
+						const enrichedWithSource = { ...enriched, source: source as "YAHOO" | "TRADINGVIEW" | "CCXT" };
 						this.cacheService.set(`quote:${quote.ticker}:${period}:${source}`, enrichedWithSource, ttl);
 						results.push(enrichedWithSource);
 					}

@@ -30,21 +30,23 @@ export function useMarketHistory(logger: Logger) {
 				}
 			}
 
-			// 1. Try SQLite Cache (with TTL check for latest data)
+			// 1. Try SQLite Cache
 			let cachedData: any[] = [];
 			let sqliteExpired = false;
 			try {
 				const beforeTs = before ? new Date(before).getTime() : undefined;
 
-				// TTL check: only for latest data (not backfill/before requests)
-				if (!before && source) {
-					sqliteExpired = await sqliteService.isCacheExpired(ticker, interval, source);
-				}
+				// Always try to get cached data for instant load
+				cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs, source);
 
-				if (!sqliteExpired) {
-					cachedData = await sqliteService.getOHLCV(ticker, interval, limit, beforeTs, source);
-				} else {
-					logger.debug(`[FetchHistory] SQLite TTL expired for ${ticker}/${interval}/${source} — skipping cache`);
+				// TTL check: only for latest data (not backfill/before requests)
+				if (!before && source && cachedData.length > 0) {
+					sqliteExpired = await sqliteService.isCacheExpired(ticker, interval, source);
+					if (sqliteExpired) {
+						logger.debug(
+							`[FetchHistory] SQLite TTL expired for ${ticker}/${interval}/${source} — will refresh in background`,
+						);
+					}
 				}
 			} catch (err) {
 				logger.warn("SQLite Cache Read Failed", err);

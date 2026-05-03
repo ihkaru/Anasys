@@ -116,8 +116,8 @@ async function runBenchmark() {
 
 	const questdbCandles1 = await questdbCount("candles");
 
-	console.log("⏱️ Measuring real-time delta (30 seconds)...");
-	await new Promise((resolve) => setTimeout(resolve, 30000));
+	console.log("⏱️ Measuring real-time delta (10 seconds)...");
+	await new Promise((resolve) => setTimeout(resolve, 10000));
 
 	let rateLimitCount = 0;
 	try {
@@ -145,10 +145,10 @@ async function runBenchmark() {
 	const symRes = await db.select({ count: sql`count(*)` }).from(symbols);
 	const totalSymbols = Number(symRes[0].count);
 
-	const completionTPS = ((completed2 - completed1) / 30).toFixed(2);
-	const activityTPS = (activityCount / 30).toFixed(2);
+	const completionTPS = ((completed2 - completed1) / 10).toFixed(2);
+	const activityTPS = (activityCount / 10).toFixed(2);
 	const candleRPS =
-		questdbCandles1 >= 0 && questdbCandles2 >= 0 ? ((questdbCandles2 - questdbCandles1) / 30).toFixed(2) : "N/A";
+		questdbCandles1 >= 0 && questdbCandles2 >= 0 ? ((questdbCandles2 - questdbCandles1) / 10).toFixed(2) : "N/A";
 
 	const totalExpectedTasks = totalSymbols * 4; // 1d, 1h, 15m, 1m for each symbol
 	const remainingTasks = totalExpectedTasks - completed2;

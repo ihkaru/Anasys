@@ -1,8 +1,14 @@
-import ccxt from "ccxt";
-import type { IDataProvider, UnifiedCandle, UnifiedQuote } from "./data-provider.interface";
+import * as ccxt from "ccxt";
+import type {
+	IDataProvider,
+	QuoteResult,
+	SearchResult,
+	TrendingResult,
+	UnifiedCandle,
+} from "./data-provider.interface";
 
 export class CcxtProvider implements IDataProvider {
-	private binance: ccxt.binance;
+	private binance: any;
 
 	constructor() {
 		this.binance = new ccxt.binance({
@@ -10,10 +16,11 @@ export class CcxtProvider implements IDataProvider {
 		});
 	}
 
-	async fetchChart(symbol: string, interval: string, startTime?: number, _endTime?: number): Promise<UnifiedCandle[]> {
+	async fetchChart(symbol: string, options: any): Promise<UnifiedCandle[]> {
+		const startTime = options.startTime;
 		// Convert symbol from BINANCE:BTCUSDT to BTC/USDT or BTC-USD to BTC/USD
 		const ccxtSymbol = this.normalizeSymbol(symbol);
-		const ccxtInterval = this.normalizeInterval(interval);
+		const ccxtInterval = this.normalizeInterval(options.interval || "1d");
 
 		try {
 			const ohlcv = await this.binance.fetchOHLCV(ccxtSymbol, ccxtInterval, startTime, 1000);
@@ -32,22 +39,56 @@ export class CcxtProvider implements IDataProvider {
 		}
 	}
 
-	async fetchQuote(symbol: string): Promise<UnifiedQuote | null> {
-		const ccxtSymbol = this.normalizeSymbol(symbol);
-		try {
-			const ticker = await this.binance.fetchTicker(ccxtSymbol);
-			return {
-				symbol: symbol,
-				price: ticker.last || 0,
-				change: ticker.change || 0,
-				changePercent: ticker.percentage || 0,
-				volume: ticker.baseVolume || 0,
-				timestamp: new Date(ticker.timestamp || Date.now()),
-			};
-		} catch (error) {
-			console.error(`CCXT fetchQuote failed for ${symbol}:`, error);
-			return null;
+	async fetchQuoteSummary(_ticker: string, _modules: string[]): Promise<unknown> {
+		return null;
+	}
+
+	async fetchQuotes(tickers: string[]): Promise<QuoteResult[]> {
+		const results: QuoteResult[] = [];
+		for (const ticker of tickers) {
+			const ccxtSymbol = this.normalizeSymbol(ticker);
+			try {
+				const tickerData = await this.binance.fetchTicker(ccxtSymbol);
+				results.push({
+					ticker: ticker,
+					name: ticker,
+					price: tickerData.last || 0,
+					previousClose: tickerData.previousClose || tickerData.last || 0,
+					change: tickerData.change || 0,
+					changePercent: tickerData.percentage || 0,
+					volume: tickerData.baseVolume || 0,
+					updatedAt: new Date(tickerData.timestamp || Date.now()),
+					source: "CCXT",
+				});
+			} catch (error) {
+				console.error(`CCXT fetchQuote failed for ${ticker}:`, error);
+			}
 		}
+		return results;
+	}
+
+	async search(_query: string, _limit?: number): Promise<SearchResult[]> {
+		return [];
+	}
+
+	async fetchTrending(_region?: string, _count?: number): Promise<TrendingResult[]> {
+		return [];
+	}
+
+	async fetchRecommendations(_ticker: string): Promise<string[]> {
+		return [];
+	}
+
+	async fetchDailyGainers(_count?: number): Promise<QuoteResult[]> {
+		return [];
+	}
+
+	async fetchDailyLosers(_count?: number): Promise<QuoteResult[]> {
+		return [];
+	}
+
+	getName(): string {
+		return "CCXT";
 	}
 
 	private normalizeSymbol(symbol: string): string {

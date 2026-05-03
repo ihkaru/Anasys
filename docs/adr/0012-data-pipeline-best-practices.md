@@ -75,28 +75,24 @@ Menggantikan ambiguitas sebelumnya, peran masing-masing storage dikunci:
 - QuestDB adalah **source of truth** untuk data OHLCV jangka panjang
 - Data dari Postgres **HARUS** dipromosikan ke QuestDB via Engine (lihat G1)
 
-### 3. Fix INGEST-PENDING: Redis Pub/Sub ke Engine (TODO Priority High)
+### 3. Fix INGEST-PENDING: Redis Pub/Sub ke Engine (RESOLVED ✅)
 
-**Saat ini**: `INGEST-PENDING` hanya berupa log string — Engine tidak tahu.
+**Status**: Terintegrasi penuh (Mei 2026).
 
-**Target**:
-```typescript
-// Setelah backfill berhasil di candle.service.ts:
-await redisClient.publish('harvest:ingest-pending', JSON.stringify({
-  ticker,
-  interval,
-  source,
-  latestTimestamp: candles.at(-1)?.timestamp,
-}));
-```
+**Implementasi**:
+- **API**: `SyncService.ts` melakukan `SADD` simbol ke `harvest:realtime:symbols` dan menerbitkan sinyal `harvest:ingest-pending` secara atomik.
+- **Engine**: Background listener di `main.rs` berlangganan ke channel Redis tersebut dan memicu `Notify` ke scraper untuk penyegaran instan tanpa restart.
 
-```rust
-// Engine Rust subscribe ke channel ini:
-// harvest:ingest-pending → tambahkan ke harvest:realtime:symbols
-// → Engine mulai scrape ticker ini secara real-time
-```
+### 4. Lot Size Synchronization & Volume Normalization (RESOLVED ✅)
 
-### 4. SQLite Browser Cache: TTL Per Interval
+**Konteks**: Simbol bursa tertentu (seperti IDX `.JK`) melaporkan volume dalam unit "lot" (100 lembar), sementara bursa lain melaporkan dalam lembar saham. Ini menyebabkan diskontinuitas data volume di QuestDB.
+
+**Keputusan**:
+1. **Metadata Store**: `SymbolService` (API) menyimpan `lotSize` di PostgreSQL dan menyinkronkannya ke Redis hash `harvest:lot-sizes`.
+2. **Engine Enrichment**: Engine Rust melakukan caching `lot_size` lokal (berbasis Redis) dan secara otomatis mengalikan field `volume` pada setiap *tick* dan *candle* sebelum penulisan ke QuestDB.
+3. **Default**: Lot size default adalah 1. Simbol `.JK` dideteksi secara otomatis dan diset ke 100.
+
+### 5. SQLite Browser Cache: TTL Per Interval
 
 **Saat ini**: Tidak ada TTL — data lama mungkin tersimpan selamanya.
 
@@ -111,28 +107,27 @@ await redisClient.publish('harvest:ingest-pending', JSON.stringify({
 
 Implementasi: tambah kolom `cachedAt` di SQLite, query cek apakah `now - cachedAt > TTL`.
 
-### 5. Source-Aware Cache Key (Sudah Diimplementasikan ✅)
+### 6. Source-Aware Cache Key (Sudah Diimplementasikan ✅)
 
 Cache key format: `TICKER:INTERVAL:SOURCE`
 - Contoh: `BTCUSD:1d:TRADINGVIEW`, `BTCUSD:1d:YAHOO`
 - Mencegah polusi cache antar provider
 
-### 6. Bridge Syntax Validation pada CI/CD
+### 7. Bridge Syntax Validation pada CI/CD
 
 Tambahkan step di pipeline:
 ```yaml
 - name: Validate Python bridge syntax
   run: python3 -m py_compile apps/api/src/scripts/bridge_tradingview.py
 ```
-
 ---
 
 ## Gap Status
 
 | Gap | Status | Target |
 |---|---|---|
-| G1: OHLCV tidak naik ke QuestDB | 🔲 Belum | Redis pub/sub ke Engine |
-| G2: INGEST-PENDING signal tidak nyata | 🔲 Belum | Redis publish setelah backfill |
+| G1: OHLCV tidak naik ke QuestDB | ✅ Fixed | Redis pub/sub ke Engine |
+| G2: INGEST-PENDING signal tidak nyata | ✅ Fixed | Redis publish setelah backfill |
 | G3: SQLite tanpa TTL | 🔲 Belum | TTL per interval di useMarketCache |
 | G4: `return` invalid di bridge | ✅ Fixed | — |
 | G5: `console.time()` blocking | ✅ Fixed | `performance.now()` |
@@ -142,9 +137,8 @@ Tambahkan step di pipeline:
 
 ## Prioritas Pekerjaan Selanjutnya
 
-1. **HIGH**: Implementasi Redis pub/sub dari API ke Engine untuk INGEST-PENDING (G1, G2)
-2. **MEDIUM**: SQLite TTL per interval (G3)
-3. **LOW**: CI/CD step untuk Python syntax validation
+1. **HIGH**: SQLite TTL per interval (G3)
+2. **MEDIUM**: CI/CD step untuk Python syntax validation
 
 ## Referensi
 - ADR-0007: Unified Market Data Lake Strategy

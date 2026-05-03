@@ -7,7 +7,7 @@ const logger = new Logger("ClientManager");
 export class ClientManager {
 	private clients = new Map<string, ClientState>();
 
-	registerClient(ws: ServerWebSocket<any> & { id: string }) {
+	registerClient(ws: ServerWebSocket<any> & { id: string }, userId?: number) {
 		const id = ws.id || (ws as any).data?.id;
 		if (!id) {
 			logger.error("Client connected without ID, rejecting");
@@ -17,10 +17,11 @@ export class ClientManager {
 
 		this.clients.set(id, {
 			ws,
+			userId,
 			subscriptions: new Set(),
 			lastPing: Date.now(),
 		});
-		logger.debug(`Client connected (id=${id}). Total: ${this.clients.size}`);
+		logger.debug(`Client connected (id=${id}, user=${userId || "guest"}). Total: ${this.clients.size}`);
 	}
 
 	unregisterClient(ws: ServerWebSocket<any> & { id: string }): ClientState | undefined {

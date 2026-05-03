@@ -53,7 +53,7 @@ async function runMigration() {
 
 			// ILP timestamp needs to be in nanoseconds
 			// Postgres timestamp gives a JS Date object
-			const date = new Date(row.timestamp);
+			const date = new Date(row.timestamp as string);
 			const timestampNanos = date.getTime() * 1000000;
 
 			ilpPayload += `candles,symbol=${symbol},interval=${interval},source=${source} open=${open},high=${high},low=${low},close=${close},volume=${volume} ${timestampNanos}\n`;

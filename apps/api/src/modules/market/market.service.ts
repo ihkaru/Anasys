@@ -27,9 +27,9 @@ const providerFactory = new DataProviderFactory();
 const cacheService = new CacheService();
 const tvProvider = new TradingViewPythonProvider();
 
-const symbolService = new SymbolService(symbolRepo, dataProvider, logger, tvProvider);
-const syncService = new SyncService(symbolService, marketDataRepo, providerFactory, logger);
-const candleService = new CandleService(symbolService, syncService, marketDataRepo, logger);
+const symbolService = new SymbolService(symbolRepo, dataProvider, redisConnection, logger, tvProvider);
+export const syncService = new SyncService(symbolService, marketDataRepo, providerFactory, redisConnection, logger);
+export const candleService = new CandleService(symbolService, syncService, marketDataRepo, redisConnection, logger);
 const overviewService = new OverviewService(symbolRepo, marketDataRepo, logger);
 const quoteService = new QuoteService(symbolRepo, marketDataRepo, providerFactory, cacheService, logger);
 const moversService = new MoversService(quoteService, cacheService, logger);

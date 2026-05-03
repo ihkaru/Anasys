@@ -38,4 +38,5 @@ pub struct BackfillTask {
     pub asset_type: String,
     pub tradingview_symbol: Option<String>,
     pub tradingview_exchange: Option<String>,
+    pub last_backfilled_at: Option<String>,
 }

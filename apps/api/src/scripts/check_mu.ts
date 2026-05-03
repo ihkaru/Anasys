@@ -1,6 +1,6 @@
 import { marketData, symbols } from "@packages/db/src/schema";
 import { desc, eq } from "drizzle-orm";
-import { db } from "./src/db";
+import { db } from "../db";
 
 const [s] = await db.select().from(symbols).where(eq(symbols.ticker, "MU"));
 if (s) {

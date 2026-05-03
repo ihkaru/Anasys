@@ -136,7 +136,8 @@ async function seedFromTrendingUS(count: number) {
 
 		// Fetch quotes in one batch to get name/exchange/currency
 		const quotes: any[] = await yf.quote(tickers);
-		for (const q of [].concat(quotes)) {
+		const quoteArray = Array.isArray(quotes) ? quotes : [quotes];
+		for (const q of quoteArray) {
 			if (!q?.symbol) continue;
 			const name = q.shortName || q.longName || q.symbol;
 			await writeBack(q.symbol, name, q.exchange || undefined, q.currency || undefined);
@@ -154,7 +155,7 @@ async function seedFromIDXSearch() {
 		sql`SELECT ticker FROM symbols WHERE ticker LIKE '%.JK' AND (name IS NULL OR name = ticker) LIMIT 100`,
 	);
 
-	const rows = (idxStubs.rows || idxStubs) as any[];
+	const rows = (Array.isArray(idxStubs) ? idxStubs : (idxStubs as any).rows || []) as any[];
 	logger.info(`   → ${rows.length} IDX stubs found`);
 
 	for (const row of rows) {

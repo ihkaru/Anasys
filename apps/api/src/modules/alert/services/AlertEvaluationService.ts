@@ -13,8 +13,12 @@ export class AlertEvaluationService {
 	private logger = new Logger("AlertEvaluationService");
 
 	/**
-	 * Evaluates a Pine Script alert against recent market data.
-	 * Returns trigger status and data snapshot.
+	 * Evaluates a Pine-Compatible Script against recent market data.
+	 *
+	 * [IMPORTANT] This uses the PineTS emulator, NOT a native TradingView engine.
+	 * - Limited support: SMA, EMA, RSI, MACD, etc. are supported.
+	 * - Missing: request.security(), complex barstate logic, version 5 latest features.
+	 * - Strategy behavior might differ from TradingView.
 	 */
 	async evaluate(
 		ticker: string,
@@ -23,8 +27,8 @@ export class AlertEvaluationService {
 		pineScript: string,
 	): Promise<AlertEvaluationResult | null> {
 		try {
-			// 1. Fetch data from QuestDB (Need enough bars for indicators, e.g., 200)
-			const rawCandles = await questDbService.getCandles(ticker, interval, source, 200);
+			// 1. Fetch data from QuestDB (Standard: 1000 bars for statistical significance)
+			const rawCandles = await questDbService.getCandles(ticker, interval, source, 1000);
 
 			if (rawCandles.length < 2) {
 				this.logger.warn(`Not enough data to evaluate alert for ${ticker} (${rawCandles.length} bars)`);

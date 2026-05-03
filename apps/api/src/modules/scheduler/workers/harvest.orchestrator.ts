@@ -31,6 +31,8 @@ export function createHarvestWorker() {
 					return await handleEnrichment();
 				case "backfill":
 					return await handleBackfill();
+				case "incremental-sync":
+					return await handleIncrementalSync();
 				case "alert-evaluator":
 					return await handleAlertEvaluator();
 				default:
@@ -70,10 +72,22 @@ async function handleVipSync() {
 	const vipIds = [...new Set([...watchlistRows.map((r) => r.id), ...holdingRows.map((r) => r.id)])];
 	if (vipIds.length === 0) return;
 
-	// Update Redis real-time set
-	const allVipSymbols = await db.select({ ticker: symbols.ticker }).from(symbols).where(inArray(symbols.id, vipIds));
+	// Update Redis real-time set and metadata
+	const allVipSymbols = await db
+		.select({ ticker: symbols.ticker, lotSize: symbols.lotSize })
+		.from(symbols)
+		.where(inArray(symbols.id, vipIds));
+
 	if (allVipSymbols.length > 0) {
+		// 1. Symbol list for streamer
 		await redisConnection.sadd("harvest:realtime:symbols", ...allVipSymbols.map((s) => s.ticker));
+
+		// 2. Metadata for volume normalization (lotSize)
+		const lotSizeMap: Record<string, string> = {};
+		for (const s of allVipSymbols) {
+			lotSizeMap[s.ticker] = (s.lotSize || 1).toString();
+		}
+		await redisConnection.hset("harvest:metadata:lotsizes", lotSizeMap);
 	}
 
 	const vipSymbols = await db
@@ -281,11 +295,11 @@ async function handleBackfill() {
 						"YAHOO",
 					);
 
-					// Mark COMPLETED — both enum (new) and isCompleted (legacy compat)
+					// Mark COMPLETED and promote to INCREMENTAL (ADR-0013)
 					await db
 						.update(backfillProgress)
 						.set({
-							backfillStatus: "COMPLETED",
+							backfillStatus: "INCREMENTAL", // Langsung ke mode incremental untuk monitoring real-time
 							isCompleted: true,
 							lastSyncedAt: new Date(),
 							updatedAt: new Date(),
@@ -302,5 +316,73 @@ async function handleBackfill() {
 		);
 		// No artificial delay for backfill batches unless it's Playwright-heavy
 		await new Promise((r) => setTimeout(r, 50));
+	}
+}
+
+// ── HANDLER: Incremental Sync (Forward Fill — ADR-0013) ──────────────────────
+
+async function handleIncrementalSync() {
+	// 1. Dapatkan semua task yang sudah masuk mode INCREMENTAL
+	const tasks = await db
+		.select()
+		.from(backfillProgress)
+		.where(eq(backfillProgress.backfillStatus, "INCREMENTAL"))
+		.orderBy(asc(backfillProgress.updatedAt));
+
+	if (tasks.length === 0) return;
+
+	// 2. Identifikasi VIP (watchlist/holdings) untuk prioritas tinggi
+	const [watchlistRows, holdingRows] = await Promise.all([
+		db.select({ id: watchlistItems.symbolId }).from(watchlistItems),
+		db.select({ id: holdings.symbolId }).from(holdings),
+	]);
+	const vipIds = new Set([...watchlistRows.map((r) => r.id), ...holdingRows.map((r) => r.id)]);
+
+	// 3. Filter tasks:
+	// - VIP: tiap 15 menit (semua diproses tiap run)
+	// - Standard: tiap jam (hanya yang sudah stale > 60m)
+	const now = new Date();
+	const tasksToProcess = tasks.filter((task) => {
+		const isVip = vipIds.has(task.symbolId);
+		if (isVip) return true; // VIP selalu sinkron tiap 15m (frekuensi job)
+
+		// Standard: cek apakah sudah > 60 menit sejak update terakhir
+		const lastUpdate = task.updatedAt || new Date(0);
+		const diffMinutes = (now.getTime() - lastUpdate.getTime()) / 60000;
+		return diffMinutes >= 60;
+	});
+
+	if (tasksToProcess.length === 0) return;
+
+	logger.info(`🔄 [IncrementalSync] Processing ${tasksToProcess.length} tasks (${vipIds.size} VIPs detected)`);
+
+	const BATCH_SIZE = 10;
+	for (let i = 0; i < tasksToProcess.length; i += BATCH_SIZE) {
+		const chunk = tasksToProcess.slice(i, i + BATCH_SIZE);
+		await Promise.all(
+			chunk.map(async (task) => {
+				const symbol = await db.query.symbols.findFirst({ where: eq(symbols.id, task.symbolId) });
+				if (!symbol) return;
+
+				try {
+					// Forward fill: sync data terbaru
+					await marketService.syncSymbolData(
+						symbol.ticker,
+						symbol.type as any,
+						task.interval as any,
+						undefined,
+						"YAHOO",
+					);
+
+					await db
+						.update(backfillProgress)
+						.set({ updatedAt: new Date(), lastSyncedAt: new Date() })
+						.where(eq(backfillProgress.id, task.id));
+				} catch (e: any) {
+					logger.error(`Incremental sync failed for ${symbol.ticker} ${task.interval}: ${e.message}`);
+				}
+			}),
+		);
+		await new Promise((r) => setTimeout(r, 100));
 	}
 }

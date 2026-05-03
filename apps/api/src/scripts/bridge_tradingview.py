@@ -43,23 +43,33 @@ try:
         scanner = args.get('scanner', 'global')  # 'global' for all markets
         limit = args.get('limit', 30)
         
-        # Filter by exact ticker name
+        # Filter by ticker match (fuzzy/prefix)
         filters = [
-            {'left': 'name', 'operation': 'equal', 'right': query_symbol}
+            {'left': 'name', 'operation': 'match', 'right': query_symbol}
         ]
         
         # Columns to fetch for each result
         columns = ['name', 'close', 'change', 'exchange', 'type', 'description', 'currency', 'market_cap_basic']
         
-        result = screener.screen(
-            market=scanner, 
-            filters=filters,
-            columns=columns, 
-            limit=limit
-        )
-        
-        # Return the data array
-        respond(result.get('data', []))
+        try:
+            result = screener.screen(
+                market=scanner, 
+                filters=filters,
+                columns=columns, 
+                limit=limit
+            )
+            data = result.get('data', [])
+            
+            # If no ticker matches, try searching by description (company name)
+            if not data and len(query_symbol) >= 3:
+                filters_desc = [{'left': 'description', 'operation': 'match', 'right': query_symbol}]
+                result_desc = screener.screen(market=scanner, filters=filters_desc, columns=columns, limit=limit)
+                data = result_desc.get('data', [])
+                
+            respond(data)
+        except Exception as e:
+            sys.stderr.write(f"TV Search Error: {str(e)}\n")
+            respond([])
 
     elif command == "quote":
         # Fetch snapshot quote using Screener

@@ -13,20 +13,52 @@ use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::protocol::Message,
 };
 
+use redis::AsyncCommands;
+use std::collections::HashMap;
+use tokio::sync::RwLock;
+
 pub struct TradingViewScraper {
     broadcaster: Arc<Broadcaster>,
     batcher: Arc<Batcher>,
+    redis_client: redis::Client,
+    lot_sizes: Arc<RwLock<HashMap<String, f64>>>,
 }
 
 impl TradingViewScraper {
-    pub fn new(broadcaster: Arc<Broadcaster>, batcher: Arc<Batcher>) -> Self {
+    pub fn new(
+        broadcaster: Arc<Broadcaster>,
+        batcher: Arc<Batcher>,
+        redis_client: redis::Client,
+    ) -> Self {
         Self {
             broadcaster,
             batcher,
+            redis_client,
+            lot_sizes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
+    /// Refresh lot sizes from Redis
+    pub async fn refresh_lot_sizes(&self) -> Result<()> {
+        let mut conn = self.redis_client.get_multiplexed_tokio_connection().await?;
+        let sizes: HashMap<String, String> = conn.hgetall("harvest:lot-sizes").await?;
+
+        let mut cache = self.lot_sizes.write().await;
+        for (ticker, size_str) in sizes {
+            if let Ok(size) = size_str.parse::<f64>() {
+                cache.insert(ticker, size);
+            }
+        }
+        info!("📦 Refreshed {} lot sizes from Redis", cache.len());
+        Ok(())
+    }
+
     pub async fn run(&self, symbols: Vec<String>) -> Result<()> {
+        // Ensure we have lot sizes for current symbols
+        if let Err(e) = self.refresh_lot_sizes().await {
+            warn!("⚠️ Failed to refresh lot sizes: {}", e);
+        }
+
         let url = "wss://data.tradingview.com/socket.io/websocket";
 
         // Scraper setup
@@ -153,10 +185,17 @@ impl TradingViewScraper {
                 let ask = v.get("ask").and_then(|a| a.as_f64()).unwrap_or(0.0);
 
                 if let (Some(price), Some(volume)) = (price, volume) {
+                    // Apply lot_size (ADR-0012)
+                    let lot_size = {
+                        let cache = self.lot_sizes.read().await;
+                        *cache.get(symbol).unwrap_or(&1.0)
+                    };
+                    let final_volume = volume * lot_size;
+
                     let tick = TickData {
                         symbol: symbol.to_string(),
                         price,
-                        volume,
+                        volume: final_volume,
                         bid,
                         ask,
                         timestamp: chrono::Utc::now().timestamp(),

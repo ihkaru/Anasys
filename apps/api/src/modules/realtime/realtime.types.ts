@@ -10,6 +10,7 @@ export interface Subscription {
 
 export interface ClientState {
 	ws: ServerWebSocket<any>;
+	userId?: number;
 	subscriptions: Set<string>; // "quote:AAPL", "ohlcv:BTC-USD:1m"
 	lastPing: number;
 }

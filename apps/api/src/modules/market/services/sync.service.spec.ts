@@ -34,7 +34,13 @@ const mockLogger = {
 	error: jest.fn(),
 } as unknown as Logger;
 
-// Mock provider factory that returns our mock provider
+const mockRedis = {
+	multi: jest.fn().mockReturnThis(),
+	sadd: jest.fn().mockReturnThis(),
+	publish: jest.fn().mockReturnThis(),
+	exec: jest.fn().mockResolvedValue([]),
+} as any;
+
 const mockProviderFactory = {
 	getProvider: jest.fn().mockReturnValue(mockDataProvider),
 } as any;
@@ -43,7 +49,7 @@ describe("SyncService", () => {
 	let service: SyncService;
 
 	beforeEach(() => {
-		service = new SyncService(mockSymbolService, mockMarketDataRepo, mockProviderFactory, mockLogger);
+		service = new SyncService(mockSymbolService, mockMarketDataRepo, mockProviderFactory, mockRedis, mockLogger);
 		jest.clearAllMocks();
 		// Re-setup default mocks after clearing
 		(mockSymbolService.ensureSymbol as jest.Mock).mockResolvedValue({ id: 1, ticker: "TEST", type: "STOCK" });

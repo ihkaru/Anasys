@@ -28,6 +28,7 @@ export class SymbolRepository {
 		name: string;
 		exchange?: string;
 		currency?: string;
+		lotSize?: number;
 	}): Promise<any> {
 		const [newSym] = await this.db
 			.insert(symbols)

@@ -455,5 +455,38 @@ export const internalMarketController = new Elysia({ prefix: "/market/internal" 
 						metadata: t.Optional(t.Any()),
 					}),
 				},
-			),
+			)
+			// DIAGNOSTICS: Check provider health
+			.get("/diagnostics", async () => {
+				const { yahooFinanceProvider } = await import("./providers/yahoo-finance.provider");
+				const { tvProvider } = await import("./providers/tradingview-python.provider");
+
+				const [yahooStatus, tvStatus] = await Promise.allSettled([
+					yahooFinanceProvider.search("AAPL", 1),
+					tvProvider.search("AAPL", 1),
+				]);
+
+				return {
+					success: true,
+					timestamp: new Date().toISOString(),
+					providers: {
+						yahoo: {
+							status: yahooStatus.status,
+							works: yahooStatus.status === "fulfilled" && yahooStatus.value.length > 0,
+							error: yahooStatus.status === "rejected" ? yahooStatus.reason?.message : null,
+							sample: yahooStatus.status === "fulfilled" ? yahooStatus.value[0] : null,
+						},
+						tradingview: {
+							status: tvStatus.status,
+							works: tvStatus.status === "fulfilled" && tvStatus.value.length > 0,
+							error: tvStatus.status === "rejected" ? tvStatus.reason?.message : null,
+							sample: tvStatus.status === "fulfilled" ? tvStatus.value[0] : null,
+						},
+					},
+					env: {
+						NODE_ENV: process.env.NODE_ENV,
+						PYTHON_PATH: process.env.PYTHON_PATH || "python3",
+					},
+				};
+			});
 	);

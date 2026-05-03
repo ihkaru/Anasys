@@ -1,7 +1,7 @@
 # ADR-0014: Alert System & Pine Script Runner untuk Algo Trading
 
 ## Status
-Proposed (Mei 2026) — Pending Implementation
+Partially Implemented (Mei 2026) — Private Alert Routing Active
 
 ## Konteks
 

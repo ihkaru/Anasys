@@ -45,14 +45,39 @@ struct SessionState {
 pub struct CandleStreamer {
     batcher: Arc<Batcher>,
     redis_stream: Arc<RedisStream>,
+    lot_sizes: Arc<HashMap<String, i64>>,
 }
 
 impl CandleStreamer {
     pub async fn new(batcher: Arc<Batcher>, redis_url: &str) -> Result<Self> {
         let redis_stream = Arc::new(RedisStream::new(redis_url).await?);
+
+        // Fetch lot sizes from Redis hash once at startup
+        let client = redis::Client::open(redis_url)?;
+        let mut conn = client.get_multiplexed_tokio_connection().await?;
+
+        let lot_sizes_raw: HashMap<String, String> = redis::cmd("HGETALL")
+            .arg("harvest:lot-sizes")
+            .query_async(&mut conn)
+            .await
+            .unwrap_or_default();
+
+        let mut lot_sizes = HashMap::new();
+        for (ticker, size) in lot_sizes_raw {
+            if let Ok(val) = size.parse::<i64>() {
+                lot_sizes.insert(ticker, val);
+            }
+        }
+
+        info!(
+            "[CandleStreamer] Loaded {} lot size metadata entries from Redis",
+            lot_sizes.len()
+        );
+
         Ok(Self {
             batcher,
             redis_stream,
+            lot_sizes: Arc::new(lot_sizes),
         })
     }
 
@@ -98,6 +123,7 @@ impl CandleStreamer {
         for (idx, bucket) in buckets.into_iter().enumerate() {
             let batcher = Arc::clone(&self.batcher);
             let rs = Arc::clone(&self.redis_stream);
+            let lot_sizes = Arc::clone(&self.lot_sizes);
             let handle = tokio::spawn(async move {
                 loop {
                     info!(
@@ -105,11 +131,13 @@ impl CandleStreamer {
                         idx,
                         bucket.len()
                     );
+                    let ls = Arc::clone(&lot_sizes);
                     match run_ws_connection(
                         idx,
                         bucket.clone(),
                         Arc::clone(&batcher),
                         Arc::clone(&rs),
+                        ls,
                     )
                     .await
                     {
@@ -143,6 +171,7 @@ async fn run_ws_connection(
     bucket: Vec<(String, String)>,
     batcher: Arc<Batcher>,
     redis_stream: Arc<RedisStream>,
+    lot_sizes: Arc<HashMap<String, i64>>,
 ) -> Result<()> {
     let url = "wss://data.tradingview.com/socket.io/websocket";
     let mut request = url.into_client_request()?;
@@ -245,6 +274,7 @@ async fn run_ws_connection(
                     &mut ws,
                     &batcher,
                     &redis_stream,
+                    &lot_sizes,
                 )
                 .await?;
             }
@@ -277,6 +307,7 @@ async fn handle_message(
     ws: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
     batcher: &Arc<Batcher>,
     redis_stream: &Arc<RedisStream>,
+    lot_sizes: &HashMap<String, i64>,
 ) -> Result<()> {
     let parts: Vec<&str> = payload.split("~m~").collect();
     for part in parts {
@@ -302,7 +333,7 @@ async fn handle_message(
                     // Data update — may contain new closed candle
                     if let Some(session_id) = json["p"][0].as_str() {
                         if let Some(session) = sessions.get_mut(session_id) {
-                            process_du(&json, session, batcher, redis_stream).await;
+                            process_du(&json, session, batcher, redis_stream, lot_sizes).await;
                         }
                     }
                 }
@@ -360,6 +391,7 @@ async fn process_du(
     session: &mut SessionState,
     batcher: &Arc<Batcher>,
     redis_stream: &Arc<RedisStream>,
+    lot_sizes: &HashMap<String, i64>,
 ) {
     let bars = match json["p"][0]["sds_1"]["s"].as_array() {
         Some(b) => b,
@@ -400,7 +432,8 @@ async fn process_du(
     for candle in &sorted {
         if candle.timestamp > session.last_closed_ts && candle.timestamp < forming_ts {
             // This bar is CLOSED — emit it
-            emit_closed_candle(candle, batcher, redis_stream).await;
+            let lot_size = *lot_sizes.get(&candle.symbol).unwrap_or(&1);
+            emit_closed_candle(candle, batcher, redis_stream, lot_size).await;
             session.last_closed_ts = candle.timestamp;
         }
     }
@@ -414,9 +447,12 @@ async fn emit_closed_candle(
     candle: &CandleData,
     batcher: &Arc<Batcher>,
     redis_stream: &Arc<RedisStream>,
+    lot_size: i64,
 ) {
+    let normalized_volume = candle.volume * (lot_size as f64);
+
     info!(
-        "🕯️  CLOSED {}/{} ts={} O={} H={} L={} C={} V={}",
+        "🕯️  CLOSED {}/{} ts={} O={} H={} L={} C={} V={} (norm={})",
         candle.symbol,
         candle.interval,
         candle.timestamp,
@@ -424,11 +460,16 @@ async fn emit_closed_candle(
         candle.high,
         candle.low,
         candle.close,
-        candle.volume
+        candle.volume,
+        normalized_volume
     );
 
+    // Create a copy with normalized volume for persistence
+    let mut normalized_candle = candle.clone();
+    normalized_candle.volume = normalized_volume;
+
     // 1. Persist to QuestDB via Batcher (ILP)
-    if let Err(e) = batcher.add_candle(candle.clone()).await {
+    if let Err(e) = batcher.add_candle(normalized_candle).await {
         error!("Batcher.add_candle failed for {}: {}", candle.symbol, e);
     }
 
@@ -441,7 +482,7 @@ async fn emit_closed_candle(
             candle.high,
             candle.low,
             candle.close,
-            candle.volume,
+            normalized_volume,
             candle.timestamp,
         )
         .await

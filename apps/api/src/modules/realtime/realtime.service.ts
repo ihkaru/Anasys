@@ -52,8 +52,8 @@ export class RealtimeService {
 
 	// ==================== Client Management ====================
 
-	registerClient(ws: ServerWebSocket<any> & { id: string }) {
-		this.clientManager.registerClient(ws);
+	registerClient(ws: ServerWebSocket<any> & { id: string }, userId?: number) {
+		this.clientManager.registerClient(ws, userId);
 	}
 
 	unregisterClient(ws: ServerWebSocket<any> & { id: string }) {
@@ -74,6 +74,10 @@ export class RealtimeService {
 				this.subscriptionManager.handleUnsubscribe(id, msg);
 			}
 		}
+	}
+
+	sendToUser(userId: number, type: string, data: any) {
+		this.broadcaster.sendToUser(userId, type, data);
 	}
 
 	// ==================== Lifecycle ====================

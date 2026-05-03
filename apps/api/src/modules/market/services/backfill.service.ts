@@ -77,7 +77,7 @@ export class BackfillService {
 						.set({
 							description: metadata.name,
 							exchange: metadata.exchange,
-							updatedAt: new Date(),
+							metadataUpdatedAt: new Date(),
 						})
 						.where(eq(symbols.id, progress[0].symbolId));
 				}

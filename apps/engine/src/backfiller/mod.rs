@@ -89,32 +89,39 @@ impl Backfiller {
     }
 
     async fn process_single_task(&self, task: BackfillTask, batcher: Arc<Batcher>) -> Result<()> {
-        let now = chrono::Utc::now().timestamp();
         let start_date = chrono::DateTime::parse_from_rfc3339(&task.target_start_date)?;
         let start_ts = start_date.timestamp();
 
-        // Removed hardcoded safe limits to allow deep 2018 backfilling
-        // Logic will now follow the target_start_date from database strictly.
-
-        let chunk_size = match task.interval.as_str() {
-            "1m" => 7 * 24 * 60 * 60,
-            "5m" => 30 * 24 * 60 * 60,
-            "15m" => 90 * 24 * 60 * 60,
-            "30m" => 180 * 24 * 60 * 60,
-            _ => 365 * 24 * 60 * 60,
+        // Use last_backfilled_at if available, otherwise start from now (ADR-0013)
+        let mut current_end = if let Some(last) = &task.last_backfilled_at {
+            match chrono::DateTime::parse_from_rfc3339(last) {
+                Ok(dt) => dt.timestamp(),
+                Err(_) => chrono::Utc::now().timestamp(),
+            }
+        } else {
+            chrono::Utc::now().timestamp()
         };
-        let current_end = now;
-        let current_start = (current_end - chunk_size).max(start_ts);
 
         if current_end <= start_ts {
             info!(
-                "  → Task {} ({}) finished. Reporting done.",
+                "  → Task {} ({}) already at/past target. Reporting done.",
                 task.ticker, task.interval
             );
             self.report_progress(task.id, &task.target_start_date, true, None)
                 .await?;
             return Ok(());
         }
+
+        // Greedy chunking: fetch a reasonably large chunk to minimize API calls (ADR-0013)
+        let chunk_size = match task.interval.as_str() {
+            "1m" => 7 * 24 * 60 * 60,     // 1 week for 1m
+            "5m" => 30 * 24 * 60 * 60,    // 1 month for 5m
+            "15m" => 90 * 24 * 60 * 60,   // 3 months for 15m
+            "1h" => 365 * 24 * 60 * 60,   // 1 year for 1h
+            _ => 10 * 365 * 24 * 60 * 60, // 10 years for 1d+
+        };
+
+        let current_start = (current_end - chunk_size).max(start_ts);
 
         let disable_obscura = std::env::var("DISABLE_OBSCURA").unwrap_or_default() == "true";
         let is_tradingview = ObscuraFetcher::is_tradingview_target(&task.ticker, &task.interval);
@@ -155,15 +162,21 @@ impl Backfiller {
                     // Send with metadata
                     if !c.is_empty() {
                         let count = c.len();
+                        let earliest_ts =
+                            c.iter().map(|c| c.timestamp).min().unwrap_or(current_start);
+                        let earliest_dt = chrono::DateTime::from_timestamp(earliest_ts, 0)
+                            .map(|dt| dt.to_rfc3339())
+                            .unwrap_or_else(|| current_start.to_string());
+
                         for candle in c {
                             batcher.add_candle(candle).await?;
                         }
                         batcher.flush_candles().await?;
                         info!(
-                            "✅ Saved {} candles for {} ({}). Reporting progress with metadata...",
-                            count, task.ticker, task.interval
+                            "✅ Saved {} candles for {} ({}). Earliest: {}. Reporting progress...",
+                            count, task.ticker, task.interval, earliest_dt
                         );
-                        self.report_progress(task.id, &task.target_start_date, false, meta)
+                        self.report_progress(task.id, &earliest_dt, false, meta)
                             .await?;
                         return Ok(()); // Done for this cycle
                     }
@@ -192,15 +205,24 @@ impl Backfiller {
             Ok(candles) => {
                 if !candles.is_empty() {
                     let count = candles.len();
+                    let earliest_ts = candles
+                        .iter()
+                        .map(|c| c.timestamp)
+                        .min()
+                        .unwrap_or(current_start);
+                    let earliest_dt = chrono::DateTime::from_timestamp(earliest_ts, 0)
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_else(|| current_start.to_string());
+
                     for c in candles {
                         batcher.add_candle(c).await?;
                     }
                     batcher.flush_candles().await?;
                     info!(
-                        "✅ Saved {} candles for {} ({}). Reporting progress...",
-                        count, task.ticker, task.interval
+                        "✅ Saved {} candles for {} ({}). Earliest: {}. Reporting progress...",
+                        count, task.ticker, task.interval, earliest_dt
                     );
-                    self.report_progress(task.id, &task.target_start_date, false, None)
+                    self.report_progress(task.id, &earliest_dt, false, None)
                         .await?;
                 } else {
                     warn!("  → No data found for {} ({})", task.ticker, task.interval);

@@ -55,7 +55,7 @@ export const analysisController = new Elysia({ prefix: "/analysis" })
 
 				// Convert to OHLCV format
 				const ohlcvData: OHLCV[] = rawData.map((d) => ({
-					timestamp: d.timestamp,
+					timestamp: new Date(d.timestamp),
 					open: Number(d.open),
 					high: Number(d.high),
 					low: Number(d.low),

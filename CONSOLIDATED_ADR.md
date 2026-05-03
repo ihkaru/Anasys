@@ -801,26 +801,22 @@ Menggantikan ambiguitas sebelumnya, peran masing-masing storage dikunci:
 - QuestDB adalah **source of truth** untuk data OHLCV jangka panjang
 - Data dari Postgres **HARUS** dipromosikan ke QuestDB via Engine (lihat G1)
 
-### 3. Fix INGEST-PENDING: Redis Pub/Sub ke Engine (TODO Priority High)
+### 3. Fix INGEST-PENDING: Redis Pub/Sub ke Engine (RESOLVED ✅)
 
-**Saat ini**: `INGEST-PENDING` hanya berupa log string — Engine tidak tahu.
+**Status**: Terintegrasi penuh (Mei 2026).
 
-**Target**:
-```typescript
-// Setelah backfill berhasil di candle.service.ts:
-await redisClient.publish('harvest:ingest-pending', JSON.stringify({
-  ticker,
-  interval,
-  source,
-  latestTimestamp: candles.at(-1)?.timestamp,
-}));
-```
+**Implementasi**:
+- **API**: `SyncService.ts` melakukan `SADD` simbol ke `harvest:realtime:symbols` dan menerbitkan sinyal `harvest:ingest-pending` secara atomik.
+- **Engine**: Background listener di `main.rs` berlangganan ke channel Redis tersebut dan memicu `Notify` ke scraper untuk penyegaran instan tanpa restart.
 
-```rust
-// Engine Rust subscribe ke channel ini:
-// harvest:ingest-pending → tambahkan ke harvest:realtime:symbols
-// → Engine mulai scrape ticker ini secara real-time
-```
+### 4. Lot Size Synchronization & Volume Normalization (ADR-0012 Supplement ✅)
+
+**Konteks**: Simbol bursa tertentu (seperti IDX `.JK`) melaporkan volume dalam unit "lot" (100 lembar), sementara bursa lain melaporkan dalam lembar saham. Ini menyebabkan diskontinuitas data volume di QuestDB.
+
+**Keputusan**:
+1. **Metadata Store**: `SymbolService` (API) menyimpan `lotSize` di PostgreSQL dan menyinkronkannya ke Redis hash `harvest:lot-sizes`.
+2. **Engine Enrichment**: Engine Rust melakukan caching `lot_size` lokal (berbasis Redis) dan secara otomatis mengalikan field `volume` pada setiap *tick* dan *candle* sebelum penulisan ke QuestDB.
+3. **Default**: Lot size default adalah 1. Simbol `.JK` dideteksi secara otomatis dan diset ke 100.
 
 ### 4. SQLite Browser Cache: TTL Per Interval
 
@@ -1085,7 +1081,7 @@ Dengan ini, insert candle yang sudah ada hanya akan di-upsert (tidak duplikat), 
 # ADR-0014: Alert System & Pine Script Runner untuk Algo Trading
 
 ## Status
-Proposed (Mei 2026) — Pending Implementation
+Partially Implemented (Mei 2026) — Private Alert Routing Active
 
 ## Konteks
 

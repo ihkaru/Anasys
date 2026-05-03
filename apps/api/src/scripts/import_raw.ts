@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { marketData, symbols } from "@packages/db/src/schema";
@@ -54,13 +55,12 @@ async function main() {
 			if (inserted) {
 				symbolId = inserted.id;
 			} else {
-				// Should not happen with onConflictDoUpdate, but fallback
-				const [_existing] = await db.select().from(symbols).where(symbols.ticker).limit(1); // Wait, where condition syntax?
-				// drizzle where accepts expression directly
-				// Actually if returning failed, fetch it properly
-				// But Drizzle Returning with OnConflictDoUpdate works reliably in recent Postgres
-				console.error(`Failed to get symbol ID for ${ticker}`);
-				continue;
+				const [_existing] = await db.select().from(symbols).where(eq(symbols.ticker, ticker)).limit(1);
+				if (!_existing) {
+					console.error(`Failed to get symbol ID for ${ticker}`);
+					continue;
+				}
+				symbolId = _existing.id;
 			}
 
 			// Read File

@@ -617,7 +617,7 @@ export class FinancialsService {
 				transactionDate: new Date(t.startDate),
 				transactionType: t.transactionText || "UNKNOWN",
 				shares: this.extractValue(t.shares),
-				price: this.extractValue(t.value) / this.extractValue(t.shares), // Estimate price
+				price: (this.extractValue(t.value) ?? 0) / (this.extractValue(t.shares) ?? 1), // Estimate price
 				value: this.extractValue(t.value),
 				source: "YAHOO",
 			}));

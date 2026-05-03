@@ -91,13 +91,13 @@ export async function registerRecurringJobs(): Promise<void> {
 		},
 	);
 
-	// Alert Evaluator: evaluasi semua alert yang aktif — tiap menit
+	// Incremental Sync: Forward fill for completed backfills — tiap 15 menit
 	await harvestQueue.add(
-		"alert-evaluator",
+		"incremental-sync",
 		{},
 		{
-			repeat: { pattern: "* * * * *" },
-			jobId: "recurring-alert-evaluator",
+			repeat: { pattern: "*/15 * * * *" },
+			jobId: "recurring-incremental-sync",
 		},
 	);
 

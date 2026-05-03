@@ -1,3 +1,4 @@
+import type Redis from "ioredis";
 import { getDataValidator } from "../../../utils/data-validator";
 import type { Logger } from "../../../utils/logger";
 import { getYahooRateLimiter } from "../../../utils/rate-limiter";
@@ -20,6 +21,7 @@ export class SyncService {
 		private symbolService: SymbolService,
 		private marketDataRepo: MarketDataRepository,
 		private providerFactory: DataProviderFactory,
+		private redis: Redis,
 		private logger: Logger,
 	) {}
 
@@ -106,6 +108,7 @@ export class SyncService {
 				isCrypto,
 				ticker,
 				source,
+				symbol.lotSize || 1,
 			);
 
 			if (values.length === 0) {
@@ -121,6 +124,16 @@ export class SyncService {
 				`Saved ${values.length} candles for ${ticker} (${interval})` +
 					(rejected > 0 ? ` [${rejected} rejected as anomalies]` : ""),
 			);
+
+			// ── Signal INGEST-PENDING to Rust Engine (ADR-0012) ──────────────────
+			// Add to active set and publish signal so Engine starts real-time harvesting
+			const upperTicker = ticker.toUpperCase();
+			this.redis
+				.multi()
+				.sadd("harvest:realtime:symbols", upperTicker)
+				.publish("harvest:ingest-pending", upperTicker)
+				.exec()
+				.catch((err) => this.logger.error(`Failed to signal INGEST-PENDING for ${ticker}`, err));
 
 			return { count: values.length, status: "success", rejected };
 		} catch (error: any) {
@@ -152,6 +165,7 @@ export class SyncService {
 		isCrypto: boolean,
 		ticker: string,
 		source: string,
+		lotSize: number,
 	): { values: any[]; rejected: number } {
 		let rejected = 0;
 		// Deduplicate by timestamp. Intraday keeps raw timestamp, macroscopic intervals are normalized.
@@ -197,7 +211,7 @@ export class SyncService {
 				low: candle.low,
 				close: candle.close,
 				adjClose: candle.adjClose,
-				volume: candle.volume,
+				volume: candle.volume * lotSize,
 				interval: interval,
 				source: source,
 			};

@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { symbols, candles, backfillProgress, ticks } from "@anasys/db/schema";
+import { symbols, marketData, backfillProgress } from "@packages/db/src/schema";
 import { desc, count, eq } from "drizzle-orm";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -16,9 +16,8 @@ async function generateDump() {
 
 	const tables = [
 		{ name: "Symbols", schema: symbols },
-		{ name: "Candles (OHLCV)", schema: candles },
+		{ name: "Market Data (OHLCV)", schema: marketData },
 		{ name: "Backfill Progress", schema: backfillProgress },
-		{ name: "Real-time Ticks", schema: ticks },
 	];
 
 	for (const table of tables) {

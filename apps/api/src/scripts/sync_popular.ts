@@ -1,4 +1,4 @@
-import { marketService } from "./src/modules/market/market.service";
+import { marketService } from "../modules/market/market.service";
 
 const symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "BTC-USD", "ETH-USD"];
 for (const s of symbols) {

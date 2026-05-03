@@ -17,7 +17,7 @@
 
 import { Queue } from "bullmq";
 import { db } from "../../../db";
-import { alerts } from "@packages/db/src/schema";
+import { alerts, symbols } from "@packages/db/src/schema";
 import { and, eq } from "drizzle-orm";
 import { redisConnection } from "../../scheduler/queue";
 import { Logger } from "../../../utils/logger";
@@ -139,13 +139,7 @@ export class CandleConsumer {
 			.select({ id: alerts.id, name: alerts.name })
 			.from(alerts)
 			.innerJoin(symbols, eq(alerts.symbolId, symbols.id))
-			.where(
-				and(
-					eq(alerts.status, "ACTIVE"),
-					eq(alerts.interval, entry.interval),
-					eq(symbols.ticker, entry.symbol),
-				),
-			);
+			.where(and(eq(alerts.status, "ACTIVE"), eq(alerts.interval, entry.interval), eq(symbols.ticker, entry.symbol)));
 
 		if (matchingAlerts.length === 0) {
 			return; // No active alerts for this specific symbol/interval

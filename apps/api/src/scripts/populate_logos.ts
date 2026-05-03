@@ -1,7 +1,7 @@
 import { symbols } from "@packages/db/src/schema";
-import { isNull } from "drizzle-orm";
-import { db } from "../db";
 import { logoService } from "../modules/market/services/logo.service";
+import { and, count, inArray, isNull } from "drizzle-orm";
+import { db } from "../db";
 import { Logger } from "../utils/logger";
 
 const logger = new Logger("PopulateLogos");
@@ -13,7 +13,10 @@ async function main() {
 	logger.info("🎨 Starting Logo Population...");
 
 	// Find symbols without iconUrl
-	const targets = await db.select().from(symbols).where(isNull(symbols.iconUrl));
+	const targets = await db
+		.select()
+		.from(symbols)
+		.where(and(isNull(symbols.iconUrl), inArray(symbols.type, ["STOCK", "CRYPTO"])));
 
 	logger.info(`Found ${targets.length} symbols needing logos.`);
 
@@ -29,7 +32,9 @@ async function main() {
 		logger.info(`[Batch ${batchNum}/${totalBatches}] Processing ${batch.map((s) => s.ticker).join(", ")}...`);
 
 		// Process batch concurrently
-		const results = await Promise.allSettled(batch.map((sym) => logoService.ensureLogo(sym.id, sym.ticker, sym.type)));
+		const results = await Promise.allSettled(
+			batch.map((sym) => logoService.ensureLogo(sym.id, sym.ticker, sym.type as "STOCK" | "CRYPTO")),
+		);
 
 		// Count results
 		for (const result of results) {

@@ -6,6 +6,7 @@ use engine::batcher::Batcher;
 use engine::broadcaster::Broadcaster;
 use engine::candle_streamer::CandleStreamer;
 use engine::scraper::TradingViewScraper;
+use futures_util::StreamExt;
 use log::{error, info, warn};
 use std::collections::HashSet;
 use std::env;
@@ -83,25 +84,61 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Tick Scraper (quote session — lp/bid/ask) ─────────────────────────────
 
-    let scraper = Arc::new(TradingViewScraper::new(broadcaster, batcher.clone()));
+    let scraper = Arc::new(TradingViewScraper::new(
+        Arc::clone(&broadcaster),
+        Arc::clone(&batcher),
+        redis_client.clone(),
+    ));
+
+    // ── Instant Refresh Trigger (ADR-0012/G2) ────────────────────────────────
+    let refresh_trigger = Arc::new(tokio::sync::Notify::new());
 
     // ── Candle Streamer (chart session — OHLCV per bar) — ADR-0015 ───────────
-
     let candle_streamer = Arc::new(CandleStreamer::new(batcher.clone(), &redis_url).await?);
-    let cs_symbols = initial_symbols.clone();
+    let cs_trigger = refresh_trigger.clone();
+    let cs_redis_client = redis_client.clone();
+    let cs_streamer_ref = candle_streamer.clone();
     let cs_handle = tokio::spawn(async move {
-        loop {
-            if let Err(e) = candle_streamer.run(cs_symbols.clone()).await {
-                error!("🚨 CandleStreamer error: {} — restarting in 10s", e);
+        if let Err(e) =
+            run_candle_streamer_with_refresh(cs_streamer_ref, cs_redis_client, cs_trigger).await
+        {
+            error!("🚨 CandleStreamer fatal: {}", e);
+        }
+    });
+
+    // Redis Pub/Sub Listener for INGEST-PENDING signals
+    let pubsub_client = redis_client.clone();
+    let pubsub_trigger = refresh_trigger.clone();
+    tokio::spawn(async move {
+        match pubsub_client.get_async_connection().await {
+            Ok(conn) => {
+                let mut pubsub = conn.into_pubsub();
+                if let Err(e) = pubsub.subscribe("harvest:ingest-pending").await {
+                    error!("🚨 Redis PubSub subscribe failed: {}", e);
+                    return;
+                }
+                info!("🔔 Listening for instant INGEST-PENDING signals...");
+
+                let mut stream = pubsub.on_message();
+                while let Some(msg) = stream.next().await {
+                    let ticker: String = msg.get_payload().unwrap_or_default();
+                    if !ticker.is_empty() {
+                        info!(
+                            "⚡ Instant signal received for: {}. Triggering refresh.",
+                            ticker
+                        );
+                        pubsub_trigger.notify_one();
+                    }
+                }
             }
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            Err(e) => error!("🚨 Redis PubSub connection failed: {}", e),
         }
     });
 
     // ── Main: Run scraper + candle streamer + backfiller concurrently ─────────
 
     tokio::select! {
-        res = run_scraper_with_refresh(scraper, redis_client) => {
+        res = run_scraper_with_refresh(scraper, redis_client, refresh_trigger) => {
             if let Err(e) = res {
                 error!("🚨 Tick scraper crashed: {}", e);
             }
@@ -117,10 +154,11 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Run tick scraper, auto-restart when symbol list changes (every 30s check).
+/// Run tick scraper, auto-restart when symbol list changes (every 30s check or instant trigger).
 async fn run_scraper_with_refresh(
     scraper: Arc<TradingViewScraper>,
     redis_client: redis::Client,
+    refresh_trigger: Arc<tokio::sync::Notify>,
 ) -> anyhow::Result<()> {
     let mut current_handle: Option<tokio::task::JoinHandle<()>> = None;
     let mut last_symbols: HashSet<String> = HashSet::new();
@@ -161,7 +199,60 @@ async fn run_scraper_with_refresh(
             current_handle = Some(handle);
         }
 
-        time::sleep(Duration::from_secs(30)).await;
+        // Wait for 30s OR instant trigger
+        tokio::select! {
+            _ = time::sleep(Duration::from_secs(30)) => {},
+            _ = refresh_trigger.notified() => {
+                info!("⚡ Instant refresh triggered via Pub/Sub");
+            }
+        }
+    }
+}
+
+/// Run candle streamer, auto-restart when symbol list changes.
+async fn run_candle_streamer_with_refresh(
+    streamer: Arc<CandleStreamer>,
+    redis_client: redis::Client,
+    refresh_trigger: Arc<tokio::sync::Notify>,
+) -> anyhow::Result<()> {
+    let mut current_handle: Option<tokio::task::JoinHandle<()>> = None;
+    let mut last_symbols: HashSet<String> = HashSet::new();
+
+    loop {
+        let mut redis_conn = redis_client.get_multiplexed_tokio_connection().await?;
+        let current_symbols = fetch_active_symbols(&mut redis_conn)
+            .await
+            .unwrap_or_default();
+
+        let current_set: HashSet<String> = current_symbols.iter().cloned().collect();
+
+        if current_set != last_symbols && !current_symbols.is_empty() {
+            info!(
+                "🔄 Symbol list changed for CandleStreamer ({} symbols). Restarting...",
+                current_symbols.len()
+            );
+
+            if let Some(handle) = current_handle.take() {
+                handle.abort();
+            }
+
+            last_symbols = current_set;
+            let symbols = current_symbols.clone();
+            let streamer_ref = Arc::clone(&streamer);
+            let handle = tokio::spawn(async move {
+                if let Err(e) = streamer_ref.run(symbols).await {
+                    error!("CandleStreamer error: {}", e);
+                }
+            });
+            current_handle = Some(handle);
+        }
+
+        tokio::select! {
+            _ = time::sleep(Duration::from_secs(60)) => {}, // CandleStreamer check less frequent than ticks
+            _ = refresh_trigger.notified() => {
+                info!("⚡ CandleStreamer instant refresh triggered");
+            }
+        }
     }
 }
 
