@@ -28,7 +28,7 @@ export class SubscriptionManager {
 		if (!msg.source) {
 			_logger.warn(
 				`[SubscriptionManager] ⚠️ MISSING SOURCE in subscribe for ${msg.symbols?.join(",")} (channel=${channel}). ` +
-				`Defaulting to YAHOO — this may cause invalid data routing for institutional assets!`
+					`Defaulting to YAHOO — this may cause invalid data routing for institutional assets!`,
 			);
 		}
 		const source = msg.source || "YAHOO";

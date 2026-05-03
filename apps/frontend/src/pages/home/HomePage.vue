@@ -392,13 +392,7 @@ async function handleAddAsset(asset: any) {
 		}
 
 		logger.info(`Adding ${asset.ticker} to watchlist ${targetId}`);
-		await watchlistStore.addSymbolToWatchlist(
-			targetId!,
-			asset.ticker,
-			asset.type,
-			asset.source,
-			asset.exchange,
-		);
+		await watchlistStore.addSymbolToWatchlist(targetId!, asset.ticker, asset.type, asset.source, asset.exchange);
 		addAssetSheetOpen.value = false;
 		f7.toast.show({ text: `Added ${asset.ticker}`, closeTimeout: 2000 });
 	} catch (e) {

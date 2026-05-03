@@ -222,7 +222,7 @@ export const marketController = new Elysia({ prefix: "/market" })
 			try {
 				// If source not provided, look up the symbol's pinned provider in DB
 				// This prevents backfilling a TradingView symbol from Yahoo Finance
-				const resolvedSource = body.source || await marketService.resolveSymbolSource(body.ticker);
+				const resolvedSource = body.source || (await marketService.resolveSymbolSource(body.ticker));
 				const result = await marketService.syncSymbolData(
 					body.ticker,
 					body.type as "STOCK" | "CRYPTO",

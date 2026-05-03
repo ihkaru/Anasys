@@ -111,15 +111,15 @@ export class MarketService {
 		// If frontend sent an explicit source (YAHOO/TRADINGVIEW), use it.
 		// Otherwise, check if we already have this symbol in DB and use its preferred provider.
 		let smartSource = explicitSource;
-		
+
 		if (!smartSource) {
 			const existing = await symbolRepo.findByTicker(ticker);
 			if (existing && existing.provider) {
 				// Map DB provider to internal source names
 				const providerMap: Record<string, string> = {
-					'tradingview': 'TRADINGVIEW',
-					'yahoo': 'YAHOO',
-					'ccxt': 'CCXT'
+					tradingview: "TRADINGVIEW",
+					yahoo: "YAHOO",
+					ccxt: "CCXT",
 				};
 				smartSource = providerMap[existing.provider.toLowerCase()] || existing.provider.toUpperCase();
 				logger.debug(`[getOHLCV] Using DB-pinned source for ${ticker}: ${smartSource}`);
@@ -177,7 +177,7 @@ export class MarketService {
 		// Otherwise, look up each ticker in DB to find its provider
 		const syms = await symbolRepo.findByTickers(tickers);
 		const providerMap = new Map<string, string>(); // Ticker -> Source
-		
+
 		for (const s of syms) {
 			const provider = s.provider?.toLowerCase();
 			let source = "YAHOO";
@@ -360,14 +360,16 @@ export class MarketService {
 
 			logger.debug(`[QuestDB] ${symbol} (${interval}) returned ${formatted.length} rows`);
 
-			return formatted.map((item) => ({
-				timestamp: new Date(item.timestamp).toISOString(),
-				open: item.open,
-				high: item.high,
-				low: item.low,
-				close: item.close,
-				volume: item.volume,
-			})).reverse(); // Reverse because we ordered by DESC but chart needs ASC
+			return formatted
+				.map((item) => ({
+					timestamp: new Date(item.timestamp).toISOString(),
+					open: item.open,
+					high: item.high,
+					low: item.low,
+					close: item.close,
+					volume: item.volume,
+				}))
+				.reverse(); // Reverse because we ordered by DESC but chart needs ASC
 		} catch (err) {
 			logger.error(`[QuestDB] Failed to fetch history for ${symbol}`, err);
 			return [];
@@ -475,16 +477,16 @@ export class MarketService {
 			// Perbarui rata-rata throughput setiap 60 detik (sangat stabil untuk batch besar)
 			if (timeDeltaSec >= 60) {
 				const globalTimeElapsedSec = Math.max(1, (now - firstTimestamp) / 1000);
-				
+
 				// Calculate Global TPS for ETA (Tasks take a long time, 60s is too small)
 				const globalTps = Math.max(0, (completedTasks - firstCompletedTasks) / globalTimeElapsedSec);
-				
+
 				// Calculate Moving Average CPS (Candles move fast, 60s is good)
 				const newCps = Math.max(0, (candleCount - prev.candleCount) / timeDeltaSec);
 
 				let newTimeRemaining = "Unknown";
 				const remaining = totalTasks - completedTasks;
-				
+
 				if (globalTps > 0) {
 					const secondsLeft = remaining / globalTps;
 					const hours = Math.floor(secondsLeft / 3600);
@@ -502,7 +504,7 @@ export class MarketService {
 						candleCount,
 						tps: globalTps,
 						cps: newCps,
-						timeRemaining: newTimeRemaining
+						timeRemaining: newTimeRemaining,
 					}),
 					"EX",
 					60 * 60 * 24, // 24 hours expiry so global average persists longer
@@ -524,7 +526,7 @@ export class MarketService {
 					candleCount,
 					tps: 0,
 					cps: 0,
-					timeRemaining: "Unknown"
+					timeRemaining: "Unknown",
 				}),
 				"EX",
 				60 * 60 * 24,

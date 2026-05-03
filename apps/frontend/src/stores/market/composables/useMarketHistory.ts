@@ -14,7 +14,9 @@ export function useMarketHistory(logger: Logger) {
 	async function fetchHistory(ticker: string, interval = "1h", limit = 500, before?: string, source?: string) {
 		const fetchStart = performance.now();
 		try {
-			logger.debug(`Fetching history for ${ticker} (interval=${interval}, limit=${limit}, before=${before}, source=${source})`);
+			logger.debug(
+				`Fetching history for ${ticker} (interval=${interval}, limit=${limit}, before=${before}, source=${source})`,
+			);
 			// Cache key MUST include source to prevent cross-provider cache pollution
 			// (e.g., BTCUSD:1d:TRADINGVIEW vs BTCUSD:1d:YAHOO must be separate entries)
 			const cacheKey = `${ticker}:${interval}:${source || "AUTO"}`;

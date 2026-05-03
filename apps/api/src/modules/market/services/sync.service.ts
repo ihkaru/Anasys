@@ -200,7 +200,12 @@ export class SyncService {
 		return { values, rejected };
 	}
 
-	private async determineQueryOptions(symbolId: number, interval: string, endDate?: Date, source: string = "YAHOO"): Promise<any> {
+	private async determineQueryOptions(
+		symbolId: number,
+		interval: string,
+		endDate?: Date,
+		source: string = "YAHOO",
+	): Promise<any> {
 		const options: any = {};
 
 		if (endDate) {

@@ -261,7 +261,10 @@ function resubscribeAll() {
 		}
 
 		for (const [src, sList] of intervalBySource) {
-			console.log(`%c[WS] 📝 Resubscribing to OHLCV (source=${src}): ${sList.join(", ")} @ ${interval}`, "color: #2196F3");
+			console.log(
+				`%c[WS] 📝 Resubscribing to OHLCV (source=${src}): ${sList.join(", ")} @ ${interval}`,
+				"color: #2196F3",
+			);
 			sendMessage({
 				type: "subscribe",
 				symbols: sList,

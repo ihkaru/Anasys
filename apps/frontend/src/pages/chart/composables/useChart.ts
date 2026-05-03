@@ -43,7 +43,7 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
 
 		try {
 			// console.log(`%c[Chart] Creating chart instance...`, 'color: #9C27B0');
-			
+
 			// 1. Create a pure, non-reactive instance first
 			const rawChart = createChart(
 				containerRef.value,
@@ -57,16 +57,16 @@ export function useChart(containerRef: Ref<HTMLElement | null>, isFullscreen: Re
 			);
 
 			// 2. Call the method BEFORE giving it to Vue's reactivity system
-			if (!rawChart || typeof rawChart.addSeries !== 'function') {
+			if (!rawChart || typeof rawChart.addSeries !== "function") {
 				console.error("[Chart] rawChart is invalid or missing addSeries", rawChart);
 				// Diagnostic dump
 				const proto = rawChart ? Object.getPrototypeOf(rawChart) : null;
-				console.log("rawChart Prototype methods:", proto ? Object.getOwnPropertyNames(proto) : 'null');
+				console.log("rawChart Prototype methods:", proto ? Object.getOwnPropertyNames(proto) : "null");
 				return;
 			}
 
 			const rawCandleSeries = rawChart.addSeries(CandlestickSeries, getCandlestickSeriesOptions(getTheme()));
-			
+
 			// 3. ONLY THEN assign to shallowRefs
 			chart.value = rawChart;
 			candleSeries.value = rawCandleSeries;

@@ -13,9 +13,8 @@ export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>
 		if (!candleSeries.value) return;
 
 		console.time("[ChartFormat]");
-		const chartData = ohlcvData.value.length > 0 
-			? formatOHLCVForChart(ohlcvData.value, settingsStore.timezoneMode)
-			: [];
+		const chartData =
+			ohlcvData.value.length > 0 ? formatOHLCVForChart(ohlcvData.value, settingsStore.timezoneMode) : [];
 		console.timeEnd("[ChartFormat]");
 
 		try {

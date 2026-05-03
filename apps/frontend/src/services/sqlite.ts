@@ -137,7 +137,9 @@ export class SQLiteService {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 		}
 
-		this.logger.debug(`[SQLite] saveOHLCV ${symbol}/${interval}: ${data.length} rows in ${Math.round(performance.now() - saveStart)}ms`);
+		this.logger.debug(
+			`[SQLite] saveOHLCV ${symbol}/${interval}: ${data.length} rows in ${Math.round(performance.now() - saveStart)}ms`,
+		);
 
 		// Debounced save to store (non-blocking)
 		this.debouncedSaveToStore();

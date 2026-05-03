@@ -42,7 +42,9 @@ export class TradingViewPythonProvider implements IDataProvider {
 			limit = Number(options.limit);
 		}
 
-		this.logger.debug(`[TradingViewProvider] Requesting ${limit} candles for ${ticker} (${options.interval}), period: ${options.period1 || 'N/A'} -> ${options.period2 || 'now'}`);
+		this.logger.debug(
+			`[TradingViewProvider] Requesting ${limit} candles for ${ticker} (${options.interval}), period: ${options.period1 || "N/A"} -> ${options.period2 || "now"}`,
+		);
 
 		// Construct full symbol if exchange provided (TradingView requires UPPERCASE)
 		let symbol = options.exchange ? `${options.exchange.toUpperCase()}:${ticker.toUpperCase()}` : ticker.toUpperCase();
@@ -109,7 +111,9 @@ export class TradingViewPythonProvider implements IDataProvider {
 				return true;
 			});
 
-		this.logger.debug(`[TradingViewProvider] Received ${mapped.length} valid candles from Python (span filter: ${new Date(period1Ms).toISOString().split('T')[0]} - ${new Date(period2Ms).toISOString().split('T')[0]})`);
+		this.logger.debug(
+			`[TradingViewProvider] Received ${mapped.length} valid candles from Python (span filter: ${new Date(period1Ms).toISOString().split("T")[0]} - ${new Date(period2Ms).toISOString().split("T")[0]})`,
+		);
 		return mapped;
 	}
 
