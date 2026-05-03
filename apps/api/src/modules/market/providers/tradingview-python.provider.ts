@@ -80,12 +80,7 @@ export class TradingViewPythonProvider implements IDataProvider {
 					})
 					.filter((c: UnifiedCandle) => {
 						// Reject NaN / non-positive candles only
-						if (
-							Number.isNaN(c.open) ||
-							Number.isNaN(c.high) ||
-							Number.isNaN(c.low) ||
-							Number.isNaN(c.close)
-						) {
+						if (Number.isNaN(c.open) || Number.isNaN(c.high) || Number.isNaN(c.low) || Number.isNaN(c.close)) {
 							this.logger.warn(`[TradingViewProvider] Rejected NaN candle at ${c.timestamp.toISOString()}`);
 							return false;
 						}
@@ -96,18 +91,15 @@ export class TradingViewPythonProvider implements IDataProvider {
 						return true;
 					});
 
-				this.logger.debug(
-					`[TradingViewProvider] Received ${mapped.length} valid candles (attempt ${attempt})`,
-				);
+				this.logger.debug(`[TradingViewProvider] Received ${mapped.length} valid candles (attempt ${attempt})`);
 				return mapped;
 			} catch (err: any) {
 				lastErr = err;
-				const isRateLimit =
-					err.message?.includes("429") || err.message?.includes("Too Many Requests");
+				const isRateLimit = err.message?.includes("429") || err.message?.includes("Too Many Requests");
 
 				if (isRateLimit && attempt < MAX_RETRIES) {
 					// Exponential backoff: 30s, 60s, 120s + random jitter (0-30s)
-					const backoffMs = 30_000 * Math.pow(2, attempt - 1) + Math.random() * 30_000;
+					const backoffMs = 30_000 * 2 ** (attempt - 1) + Math.random() * 30_000;
 					this.logger.warn(
 						`[TradingViewProvider] Rate limited (429). Retry ${attempt}/${MAX_RETRIES} after ${Math.round(backoffMs / 1000)}s...`,
 					);

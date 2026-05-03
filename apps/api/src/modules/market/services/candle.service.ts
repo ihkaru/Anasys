@@ -58,7 +58,9 @@ export class CandleService {
 
 		// ── Step 3b: MISS on historical data (before) → backfill ──────────────
 		if (candles.length === 0 && beforeDate) {
-			this.logger.info(`[getOHLCV] No history in QuestDB for ${ticker}/${interval}/${source} before ${beforeDate.toISOString()}. Backfilling...`);
+			this.logger.info(
+				`[getOHLCV] No history in QuestDB for ${ticker}/${interval}/${source} before ${beforeDate.toISOString()}. Backfilling...`,
+			);
 			const t0 = Date.now();
 			try {
 				await this.syncService.syncSymbolData(ticker, symbol.type, interval, beforeDate, source);

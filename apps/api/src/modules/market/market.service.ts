@@ -310,12 +310,7 @@ export class MarketService {
 	 */
 	async getHistoricalOHLCV(symbol: string, interval = "1d", limit = 500, source?: string) {
 		try {
-			return await questDbService.getCandles(
-				symbol,
-				interval,
-				source || "YAHOO",
-				limit,
-			);
+			return await questDbService.getCandles(symbol, interval, source || "YAHOO", limit);
 		} catch (err) {
 			logger.error(`[QuestDB] getHistoricalOHLCV failed for ${symbol}`, err);
 			return [];
