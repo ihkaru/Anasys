@@ -33,7 +33,9 @@ Thumbs.db
 
 # Agent/IDE
 .agent/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 
 # Static Assets (Generated)

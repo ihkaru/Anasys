@@ -1,13 +1,13 @@
-use crate::types::{TickData, CandleData};
+use crate::types::{CandleData, TickData};
+use anyhow::Result;
+use log::{debug, error};
+use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{self, Duration};
-use log::{error, debug};
-use anyhow::Result;
-use std::env;
 
 pub struct Batcher {
-    tick_buffer:   Arc<Mutex<Vec<TickData>>>,
+    tick_buffer: Arc<Mutex<Vec<TickData>>>,
     candle_buffer: Arc<Mutex<Vec<CandleData>>>,
     flush_interval: u64,
     max_batch_size: usize,
@@ -16,9 +16,10 @@ pub struct Batcher {
 
 impl Batcher {
     pub fn new(flush_interval: u64, max_batch_size: usize) -> Self {
-        let questdb_url = env::var("QUESTDB_URL").unwrap_or_else(|_| "http://questdb:9000".to_string());
+        let questdb_url =
+            env::var("QUESTDB_URL").unwrap_or_else(|_| "http://questdb:9000".to_string());
         Self {
-            tick_buffer:   Arc::new(Mutex::new(Vec::with_capacity(max_batch_size))),
+            tick_buffer: Arc::new(Mutex::new(Vec::with_capacity(max_batch_size))),
             candle_buffer: Arc::new(Mutex::new(Vec::with_capacity(max_batch_size))),
             flush_interval,
             max_batch_size,
@@ -40,7 +41,9 @@ impl Batcher {
 
     async fn flush_ticks(&self) -> Result<()> {
         let mut buf = self.tick_buffer.lock().await;
-        if buf.is_empty() { return Ok(()); }
+        if buf.is_empty() {
+            return Ok(());
+        }
         let batch: Vec<TickData> = buf.drain(..).collect();
         drop(buf);
 
@@ -51,7 +54,10 @@ impl Batcher {
             ilp.push_str(&format!(
                 "ticks,symbol={} price={},volume={},bid={},ask={} {}\n",
                 t.symbol,
-                t.price, t.volume, t.bid, t.ask,
+                t.price,
+                t.volume,
+                t.bid,
+                t.ask,
                 t.timestamp * 1_000_000_000
             ));
         }
@@ -74,7 +80,9 @@ impl Batcher {
 
     pub async fn flush_candles(&self) -> Result<()> {
         let mut buf = self.candle_buffer.lock().await;
-        if buf.is_empty() { return Ok(()); }
+        if buf.is_empty() {
+            return Ok(());
+        }
         let batch: Vec<CandleData> = buf.drain(..).collect();
         drop(buf);
 
@@ -125,7 +133,12 @@ impl Batcher {
                 debug!("✅ Flushed {} rows to QuestDB table `{}`", count, table);
             }
             Ok(res) => {
-                error!("QuestDB `{}` error {}: {}", table, res.status(), res.text().await.unwrap_or_default());
+                error!(
+                    "QuestDB `{}` error {}: {}",
+                    table,
+                    res.status(),
+                    res.text().await.unwrap_or_default()
+                );
             }
             Err(e) => {
                 error!("Failed to connect to QuestDB (table: {}): {}", table, e);

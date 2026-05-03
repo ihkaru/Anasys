@@ -1,8 +1,8 @@
 use crate::types::TickData;
+use anyhow::Result;
 use redis::AsyncCommands;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use anyhow::Result;
 
 pub struct Broadcaster {
     connection: Arc<Mutex<redis::aio::MultiplexedConnection>>,
@@ -19,14 +19,14 @@ impl Broadcaster {
     pub async fn broadcast(&self, tick: &TickData) -> Result<()> {
         let mut conn = self.connection.lock().await;
         let payload = serde_json::to_string(tick)?;
-        
+
         // Channel spesifik per simbol: "tick:BINANCE_BTCUSDT"
         let symbol_channel = format!("tick:{}", tick.symbol);
         let _: () = conn.publish(&symbol_channel, &payload).await?;
-        
+
         // Global channel: semua ticks dalam satu stream
         let _: () = conn.publish("ticks:all", &payload).await?;
-        
+
         Ok(())
     }
 }
