@@ -129,7 +129,7 @@ impl ObscuraFetcher {
         debug!("  → WS Connected for {}", canonical_symbol);
 
         let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
-        let chart_session = format!("cs_{}", (ts.abs() % 100_000_000).to_string());
+        let chart_session = format!("cs_{}", (ts.abs() % 100_000_000));
 
         self.send(
             &mut ws,
@@ -211,8 +211,8 @@ impl ObscuraFetcher {
                         continue;
                     }
 
-                    if let Some(json) = self.parse_payload(&text) {
-                        if let Some(m) = json["m"].as_str() {
+                    if let Some(json) = self.parse_payload(&text)
+                        && let Some(m) = json["m"].as_str() {
                             if m == "timescale_update" || m == "du" {
                                 let p = &json["p"];
                                 let series_data = if m == "timescale_update" {
@@ -227,8 +227,7 @@ impl ObscuraFetcher {
                                             candles.push(CandleData {
                                                 symbol: ticker.to_string(),
                                                 interval: interval.to_string(),
-                                                timestamp: row
-                                                    .get(0)
+                                                timestamp: row.first()
                                                     .and_then(|v| v.as_f64())
                                                     .unwrap_or(0.0)
                                                     as i64,
@@ -302,7 +301,6 @@ impl ObscuraFetcher {
                                 break;
                             }
                         }
-                    }
                 }
                 Ok(None) => break,
                 Err(_) => {

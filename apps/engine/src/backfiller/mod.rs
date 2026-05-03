@@ -91,7 +91,7 @@ impl Backfiller {
     async fn process_single_task(&self, task: BackfillTask, batcher: Arc<Batcher>) -> Result<()> {
         let now = chrono::Utc::now().timestamp();
         let start_date = chrono::DateTime::parse_from_rfc3339(&task.target_start_date)?;
-        let mut start_ts = start_date.timestamp();
+        let start_ts = start_date.timestamp();
 
         // Removed hardcoded safe limits to allow deep 2018 backfilling
         // Logic will now follow the target_start_date from database strictly.

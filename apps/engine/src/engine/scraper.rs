@@ -128,20 +128,18 @@ impl TradingViewScraper {
                 continue;
             }
 
-            if let Ok(json) = serde_json::from_str::<Value>(part) {
-                if let Some(m) = json.get("m").and_then(|m| m.as_str()) {
-                    if m == "qsd" {
+            if let Ok(json) = serde_json::from_str::<Value>(part)
+                && let Some(m) = json.get("m").and_then(|m| m.as_str())
+                    && m == "qsd" {
                         self.parse_quote_data(&json).await;
                     }
-                }
-            }
         }
         Ok(())
     }
 
     async fn parse_quote_data(&self, json: &Value) {
-        if let Some(p) = json.get("p").and_then(|p| p.as_array()) {
-            if p.len() >= 2 {
+        if let Some(p) = json.get("p").and_then(|p| p.as_array())
+            && p.len() >= 2 {
                 let symbol_data = &p[1];
                 if let (Some(symbol), Some(v)) = (
                     symbol_data.get("n").and_then(|n| n.as_str()),
@@ -175,7 +173,6 @@ impl TradingViewScraper {
                     }
                 }
             }
-        }
     }
 
     async fn send_message(
