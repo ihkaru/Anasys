@@ -58,10 +58,11 @@ const PING_INTERVAL_MS = 30000;
  */
 function getWsUrl(): string {
 	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-	// In preview (production build served locally), we still want to connect to local backend
-	// window.location.host would point to 4173 (preview port)
-	const host = import.meta.env.DEV ? "localhost:28081" : "localhost:28081";
+	// In development, point to the local backend proxy port
+	// In production, use the current window host so it works across the internet
+	const host = import.meta.env.DEV ? "localhost:28081" : window.location.host;
 	return `${protocol}//${host}/ws/market`;
+
 }
 
 /**
