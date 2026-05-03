@@ -2,6 +2,10 @@ mod engine;
 mod backfiller;
 mod types;
 
+#[cfg(target_env = "musl")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use engine::scraper::TradingViewScraper;
 use engine::broadcaster::Broadcaster;
 use engine::batcher::Batcher;
@@ -25,14 +29,25 @@ async fn main() -> anyhow::Result<()> {
     
     // Start batcher background timer (flushes both ticks and candles)
     batcher.clone().start_timer().await?;
-
-    // 2. Start Backfiller (background task)
+    
+    // 2. Heartbeat task for Docker Healthcheck
+    tokio::spawn(async move {
+        loop {
+            let now = chrono::Utc::now().to_rfc3339();
+            if let Err(e) = std::fs::write("/tmp/engine_heartbeat", now) {
+                error!("🚨 Failed to write heartbeat: {}", e);
+            }
+            time::sleep(Duration::from_secs(10)).await;
+        }
+    });
+ 
+    // 3. Start Backfiller (background task)
     let backfiller = Arc::new(backfiller::Backfiller::new(batcher.clone()));
     let backfiller_handle = tokio::spawn(async move {
         backfiller.run().await;
     });
 
-    // 3. Dynamic symbol list via Redis Set
+    // 4. Dynamic symbol list via Redis Set
     //    Fallback ke env var ANASYS_SCRAPE_SYMBOLS untuk kompatibilitas backward
     let redis_client = redis::Client::open(redis_url.as_str())?;
     let mut redis_conn = redis_client.get_multiplexed_tokio_connection().await?;
@@ -50,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
 
     info!("📡 Starting real-time scraper for {} symbols...", initial_symbols.len());
 
-    // 4. Scraper berjalan dalam loop dengan dynamic symbol refresh setiap 30 detik
+    // 5. Scraper berjalan dalam loop dengan dynamic symbol refresh setiap 30 detik
     //    Jika symbol list berubah (user tambah watchlist), scraper restart dengan list baru.
     let scraper = Arc::new(TradingViewScraper::new(broadcaster, batcher));
     

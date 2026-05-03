@@ -62,6 +62,10 @@ export const config = {
 		historyLimit: 100,
 		historyInterval: "1d",
 	},
+
+	// Infrastructure
+	questdbUrl: getOptionalEnv("QUESTDB_URL", "http://questdb:9000"),
+	redisUrl: getOptionalEnv("REDIS_URL", "redis://redis:6379"),
 };
 
 // Export a function to validate all required config at startup

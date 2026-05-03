@@ -29,8 +29,8 @@ export function createHarvestWorker() {
 					return await handleDiscovery();
 				case "enrichment":
 					return await handleEnrichment();
-				// case "backfill":
-				// 	return await handleBackfill();
+				case "backfill":
+					return await handleBackfill();
 				default:
 					logger.warn(`Unknown job type: ${job.name}`);
 			}
@@ -209,7 +209,7 @@ async function handleEnrichment() {
 
 // ── HANDLER: Backfill (Phase 5) ──────────────────────────────────────────────
 
-async function _handleBackfill() {
+async function handleBackfill() {
 	// Ambil 10 backfill task yang belum selesai
 	const tasks = await db
 		.select()

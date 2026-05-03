@@ -1,44 +1,45 @@
 # Stage 1: Plan recipes
-# PENTING: Semua stages pakai base image yang SAMA (cargo-chef:latest-rust-1.95)
-# agar tidak ada inkonsistensi toolchain yang mengacaukan Docker layer cache
-FROM lukemathwalker/cargo-chef:latest-rust-1.95 AS planner
+# Per Mei 2026: Pakai rust:alpine sebagai base untuk konsistensi musl environment
+FROM rust:alpine AS chef
+RUN apk add --no-cache musl-dev gcc make perl
+RUN cargo install cargo-chef
 WORKDIR /app
+
+# Stage 2: Planner
+FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
-# Stage 2: Build dependencies (paling sering di-cache)
-FROM lukemathwalker/cargo-chef:latest-rust-1.95 AS cacher
-WORKDIR /app
+# Stage 3: Build dependencies (Cacher)
+FROM chef AS cacher
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+# BuildKit Cache Mounts untuk mempercepat build antar-run
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
 
-# Stage 3: Build application
-# Menggunakan cargo-chef image yang sama (bukan rust:slim terpisah) untuk konsistensi toolchain
-FROM lukemathwalker/cargo-chef:latest-rust-1.95 AS builder
-WORKDIR /app
+# Stage 4: Build application
+FROM chef AS builder
 COPY . .
-# Copy pre-compiled dependencies dari stage cacher
 COPY --from=cacher /app/target target
 COPY --from=cacher /usr/local/cargo /usr/local/cargo
-RUN cargo build --release
+# Build static binary
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo build --release --target x86_64-unknown-linux-musl
 
-# Stage 4: Runtime — minimal image untuk production
-# debian:bookworm-slim = glibc 2.36, konsisten dengan build environment (cargo-chef berbasis bookworm)
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    libssl3 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# Stage 5: Runtime — Minimal Alpine image
+# Alpine 3.23 adalah versi stabil per Mei 2026
+FROM alpine:3.23
+RUN apk add --no-cache ca-certificates curl
 
-# Non-root user untuk keamanan
-RUN groupadd -g 1000 anasys && useradd -u 1000 -g anasys -s /bin/sh anasys
+# Non-root user
+RUN addgroup -g 1000 anasys && adduser -u 1000 -G anasys -s /bin/sh -D anasys
 USER anasys
 
 WORKDIR /app
-COPY --from=builder /app/target/release/anasys-engine /app/anasys-engine
+# Path binary berubah karena ada target triplet musl
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/anasys-engine /app/anasys-engine
 
-# Hanya default yang sane — REDIS_URL adalah runtime config, jangan di-bake ke image
 ENV RUST_LOG=info
-
 CMD ["./anasys-engine"]

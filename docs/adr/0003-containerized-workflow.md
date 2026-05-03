@@ -19,11 +19,13 @@ Kita mengadopsi strategi **"Full Containerization"** untuk seluruh siklus pengem
 3.  **Volume-Based Development**: Melakukan *mounting* source code ke dalam container dev agar perubahan kode terdeteksi secara instan tanpa perlu melakukan build ulang image.
 4.  **Persistent Cargo Cache**: Menggunakan Docker Volumes untuk folder `target/` dan `cargo_registry` guna mempercepat kompilasi ulang di dalam container.
 
-## Standarisasi Base Image & Dependensi (Update April 2026)
-Pengujian ekstensif menemukan isu kompabilitas (GLIBC mismatch) ketika mengkompilasi dependensi C/Assembly (seperti library kriptografi). Oleh karena itu, diputuskan:
-1.  **Debian Bookworm Standard**: Semua *base image* baik dev (`rust:1.95`) maupun prod (`debian:bookworm-slim`) diwajibkan menggunakan ekosistem Debian (glibc). Penggunaan Alpine (musl) atau Ubuntu dilarang untuk menghindari *symbol errors* (`__isoc23_sscanf`) saat runtime.
-2.  **Pure-Rust Crypto Backend**: Semua library networking (`reqwest`, `redis`, `tokio-tungstenite`) **wajib** dikonfigurasi untuk menggunakan backend kriptografi `ring` (`rustls-tls-manual-roots`), secara eksplisit menghindari default `aws-lc-rs` yang rentan terhadap versi *assembler* dan *libc* dari OS Host.
-3.  **Strict Service Readiness**: Docker Compose wajib menggunakan `healthcheck` yang presisi. Khusus untuk **QuestDB**, healthcheck dikonfigurasi untuk mengikuti redirect (`curl -fL`) guna memastikan ketersediaan Web Console dan REST API sebelum layanan lain (`engine`, `api`) mencoba terhubung.
+## Standarisasi Base Image & Dependensi (Update Mei 2026)
+Pengujian di lingkungan produksi (Coolify) menemukan isu kompabilitas serius (GLIBC mismatch) ketika binary Rust yang dikompilasi di Debian Bookworm (glibc 2.38) dijalankan di host OS dengan glibc lebih lama (2.36 atau kurang). Oleh karena itu, diputuskan untuk mengubah standar produksi:
+
+1.  **Alpine Standard for Production**: Guna menjamin portabilitas absolut dan menghindari dependensi glibc eksternal, seluruh binary Rust untuk produksi **wajib** dikompilasi menggunakan target `x86_64-unknown-linux-musl` di dalam base image `rust:alpine`. Runtime image menggunakan `alpine:3.23`.
+2.  **Performance Optimization (mimalloc)**: Karena allocator bawaan `musl` memiliki isu performa (lock contention) pada aplikasi multi-threaded, kita **wajib** menggunakan `mimalloc` sebagai global allocator di Engine Rust untuk semua build `musl`.
+3.  **Pure-Rust Crypto Backend**: Semua library networking (`reqwest`, `redis`, `tokio-tungstenite`) **wajib** dikonfigurasi untuk menggunakan backend kriptografi `ring` (`rustls-tls-manual-roots`), secara eksplisit menghindari default `aws-lc-rs` yang rentan terhadap versi *assembler* dan *libc* dari OS Host.
+4.  **Strict Service Readiness**: Docker Compose wajib menggunakan `healthcheck` yang presisi pada seluruh service (`engine`, `api`, `frontend`, `questdb`, `postgres`, `redis`) guna memastikan orkestrasi yang stabil.
 
 ## Konsekuensi
 

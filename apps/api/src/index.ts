@@ -10,6 +10,9 @@ import { holdingsController } from "./modules/holdings/holdings.controller";
 import { internalMarketController, marketController } from "./modules/market/market.controller";
 import { realtimeController } from "./modules/realtime/realtime.controller";
 import { watchlistController } from "./modules/watchlist/watchlist.controller";
+import { sql } from "drizzle-orm";
+import { db } from "./db";
+import { redisConnection } from "./modules/scheduler/queue";
 
 // Validate configuration at startup
 validateConfig();
@@ -54,8 +57,44 @@ const app = new Elysia()
 	// 	}
 	// })
 
-	// Health check (no rate limit, no auth)
-	.get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
+	// Health check (Deep Healthcheck for production orchestration)
+	.get("/health", async () => {
+		const checks: Record<string, any> = {
+			api: "ok",
+			timestamp: new Date().toISOString(),
+		};
+
+		// 1. Check PostgreSQL (via Drizzle)
+		try {
+			await db.execute(sql`SELECT 1`);
+			checks.postgres = "connected";
+		} catch (e) {
+			checks.postgres = "disconnected";
+		}
+
+		// 2. Check Redis
+		try {
+			const status = await redisConnection.ping();
+			checks.redis = status === "PONG" ? "connected" : "error";
+		} catch (e) {
+			checks.redis = "disconnected";
+		}
+
+		// 3. Check QuestDB (REST API)
+		try {
+			const res = await fetch(`${config.questdbUrl}/`);
+			checks.questdb = res.ok ? "connected" : "error";
+		} catch (e) {
+			checks.questdb = "disconnected";
+		}
+
+		const isHealthy = Object.values(checks).every((v) => v === "ok" || v === "connected");
+
+		return {
+			status: isHealthy ? "healthy" : "unhealthy",
+			...checks,
+		};
+	})
 
 	// Serve static files (logos)
 	.get("/public/*", async ({ params, set }) => {
