@@ -12,7 +12,7 @@
             <f7-card-content>
                 <div class="summary-value">
                     <span class="label">Total Invested</span>
-                    <span class="value">${{ holdingsStore.totalInvested.toFixed(2) }}</span>
+                    <span class="value">${{ holdingsStore.totalCost.toFixed(2) }}</span>
                 </div>
             </f7-card-content>
         </f7-card>
@@ -25,11 +25,11 @@
                 :key="holding.id"
                 :title="holding.ticker"
                 :subtitle="holding.type"
-                :after="'$' + (holding.amount * holding.avgPrice).toFixed(2)"
+                :after="'$' + (holding.shares * holding.avgCost).toFixed(2)"
                 swipeout
             >
                 <template #text>
-                    {{ holding.amount }} @ ${{ holding.avgPrice }}
+                    {{ holding.shares }} @ ${{ holding.avgCost }}
                 </template>
                 <f7-swipeout-actions right>
                     <f7-swipeout-button delete confirm-text="Are you sure?" @click="deleteHolding(holding.id)">Delete</f7-swipeout-button>
@@ -64,19 +64,19 @@
                     </f7-list-item>
 
                     <f7-list-input
-                        label="Amount"
+                        label="Shares"
                         type="number"
                         placeholder="0.00"
-                        :value="form.amount"
-                        @input="form.amount = Number(($event.target as HTMLInputElement).value)"
+                        :value="form.shares"
+                        @input="form.shares = Number(($event.target as HTMLInputElement).value)"
                     ></f7-list-input>
 
                     <f7-list-input
                         label="Avg Price ($)"
                         type="number"
                         placeholder="0.00"
-                        :value="form.avgPrice"
-                        @input="form.avgPrice = Number(($event.target as HTMLInputElement).value)"
+                        :value="form.avgCost"
+                        @input="form.avgCost = Number(($event.target as HTMLInputElement).value)"
                     ></f7-list-input>
 
                     <f7-button fill large @click="submitHolding">Add Asset</f7-button>
@@ -93,29 +93,30 @@ import { type Holding, useHoldingsStore } from "../../stores/holdings";
 
 const holdingsStore = useHoldingsStore();
 
-const form = reactive<Omit<Holding, "id">>({
+const form = reactive({
 	ticker: "",
 	type: "STOCK",
-	amount: 0,
-	avgPrice: 0,
+    source: "AUTO",
+	shares: 0,
+	avgCost: 0,
 });
 
-function deleteHolding(id: string) {
-	holdingsStore.removeHolding(id);
+function deleteHolding(id: number) {
+	holdingsStore.deleteHolding(id);
 }
 
 function submitHolding() {
-	if (!form.ticker || form.amount <= 0 || form.avgPrice <= 0) {
+	if (!form.ticker || form.shares <= 0 || form.avgCost <= 0) {
 		f7.dialog.alert("Please fill all fields correctly");
 		return;
 	}
 
-	holdingsStore.addHolding({ ...form });
+	holdingsStore.addHolding(form.ticker, form.shares, form.avgCost, "AUTO");
 
 	// Reset form
 	form.ticker = "";
-	form.amount = 0;
-	form.avgPrice = 0;
+	form.shares = 0;
+	form.avgCost = 0;
 
 	f7.popover.close(".add-holding-popover");
 	f7.toast.show({ text: "Asset Added", closeTimeout: 2000 });

@@ -39,8 +39,8 @@ const props = defineProps<{
 
 defineEmits(["refresh"]);
 
-function formatLabel(label: string) {
-	return label.toUpperCase();
+function formatLabel(label: string | number) {
+	return String(label).toUpperCase();
 }
 
 function calculateProgress(gaps: number) {

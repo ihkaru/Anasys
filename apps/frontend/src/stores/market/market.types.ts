@@ -11,6 +11,7 @@ export interface Symbol {
 	iconUrl?: string;
 	provider?: string;
 	exchange?: string;
+	source?: string;
 }
 
 export interface OHLCV {
@@ -20,6 +21,7 @@ export interface OHLCV {
 	low: number;
 	close: number;
 	volume: number;
+	source?: string;
 }
 
 export interface Signal {
@@ -49,7 +51,6 @@ export interface MarketMover extends Symbol {
 	postMarketPrice?: number;
 	postMarketChange?: number;
 	postMarketChangePercent?: number;
-	source?: string;
 	period?: string;
 	periodBasePrice?: number;
 }

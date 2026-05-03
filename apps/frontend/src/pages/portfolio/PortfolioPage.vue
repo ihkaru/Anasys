@@ -152,11 +152,6 @@ function handleHold(holding: Holding) {
 function openHoldingDetail(holding: Holding) {
 	logger.debug("Open holding detail:", holding.ticker, holding.source);
 	marketStore.selectSymbol(holding.ticker);
-	if (holding.source) {
-		marketStore.selectSource(holding.source);
-	} else {
-		marketStore.selectSource("YAHOO");
-	}
 	f7.views.main.router.navigate("/chart/", { props: { ticker: holding.ticker } });
 }
 </script>

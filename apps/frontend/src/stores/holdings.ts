@@ -47,6 +47,7 @@ export const useHoldingsStore = defineStore("holdings", () => {
 	const totalPnl = computed(() => summary.value?.totalPnl || 0);
 	const totalPnlPercent = computed(() => summary.value?.totalPnlPercent || 0);
 	const allocation = computed(() => summary.value?.allocation || []);
+	const totalCost = computed(() => summary.value?.totalCost || 0);
 
 	// Actions
 	async function fetchHoldings() {
@@ -156,6 +157,7 @@ export const useHoldingsStore = defineStore("holdings", () => {
 		totalPnl,
 		totalPnlPercent,
 		allocation,
+		totalCost,
 
 		// Actions
 		fetchHoldings,
