@@ -96,7 +96,7 @@ const holdingsStore = useHoldingsStore();
 const form = reactive({
 	ticker: "",
 	type: "STOCK",
-    source: "AUTO",
+	source: "AUTO",
 	shares: 0,
 	avgCost: 0,
 });
