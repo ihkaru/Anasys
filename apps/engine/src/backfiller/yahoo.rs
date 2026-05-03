@@ -78,8 +78,8 @@ impl YahooFetcher {
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
         ];
-        let idx = (chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0) % uas.len() as i64).unsigned_abs()
-            as usize;
+        let idx = (chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0) % uas.len() as i64)
+            .unsigned_abs() as usize;
         let ua = uas[idx];
 
         let resp = self
@@ -129,13 +129,15 @@ impl YahooFetcher {
             .chart
             .result
             .ok_or_else(|| anyhow!("Empty result from Yahoo for {}", ticker))?;
-        let item = result.first()
+        let item = result
+            .first()
             .ok_or_else(|| anyhow!("No data item from Yahoo for {}", ticker))?;
 
         let timestamps = &item.timestamp;
         let quotes = item
             .indicators
-            .quote.first()
+            .quote
+            .first()
             .ok_or_else(|| anyhow!("No quote data from Yahoo for {}", ticker))?;
 
         let mut candles = Vec::with_capacity(timestamps.len());

@@ -130,49 +130,51 @@ impl TradingViewScraper {
 
             if let Ok(json) = serde_json::from_str::<Value>(part)
                 && let Some(m) = json.get("m").and_then(|m| m.as_str())
-                    && m == "qsd" {
-                        self.parse_quote_data(&json).await;
-                    }
+                && m == "qsd"
+            {
+                self.parse_quote_data(&json).await;
+            }
         }
         Ok(())
     }
 
     async fn parse_quote_data(&self, json: &Value) {
         if let Some(p) = json.get("p").and_then(|p| p.as_array())
-            && p.len() >= 2 {
-                let symbol_data = &p[1];
-                if let (Some(symbol), Some(v)) = (
-                    symbol_data.get("n").and_then(|n| n.as_str()),
-                    symbol_data.get("v"),
-                ) {
-                    let price = v.get("lp").and_then(|lp| lp.as_f64());
-                    let volume = v.get("volume").and_then(|vol| vol.as_f64());
-                    let bid = v.get("bid").and_then(|b| b.as_f64()).unwrap_or(0.0);
-                    let ask = v.get("ask").and_then(|a| a.as_f64()).unwrap_or(0.0);
+            && p.len() >= 2
+        {
+            let symbol_data = &p[1];
+            if let (Some(symbol), Some(v)) = (
+                symbol_data.get("n").and_then(|n| n.as_str()),
+                symbol_data.get("v"),
+            ) {
+                let price = v.get("lp").and_then(|lp| lp.as_f64());
+                let volume = v.get("volume").and_then(|vol| vol.as_f64());
+                let bid = v.get("bid").and_then(|b| b.as_f64()).unwrap_or(0.0);
+                let ask = v.get("ask").and_then(|a| a.as_f64()).unwrap_or(0.0);
 
-                    if let (Some(price), Some(volume)) = (price, volume) {
-                        let tick = TickData {
-                            symbol: symbol.to_string(),
-                            price,
-                            volume,
-                            bid,
-                            ask,
-                            timestamp: chrono::Utc::now().timestamp(),
-                        };
+                if let (Some(price), Some(volume)) = (price, volume) {
+                    let tick = TickData {
+                        symbol: symbol.to_string(),
+                        price,
+                        volume,
+                        bid,
+                        ask,
+                        timestamp: chrono::Utc::now().timestamp(),
+                    };
 
-                        info!(
-                            "📈 Tick {}: ${:.4} (bid={:.4} ask={:.4} vol={})",
-                            tick.symbol, tick.price, tick.bid, tick.ask, tick.volume
-                        );
+                    info!(
+                        "📈 Tick {}: ${:.4} (bid={:.4} ask={:.4} vol={})",
+                        tick.symbol, tick.price, tick.bid, tick.ask, tick.volume
+                    );
 
-                        // Broadcast ke Redis Pub/Sub (untuk WebSocket clients)
-                        let _ = self.broadcaster.broadcast(&tick).await;
+                    // Broadcast ke Redis Pub/Sub (untuk WebSocket clients)
+                    let _ = self.broadcaster.broadcast(&tick).await;
 
-                        // Batch ke QuestDB tabel `ticks`
-                        let _ = self.batcher.add_tick(tick).await;
-                    }
+                    // Batch ke QuestDB tabel `ticks`
+                    let _ = self.batcher.add_tick(tick).await;
                 }
             }
+        }
     }
 
     async fn send_message(

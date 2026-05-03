@@ -212,95 +212,90 @@ impl ObscuraFetcher {
                     }
 
                     if let Some(json) = self.parse_payload(&text)
-                        && let Some(m) = json["m"].as_str() {
-                            if m == "timescale_update" || m == "du" {
-                                let p = &json["p"];
-                                let series_data = if m == "timescale_update" {
-                                    p[1]["sds_1"]["s"].as_array()
-                                } else {
-                                    p[0]["sds_1"]["s"].as_array()
-                                };
+                        && let Some(m) = json["m"].as_str()
+                    {
+                        if m == "timescale_update" || m == "du" {
+                            let p = &json["p"];
+                            let series_data = if m == "timescale_update" {
+                                p[1]["sds_1"]["s"].as_array()
+                            } else {
+                                p[0]["sds_1"]["s"].as_array()
+                            };
 
-                                if let Some(plots) = series_data {
-                                    for plot in plots {
-                                        if let Some(row) = plot["v"].as_array() {
-                                            candles.push(CandleData {
-                                                symbol: ticker.to_string(),
-                                                interval: interval.to_string(),
-                                                timestamp: row.first()
-                                                    .and_then(|v| v.as_f64())
-                                                    .unwrap_or(0.0)
-                                                    as i64,
-                                                open: row
-                                                    .get(1)
-                                                    .and_then(|v| v.as_f64())
-                                                    .unwrap_or(0.0),
-                                                high: row
-                                                    .get(2)
-                                                    .and_then(|v| v.as_f64())
-                                                    .unwrap_or(0.0),
-                                                low: row
-                                                    .get(3)
-                                                    .and_then(|v| v.as_f64())
-                                                    .unwrap_or(0.0),
-                                                close: row
-                                                    .get(4)
-                                                    .and_then(|v| v.as_f64())
-                                                    .unwrap_or(0.0),
-                                                volume: row
-                                                    .get(5)
-                                                    .and_then(|v| v.as_f64())
-                                                    .unwrap_or(0.0),
-                                                source: "TRADINGVIEW".to_string(),
-                                            });
-                                        }
-                                    }
-
-                                    let oldest_ts = candles
-                                        .iter()
-                                        .map(|c| c.timestamp)
-                                        .min()
-                                        .unwrap_or(i64::MAX);
-                                    if oldest_ts > start && !loaded_all && candles.len() < 500_000 {
-                                        debug!(
-                                            "  → {} needs more data (oldest: {} > target: {}). Requesting 10k more...",
-                                            ticker, oldest_ts, start
-                                        );
-                                        self.send(
-                                            &mut ws,
-                                            "request_more_data",
-                                            vec![
-                                                json!(chart_session),
-                                                json!("sds_1"),
-                                                json!(10000),
-                                            ],
-                                        )
-                                        .await?;
-                                    } else {
-                                        loaded_all = true;
-                                        break;
+                            if let Some(plots) = series_data {
+                                for plot in plots {
+                                    if let Some(row) = plot["v"].as_array() {
+                                        candles.push(CandleData {
+                                            symbol: ticker.to_string(),
+                                            interval: interval.to_string(),
+                                            timestamp: row
+                                                .first()
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0)
+                                                as i64,
+                                            open: row
+                                                .get(1)
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            high: row
+                                                .get(2)
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            low: row.get(3).and_then(|v| v.as_f64()).unwrap_or(0.0),
+                                            close: row
+                                                .get(4)
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            volume: row
+                                                .get(5)
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            source: "TRADINGVIEW".to_string(),
+                                        });
                                     }
                                 }
-                            } else if m == "symbol_resolved" {
-                                let p = &json["p"];
-                                let details = &p[2];
-                                symbol_metadata = Some(json!({
-                                    "name": details["description"].as_str(),
-                                    "exchange": details["exchange"].as_str(),
-                                    "type": details["type"].as_str(),
-                                    "currency": details["currency_code"].as_str(),
-                                    "tradingview_symbol": details["symbol"].as_str(),
-                                    "tradingview_exchange": details["exchange"].as_str(),
-                                }));
-                                debug!(
-                                    "  → Metadata resolved for {}: {:?}",
-                                    ticker, symbol_metadata
-                                );
-                            } else if m == "critical_error" || m == "error" || m == "symbol_error" {
-                                warn!("  → Obscura WS error for {}: {}", ticker, m);
-                                break;
+
+                                let oldest_ts = candles
+                                    .iter()
+                                    .map(|c| c.timestamp)
+                                    .min()
+                                    .unwrap_or(i64::MAX);
+                                if oldest_ts > start && !loaded_all && candles.len() < 500_000 {
+                                    debug!(
+                                        "  → {} needs more data (oldest: {} > target: {}). Requesting 10k more...",
+                                        ticker, oldest_ts, start
+                                    );
+                                    self.send(
+                                        &mut ws,
+                                        "request_more_data",
+                                        vec![json!(chart_session), json!("sds_1"), json!(10000)],
+                                    )
+                                    .await?;
+                                } else {
+                                    loaded_all = true;
+                                    break;
+                                }
                             }
+                        } else if m == "symbol_resolved" {
+                            let p = &json["p"];
+                            let details = &p[2];
+                            symbol_metadata = Some(json!({
+                                "name": details["description"].as_str(),
+                                "exchange": details["exchange"].as_str(),
+                                "type": details["type"].as_str(),
+                                "currency": details["currency_code"].as_str(),
+                                "tradingview_symbol": details["symbol"].as_str(),
+                                "tradingview_exchange": details["exchange"].as_str(),
+                            }));
+                            debug!(
+                                "  → Metadata resolved for {}: {:?}",
+                                ticker, symbol_metadata
+                            );
+                        } else if m == "critical_error" || m == "error" || m == "symbol_error" {
+                            warn!("  → Obscura WS error for {}: {}", ticker, m);
+                            break;
                         }
+                    }
                 }
                 Ok(None) => break,
                 Err(_) => {
