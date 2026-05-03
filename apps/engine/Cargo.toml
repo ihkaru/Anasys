@@ -35,7 +35,3 @@ obscura-net = { git = "https://github.com/h4ckf0r0day/obscura.git" }
 # TLS: eksplisit pakai ring agar semua crate transitif tidak pakai aws-lc-rs
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 aws-lc-rs = { version = "*", optional = true }  # disable default, jadikan optional
-
-[target.'cfg(target_env = "musl")'.dependencies]
-mimalloc = { version = "0.1", default-features = false }
-

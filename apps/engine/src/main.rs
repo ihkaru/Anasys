@@ -2,10 +2,6 @@ mod engine;
 mod backfiller;
 mod types;
 
-#[cfg(target_env = "musl")]
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
-
 use engine::scraper::TradingViewScraper;
 use engine::broadcaster::Broadcaster;
 use engine::batcher::Batcher;

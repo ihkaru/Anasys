@@ -19,13 +19,13 @@ Kita mengadopsi strategi **"Full Containerization"** untuk seluruh siklus pengem
 3.  **Volume-Based Development**: Melakukan *mounting* source code ke dalam container dev agar perubahan kode terdeteksi secara instan tanpa perlu melakukan build ulang image.
 4.  **Persistent Cargo Cache**: Menggunakan Docker Volumes untuk folder `target/` dan `cargo_registry` guna mempercepat kompilasi ulang di dalam container.
 
-## Standarisasi Base Image & Dependensi (Update Mei 2026)
-Pengujian di lingkungan produksi (Coolify) menemukan isu kompabilitas serius (GLIBC mismatch) ketika binary Rust yang dikompilasi di Debian Bookworm (glibc 2.38) dijalankan di host OS dengan glibc lebih lama (2.36 atau kurang). Oleh karena itu, diputuskan untuk mengubah standar produksi:
+## Standarisasi Base Image & Dependensi (Update Mei 2026 - Re-evaluated)
+Pengujian di lingkungan produksi (Coolify) menemukan isu kompabilitas serius (GLIBC mismatch) ketika binary Rust dijalankan di host OS dengan glibc lama. Namun, ditemukan bahwa Engine menggunakan **Obscura** (headless browser engine berbasis V8) yang memiliki ketergantungan libc sangat kompleks dan tidak didukung secara stabil di lingkungan `musl`. Oleh karena itu, diputuskan strategi final:
 
-1.  **Alpine Standard for Production**: Guna menjamin portabilitas absolut dan menghindari dependensi glibc eksternal, seluruh binary Rust untuk produksi **wajib** dikompilasi menggunakan target `x86_64-unknown-linux-musl` di dalam base image `rust:alpine`. Runtime image menggunakan `alpine:3.23`.
-2.  **Performance Optimization (mimalloc)**: Karena allocator bawaan `musl` memiliki isu performa (lock contention) pada aplikasi multi-threaded, kita **wajib** menggunakan `mimalloc` sebagai global allocator di Engine Rust untuk semua build `musl`.
-3.  **Pure-Rust Crypto Backend**: Semua library networking (`reqwest`, `redis`, `tokio-tungstenite`) **wajib** dikonfigurasi untuk menggunakan backend kriptografi `ring` (`rustls-tls-manual-roots`), secara eksplisit menghindari default `aws-lc-rs` yang rentan terhadap versi *assembler* dan *libc* dari OS Host.
-4.  **Strict Service Readiness**: Docker Compose wajib menggunakan `healthcheck` yang presisi pada seluruh service (`engine`, `api`, `frontend`, `questdb`, `postgres`, `redis`) guna memastikan orkestrasi yang stabil.
+1.  **Ubuntu 24.04 (Noble) for Production**: Guna menjamin dukungan V8/Obscura dan simbol glibc terbaru (termasuk GLIBC 2.38+), standar runtime image dialihkan ke `ubuntu:24.04`. Ini menyediakan glibc 2.39 yang kompatibel ke belakang dengan build environment terbaru.
+2.  **glibc Build Strategy**: Seluruh binary Rust untuk produksi dikompilasi menggunakan target standard `x86_64-unknown-linux-gnu` di dalam image berbasis Debian Bookworm. Kita tidak lagi menggunakan `musl` guna menghindari fragilitas build V8.
+3.  **Pure-Rust Crypto Backend**: Tetap menggunakan backend kriptografi `ring` (`rustls-tls-manual-roots`) untuk menghindari dependensi pada library sistem yang bervariasi.
+4.  **Strict Service Readiness**: Docker Compose tetap menggunakan `healthcheck` yang presisi guna memastikan orkestrasi yang stabil di Coolify.
 
 ## Konsekuensi
 

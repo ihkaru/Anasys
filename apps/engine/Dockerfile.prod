@@ -1,9 +1,9 @@
 # Stage 1: Plan recipes
-# Per Mei 2026: Pakai rust:alpine sebagai base untuk konsistensi musl environment
-FROM rust:alpine AS chef
-RUN apk add --no-cache musl-dev gcc make perl
-RUN cargo install cargo-chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.95-bookworm AS chef
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev cmake curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Stage 2: Planner
 FROM chef AS planner
@@ -16,30 +16,31 @@ COPY --from=planner /app/recipe.json recipe.json
 # BuildKit Cache Mounts untuk mempercepat build antar-run
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
+    cargo chef cook --release --recipe-path recipe.json
 
 # Stage 4: Build application
 FROM chef AS builder
 COPY . .
 COPY --from=cacher /app/target target
 COPY --from=cacher /usr/local/cargo /usr/local/cargo
-# Build static binary
+# Build glibc binary (default for bookworm)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
-    cargo build --release --target x86_64-unknown-linux-musl
+    cargo build --release
 
-# Stage 5: Runtime — Minimal Alpine image
-# Alpine 3.23 adalah versi stabil per Mei 2026
-FROM alpine:3.23
-RUN apk add --no-cache ca-certificates curl
+# Stage 5: Runtime — Ubuntu 24.04 (glibc 2.39)
+# Per Mei 2026: Ubuntu Noble menyediakan glibc terbaru untuk V8/Obscura
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libssl3 curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Non-root user
-RUN addgroup -g 1000 anasys && adduser -u 1000 -G anasys -s /bin/sh -D anasys
+RUN groupadd -g 1000 anasys && useradd -u 1000 -g anasys -s /bin/sh anasys
 USER anasys
 
 WORKDIR /app
-# Path binary berubah karena ada target triplet musl
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/anasys-engine /app/anasys-engine
+COPY --from=builder /app/target/release/anasys-engine /app/anasys-engine
 
 ENV RUST_LOG=info
 CMD ["./anasys-engine"]
