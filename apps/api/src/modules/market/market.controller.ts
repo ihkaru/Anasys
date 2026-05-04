@@ -458,13 +458,13 @@ export const internalMarketController = new Elysia({ prefix: "/market/internal" 
 			)
 			// DIAGNOSTICS: Check provider health
 			.get("/diagnostics", async () => {
-				const { yahooFinanceProvider } = await import("./providers/yahoo-finance.provider");
-				const { tvProvider } = await import("./providers/tradingview-python.provider");
+				const { YahooFinanceProvider } = await import("./providers/yahoo-finance.provider");
+				const { TradingViewPythonProvider } = await import("./providers/tradingview-python.provider");
 
-				const [yahooStatus, tvStatus] = await Promise.allSettled([
-					yahooFinanceProvider.search("AAPL", 1),
-					tvProvider.search("AAPL", 1),
-				]);
+				const yahoo = new YahooFinanceProvider();
+				const tv = new TradingViewPythonProvider();
+
+				const [yahooStatus, tvStatus] = await Promise.allSettled([yahoo.search("AAPL", 1), tv.search("AAPL", 1)]);
 
 				return {
 					success: true,
@@ -488,5 +488,5 @@ export const internalMarketController = new Elysia({ prefix: "/market/internal" 
 						PYTHON_PATH: process.env.PYTHON_PATH || "python3",
 					},
 				};
-			});
+			}),
 	);
