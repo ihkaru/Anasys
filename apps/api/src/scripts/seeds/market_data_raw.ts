@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { marketData, symbols } from "@packages/db/src/schema";
@@ -7,6 +8,10 @@ import { db } from "../../db";
 const RAW_DIR = join(import.meta.dir, "../../../data/raw");
 
 export async function seed() {
+	if (!existsSync(RAW_DIR)) {
+		console.warn(`⚠️  [Source A] Skipping: Directory ${RAW_DIR} not found.`);
+		return;
+	}
 	console.log(`📂 [Source A] Scanning ${RAW_DIR}...`);
 	try {
 		const files = await readdir(RAW_DIR);

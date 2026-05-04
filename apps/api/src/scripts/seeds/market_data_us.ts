@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { marketData, symbols } from "@packages/db/src/schema";
@@ -47,6 +48,10 @@ async function walkDir(dir: string): Promise<string[]> {
 }
 
 export async function seed() {
+	if (!existsSync(US_DATA_DIR)) {
+		console.warn(`⚠️  [Source B] Skipping: Directory ${US_DATA_DIR} not found.`);
+		return;
+	}
 	console.log(`📂 [Source B] Scanning US Data Directory: ${US_DATA_DIR}...`);
 	try {
 		const files = await walkDir(US_DATA_DIR);

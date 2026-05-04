@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { categories, symbolCategories, symbols } from "@packages/db/src/schema";
 import { eq } from "drizzle-orm";
@@ -6,6 +7,10 @@ import { db } from "../../db";
 const CSV_FILE = join(import.meta.dir, "data/symbol_categories.csv");
 
 export async function seed() {
+	if (!existsSync(CSV_FILE)) {
+		console.warn(`⚠️  [Categories] Skipping: File ${CSV_FILE} not found.`);
+		return;
+	}
 	console.log(`📂 [Categories] Seeding from ${CSV_FILE}...`);
 	try {
 		const content = await Bun.file(CSV_FILE).text();
