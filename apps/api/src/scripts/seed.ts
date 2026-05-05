@@ -1,6 +1,4 @@
 import { seed as seedCategories } from "./seeds/categories";
-import { seed as seedRaw } from "./seeds/market_data_raw";
-import { seed as seedUs } from "./seeds/market_data_us";
 import { seed as seedpopular } from "./seeds/popular_tickers";
 
 async function main() {
@@ -14,12 +12,6 @@ async function main() {
 		console.log("1️⃣  Seeding Categories & Symbol Relations...");
 		await seedCategories();
 
-		console.log("2️⃣  Seeding Raw Data (Source A)...");
-		await seedRaw();
-
-		console.log("3️⃣  Seeding US Market Data (Source B)...");
-		await seedUs();
-
 		console.log("🎉 All Seeders Completed Successfully!");
 		process.exit(0);
 	} catch (e) {
@@ -29,3 +21,4 @@ async function main() {
 }
 
 main();
+
