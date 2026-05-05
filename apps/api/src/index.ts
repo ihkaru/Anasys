@@ -13,6 +13,7 @@ import { watchlistController } from "./modules/watchlist/watchlist.controller";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
 import { redisConnection } from "./modules/scheduler/queue";
+import Redis from "ioredis";
 
 // Validate configuration at startup
 validateConfig();
@@ -88,23 +89,37 @@ const app = new Elysia()
 		}
 
 		// 2. Check Redis — 3s timeout
+		// NOTE: Do NOT reuse `redisConnection` (BullMQ's shared connection with lazyConnect=true
+		// and maxRetriesPerRequest=null). That connection may be in "reconnecting" state
+		// which causes ping() to queue indefinitely, racing against our timeout.
+		// Use a fresh, dedicated connection that is closed immediately after.
 		try {
-			const status = await withTimeout(redisConnection.ping(), 3000);
+			const healthRedis = new Redis(config.redisUrl, { connectTimeout: 2500 });
+			const status = await withTimeout(healthRedis.ping(), 3000);
+			healthRedis.disconnect();
 			checks.redis = status === "PONG" ? "connected" : "error";
 		} catch (_e) {
 			checks.redis = "disconnected";
 		}
 
 		// 3. Check QuestDB (REST API) — 3s timeout
+		// NOTE: fetch("/") hangs because QuestDB root serves a large HTML page
+		// that uses chunked transfer and never closes the connection in Bun.
+		// Use /exec?query=SELECT+1 which returns a small, finite JSON response.
 		try {
-			const res = await withTimeout(fetch(`${config.questdbUrl}/`), 3000);
+			const res = await withTimeout(
+				fetch(`${config.questdbUrl}/exec?query=SELECT+1`),
+				3000,
+			);
 			checks.questdb = res.ok ? "connected" : "error";
 		} catch (_e) {
 			checks.questdb = "disconnected";
 		}
 
-		const isHealthy = Object.values(checks).every(
-			(v) => v === "ok" || v === "connected",
+		// Only evaluate service-specific fields, not metadata (timestamp, api)
+		const serviceChecks = { postgres: checks.postgres, redis: checks.redis, questdb: checks.questdb };
+		const isHealthy = Object.values(serviceChecks).every(
+			(v) => v === "connected",
 		);
 
 		if (!isHealthy) {
