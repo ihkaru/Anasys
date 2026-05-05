@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema-json-lines.json",
+  "workspaces": {
+    ".": {
+      "ignore": [
+        "docker_config_dump.txt",
+        "README.md",
+        "CONSOLIDATED_ADR.md",
+        "docs/**"
+      ]
+    },
+    "apps/*": {
+      "entry": ["src/index.ts", "src/main.ts", "src/main.rs", "src/scripts/**/*.ts"]
+    },
+    "packages/*": {
+      "entry": ["src/index.ts", "src/schema.ts"]
+    }
+  },
+  "ignoreBinaries": ["cargo", "bun", "biome", "husky", "fuser"],
+  "ignoreDependencies": [
+    "@types/node",
+    "bun-types",
+    "typescript",
+    "drizzle-kit",
+    "lint-staged"
+  ]
+}
