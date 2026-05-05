@@ -166,8 +166,15 @@ for ID in $CONTAINERS; do
     fi
 
     # Silent error scan from logs (last 30 lines)
-    # Keywords: standard errors + Rust panics ("stack backtrace") + connection failures
-    ERROR_COUNT=$(docker logs --tail 30 $ID 2>&1 | grep -ci "error\|panic\|connection refused\|fatal\|stack backtrace")
+    # Keywords: real errors + Rust panics ("stack backtrace") + connection failures
+    # Exclusions (known transient/false positives):
+    #   - "oneDNN" / "round-off errors": TensorFlow INFO log, not an actual error
+    #   - "429" / "too many requests": Transient provider rate-limit, engine auto-reconnects
+    #   - "name resolution": Transient DNS failure during Docker network initialization
+    MATCHED_ERRORS=$(docker logs --tail 30 $ID 2>&1 \
+        | grep -i "error\|panic\|connection refused\|fatal\|stack backtrace" \
+        | grep -vi "onednn\|round-off errors\|429\|too many requests\|name resolution")
+    ERROR_COUNT=$(echo "$MATCHED_ERRORS" | grep -c .)
     if [ $ERROR_COUNT -gt 0 ]; then
         echo -e "  ${RED}⚠  Silent Errors: Found $ERROR_COUNT error-level lines in recent logs!${NC}"
         echo -e "     Run: ${GRAY}docker logs --tail 50 $NAME | grep -i 'error\|fatal'${NC}"
