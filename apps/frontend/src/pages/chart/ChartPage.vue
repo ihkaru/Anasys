@@ -84,7 +84,7 @@ import FinancialsSection from "./components/FinancialsSection.vue";
 import RecommendationsSection from "./components/RecommendationsSection.vue";
 import SignalSummaryCard from "./components/SignalSummaryCard.vue";
 import TimeframeSelector from "./components/TimeframeSelector.vue";
-import type TradingChartView from "./components/TradingChart.vue";
+import TradingChartView from "./components/TradingChart.vue";
 
 // Throttle helper for chart updates
 let lastChartUpdate = 0;
