@@ -10,6 +10,12 @@ services:
       dockerfile: apps/engine/Dockerfile.dev
     container_name: anasys-dev-engine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/heartbeat.txt || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     environment:
       - REDIS_URL=redis://redis:6379
       - QUESTDB_URL=http://questdb:9000
@@ -42,6 +48,12 @@ services:
     container_name: anasys-dev-api
     ports:
       - "${ANASYS_BACKEND_PORT:-28081}:3000" # Mapped to original backend port for compatibility
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/finance_db
