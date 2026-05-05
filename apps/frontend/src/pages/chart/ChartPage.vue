@@ -232,17 +232,17 @@ function setupRealtimeSubscriptions(ticker: string, interval: string, source: st
 watch(
 	() => [marketStore.selectedSymbol, selectedInterval.value, marketStore.selectedSymbolData?.provider] as const,
 	([symbol, interval, provider]) => {
-		console.log(`[ChartPage] Watcher triggered: ${symbol} ${interval} (Provider: ${provider})`);
-		if (symbol) {
-			// Resolve source: prioritaskan field 'source' (dari search), lalu 'provider' (dari details), fallback 'YAHOO'
-			const source = (
-				marketStore.selectedSymbolData?.source ||
-				marketStore.selectedSymbolData?.provider ||
-				"YAHOO"
-			).toUpperCase();
+		// Skip immediate trigger before selectedSymbolData is populated
+		if (!symbol || !provider) return;
 
-			setupRealtimeSubscriptions(symbol, interval, source);
-		}
+		console.log(`[ChartPage] Watcher triggered: ${symbol} ${interval} (Provider: ${provider})`);
+		const source = (
+			marketStore.selectedSymbolData?.source ||
+			marketStore.selectedSymbolData?.provider ||
+			"YAHOO"
+		).toUpperCase();
+
+		setupRealtimeSubscriptions(symbol, interval, source);
 	},
 	{ immediate: true },
 );
