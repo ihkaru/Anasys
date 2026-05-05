@@ -70,7 +70,7 @@ export async function seed() {
 						name: ticker,
 						type: catName === "CRYPTO" ? "CRYPTO" : "STOCK",
 						isActive: true,
-						provider: "seed_category",
+						provider: "yahoo",
 					})
 					.onConflictDoNothing()
 					.returning();
