@@ -14,6 +14,7 @@
 		"build": "bun --filter '*' build",
 		"test": "bun --filter anasys-api test",
 		"test:consistency": "bun --filter anasys-api run test:consistency",
+		"typecheck": "tsc --noEmit",
 		"lint": "biome check . && cd apps/engine && cargo fmt --all --check && cargo clippy --all-targets -- -D warnings",
 		"lint:fix": "biome check --write . && cd apps/engine && cargo fmt --all && cargo clippy --fix --allow-dirty --allow-staged",
 		"audit": "cargo audit && bun audit",
