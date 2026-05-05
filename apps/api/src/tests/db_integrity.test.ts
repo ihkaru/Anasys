@@ -34,5 +34,4 @@ describe("Database Integrity Check", () => {
 		// Source B is mostly stocks.
 		expect(stock || crypto).toBeTruthy();
 	});
-
 });

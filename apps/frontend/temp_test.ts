@@ -1,1 +1,1 @@
-import { createSeriesMarkers } from 'lightweight-charts';
+import { createSeriesMarkers } from "lightweight-charts";

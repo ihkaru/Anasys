@@ -12,7 +12,7 @@ arsitektur yang diputuskan di ADR sebelumnya (0007, 0009) dengan implementasi ak
 
 | # | Gap | ADR Asal | Dampak |
 |---|---|---|---|
-| G1 | OHLCV dari TV/Yahoo masuk ke Postgres, **tidak naik ke QuestDB** | ADR-0007, ADR-0009 | Engine tidak tahu data sudah ada — scrape ulang sia-sia |
+| G1 | OHLCV dari TV/Yahoo masuk ke Postgres, **tidak naik ke QuestDB** | ADR-0007, ADR-0009 | **(FIXED)** Data kini langsung masuk ke QuestDB via ILP |
 | G2 | `INGEST-PENDING` signal hanya berupa log string, **tidak dikirim ke Engine** | ADR-0007 | Engine tidak bisa bereaksi terhadap demand dari user |
 | G3 | SQLite browser cache **tanpa TTL per interval** | ADR-0007 | Data stale ditampilkan tanpa user sadar |
 | G4 | `return` invalid di `bridge_tradingview.py` (bug kritis) | ADR-0011 | **100% backfill dari TradingView gagal silently** |
@@ -55,25 +55,22 @@ Menggantikan ambiguitas sebelumnya, peran masing-masing storage dikunci:
       │  On-demand backfill (user request)      │
       │  Market data Proxy (Smart Routing)      │
       └──────┬──────────────────────────────────┘
-             │
-     ┌───────▼───────┐      ┌───────────────────┐
-     │   Postgres    │      │     QuestDB        │
-     │  (Operational)│      │   (Analytical)     │
-     │               │      │                    │
-     │  • symbols    │      │  • candles (OHLCV) │
-     │  • users      │      │  • ticks           │
-     │  • watchlist  │      │                    │
-     │  • portfolios │      │  ← diisi Engine    │
-     │  • market_data│ ──── │    (via Redis pub) │
-     │    (cache     │ pub  │                    │
-     │     sementara)│      │                    │
-     └───────────────┘      └───────────────────┘
+             │ (Data relasional)      │ (OHLCV langsung via ILP)
+     ┌───────▼───────┐        ┌───────▼───────────┐
+     │   Postgres    │        │     QuestDB        │
+     │  (Operational)│        │   (Analytical)     │
+     │               │        │                    │
+     │  • symbols    │        │  • candles (OHLCV) │
+     │  • users      │        │  • ticks           │
+     │  • watchlist  │        │                    │
+     │  • portfolios │        │  ← diisi Engine    │
+     │               │        │    (via ILP/TCP)   │
+     └───────────────┘        └───────────────────┘
 ```
 
 **Aturan**:
-- `market_data` di Postgres adalah **operational cache** sementara
-- QuestDB adalah **source of truth** untuk data OHLCV jangka panjang
-- Data dari Postgres **HARUS** dipromosikan ke QuestDB via Engine (lihat G1)
+- Postgres **HANYA** untuk data relasional dan metadata. Tabel `market_data` telah dihapus secara permanen.
+- QuestDB adalah **satu-satunya source of truth** untuk data OHLCV. Data dari provider ditulis langsung ke QuestDB.
 
 ### 3. Fix INGEST-PENDING: Redis Pub/Sub ke Engine (RESOLVED ✅)
 
@@ -126,8 +123,8 @@ Tambahkan step di pipeline:
 
 | Gap | Status | Target |
 |---|---|---|
-| G1: OHLCV tidak naik ke QuestDB | ✅ Fixed | Redis pub/sub ke Engine |
-| G2: INGEST-PENDING signal tidak nyata | ✅ Fixed | Redis publish setelah backfill |
+| G1: OHLCV tidak naik ke QuestDB | ✅ Fixed | Tulis langsung ke QuestDB via ILP tanpa via Postgres |
+| G2: INGEST-PENDING signal tidak nyata | ✅ Fixed | Redis publish setelah backfill (opsional/obsolete) |
 | G3: SQLite tanpa TTL | 🔲 Belum | TTL per interval di useMarketCache |
 | G4: `return` invalid di bridge | ✅ Fixed | — |
 | G5: `console.time()` blocking | ✅ Fixed | `performance.now()` |

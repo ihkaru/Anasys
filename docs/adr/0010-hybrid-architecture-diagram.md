@@ -139,6 +139,4 @@ Tidak memiliki akses langsung ke PostgreSQL. Ia berinteraksi dengan ekosistem An
 2.  Menyemburkan (*flush*) data harga OHLCV historis secara borongan langsung ke QuestDB.
 
 ## Manfaat Dokumentasi Ini
-- Mencegah teknisi atau AI di masa depan kebingungan mencari data OHLCV di PostgreSQL.
-- Mengamankan *Drizzle ORM* dari eksperimen *schema* yang tidak perlu untuk tipe data *time-series*.
-- Menjadi panduan utama saat melakukan *benchmarking* (Benchmark script HARUS membaca dari dua tempat: PostgreSQL dan QuestDB).
+- Menjadi panduan utama saat melakukan *benchmarking* (Benchmark script untuk OHLCV kini HANYA membaca dari QuestDB, karena Postgres tidak lagi menyimpan data harga).

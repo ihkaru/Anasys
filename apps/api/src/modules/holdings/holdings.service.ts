@@ -68,7 +68,7 @@ export class HoldingsService {
 			// Get latest price and history for sparkline from QuestDB
 			// Note: getCandles returns ascending order, so we will get the latest at the end
 			const questHistory = await questDbService.getCandles(holding.ticker, "1d", holding.source, 14);
-			const history = questHistory.map(c => ({ close: c.close }));
+			const history = questHistory.map((c) => ({ close: c.close }));
 			// getCandles returns ASC, so the last item is the most recent
 			const currentPrice = history.length > 0 ? history[history.length - 1].close : holding.avgCost;
 			const currentValue = holding.shares * currentPrice;

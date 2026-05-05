@@ -127,8 +127,6 @@ export const watchlistItems = pgTable(
 	},
 );
 
-
-
 // Portfolio Holdings - User's investment positions
 export const holdings = pgTable("holdings", {
 	id: serial("id").primaryKey(),

@@ -278,8 +278,9 @@ async function handleBackfill() {
 					const source = await marketService.resolveSymbolSource(symbol.ticker);
 
 					// Validate YAHOO limitations
-					const isYahooAndUnsupported = source === "YAHOO" && (symbol.type !== "STOCK" || !["1d", "1h", "1wk", "1mo"].includes(task.interval));
-					
+					const isYahooAndUnsupported =
+						source === "YAHOO" && (symbol.type !== "STOCK" || !["1d", "1h", "1wk", "1mo"].includes(task.interval));
+
 					if (isYahooAndUnsupported) {
 						// Skip unsupported combos — mark as SKIPPED to avoid infinite retries
 						await db
@@ -311,12 +312,15 @@ async function handleBackfill() {
 						.where(eq(backfillProgress.id, task.id));
 				} catch (e: any) {
 					logger.error(`Backfill failed for ${symbol.ticker} ${task.interval}: ${e.message}`);
-					const isRateLimit = e.message?.includes("429") || e.message?.includes("Circuit Breaker") || e.message?.toLowerCase().includes("rate limit");
+					const isRateLimit =
+						e.message?.includes("429") ||
+						e.message?.includes("Circuit Breaker") ||
+						e.message?.toLowerCase().includes("rate limit");
 					await db
 						.update(backfillProgress)
-						.set({ 
-							backfillStatus: isRateLimit ? "PENDING" : "FAILED", 
-							updatedAt: new Date() 
+						.set({
+							backfillStatus: isRateLimit ? "PENDING" : "FAILED",
+							updatedAt: new Date(),
 						})
 						.where(eq(backfillProgress.id, task.id));
 				}

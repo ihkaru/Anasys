@@ -111,7 +111,6 @@ export class CandleService {
 		return result;
 	}
 
-
 	private isStale(lastDate: Date | null, interval: string): boolean {
 		if (!lastDate) return true;
 
@@ -138,6 +137,4 @@ export class CandleService {
 				return diffMinutes > 60;
 		}
 	}
-
-
 }

@@ -10,7 +10,7 @@ const logger = createLogger("useChartData");
 
 export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>, signals: Ref<Signal[]>) {
 	const settingsStore = useSettingsStore();
-	
+
 	// Keep a reference to the markers plugin
 	let markersPlugin: any = null;
 

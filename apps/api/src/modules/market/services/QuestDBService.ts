@@ -142,7 +142,7 @@ export class QuestDBService {
 			return [];
 		}
 	}
-	
+
 	/**
 	 * Get the timestamp of the latest candle for a symbol/interval/source.
 	 * Used for forward fill in SyncService.
@@ -152,7 +152,7 @@ export class QuestDBService {
 		const safeInterval = interval.replace(/'/g, "''");
 		const safeSource = source.replace(/'/g, "''");
 
-		let sql = `
+		const sql = `
 			SELECT timestamp
 			FROM candles
 			WHERE symbol = '${safeSymbol}'

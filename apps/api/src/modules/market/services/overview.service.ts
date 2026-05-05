@@ -21,14 +21,14 @@ export class OverviewService {
 
 			// We will query QuestDB in parallel for these symbols
 			const candlesBySymbol = new Map<number, any[]>();
-			
+
 			await Promise.all(
 				syms.map(async (sym) => {
 					// We only need the latest 2 candles per ticker
 					const candles = await questDbService.getCandles(sym.ticker, "1d", sym.provider || "YAHOO", 2);
 					// getCandles returns ASC, so we reverse it to DESC (latest first) for overview calculation
 					candlesBySymbol.set(sym.id, candles.reverse());
-				})
+				}),
 			);
 
 			const overview = [];
