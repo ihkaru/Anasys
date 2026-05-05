@@ -34,12 +34,12 @@ export class CandleService {
 		let guessedType: "STOCK" | "CRYPTO" = "STOCK";
 		const upperTicker = ticker.toUpperCase();
 		const commonCrypto = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOT", "DOGE"];
-		
+
 		if (
-			upperTicker.includes("USD") || 
-			upperTicker.startsWith("BINANCE:") || 
+			upperTicker.includes("USD") ||
+			upperTicker.startsWith("BINANCE:") ||
 			upperTicker.includes("/") ||
-			commonCrypto.some(c => upperTicker.startsWith(c))
+			commonCrypto.some((c) => upperTicker.startsWith(c))
 		) {
 			guessedType = "CRYPTO";
 		}
@@ -72,12 +72,12 @@ export class CandleService {
 		if (candles.length === 0) {
 			const syncPromise = this.triggerSync(ticker, symbol.type, interval, beforeDate, source, syncKey);
 
-			// 🚀 SMART WAIT: Race against a timeout (e.g., 3s) and the sync promise
-			this.logger.info(`[getOHLCV] CACHE MISS for ${ticker}. Initiating SMART WAIT (3000ms)...`);
+			// 🚀 SMART WAIT: Race against a timeout (e.g., 1.5s) and the sync promise
+			this.logger.info(`[getOHLCV] CACHE MISS for ${ticker}. Initiating SMART WAIT (1500ms)...`);
 			try {
 				await Promise.race([
 					syncPromise,
-					new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000)),
+					new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500)),
 				]);
 
 				// Tiny grace period for QuestDB commit visibility (must be > QDB_CAIRO_COMMIT_LAG)

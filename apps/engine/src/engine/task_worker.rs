@@ -81,15 +81,24 @@ impl TaskWorker {
 
                 if !candles.is_empty() {
                     let candles_clone = candles.clone();
-                    // Still add to batcher so it saves to DB
-                    for candle in candles {
-                        self.batcher.add_candle(candle).await?;
+
+                    // 🚀 OPTIMIZATION: Send response immediately to Redis
+                    // This unblocks the API/Benchmark while we persist data in background
+                    if is_direct {
+                        self.send_response(&task.id, &candles_clone).await?;
                     }
-                    self.batcher.flush_candles().await?;
-                    info!("✅ On-demand OHLCV completed for {}", ticker);
+
+                    // Background persistence
+                    let batcher = Arc::clone(&self.batcher);
+                    tokio::spawn(async move {
+                        for candle in candles {
+                            let _ = batcher.add_candle(candle).await;
+                        }
+                        let _ = batcher.flush_candles().await;
+                    });
 
                     if is_direct {
-                        return self.send_response(&task.id, candles_clone).await;
+                        return Ok(());
                     }
                 } else if is_direct {
                     return self

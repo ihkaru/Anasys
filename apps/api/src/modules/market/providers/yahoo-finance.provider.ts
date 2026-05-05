@@ -14,13 +14,20 @@ export class YahooFinanceProvider implements IDataProvider {
 		this.client = new (yahooFinance as any)();
 	}
 
+	private async withTimeout<T>(promise: Promise<T>, ms = 10000): Promise<T> {
+		return Promise.race([
+			promise,
+			new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)),
+		]);
+	}
+
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
 		// Sanitize options: remove fields not supported by yahoo-finance2 chart API
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { exchange, limit, ...yahooOptions } = options;
 
 		try {
-			const result = await this.client.chart(ticker, yahooOptions);
+			const result = await this.withTimeout(this.client.chart(ticker, yahooOptions));
 			if (!result || !result.quotes) return [];
 
 			return result.quotes
@@ -51,13 +58,11 @@ export class YahooFinanceProvider implements IDataProvider {
 	}
 
 	async fetchQuotes(tickers: string[]): Promise<QuoteResult[]> {
-		const results: QuoteResult[] = [];
-
-		for (const ticker of tickers) {
+		const promises = tickers.map(async (ticker) => {
 			try {
-				const quote: any = await this.client.quote(ticker);
+				const quote: any = await this.withTimeout(this.client.quote(ticker), 5000); // 5s for single quote
 				if (quote) {
-					results.push({
+					return {
 						ticker: quote.symbol,
 						name: quote.shortName || quote.longName || ticker,
 						price: quote.regularMarketPrice || 0,
@@ -79,14 +84,16 @@ export class YahooFinanceProvider implements IDataProvider {
 						postMarketChangePercent: quote.postMarketChangePercent,
 						source: "YAHOO",
 						exchange: quote.exchange,
-					});
+					};
 				}
 			} catch (e) {
 				console.warn(`Quote fetch failed for ${ticker}:`, (e as Error).message);
 			}
-		}
+			return null;
+		});
 
-		return results;
+		const results = await Promise.all(promises);
+		return results.filter((r): r is QuoteResult => r !== null);
 	}
 
 	async search(query: string, limit = 10): Promise<SearchResult[]> {

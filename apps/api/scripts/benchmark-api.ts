@@ -23,7 +23,10 @@ const colors = {
 };
 
 async function request(path: string, options: any = {}) {
-	const url = `${API_BASE}${path}`;
+	// If path starts with /ping or /health, don't use /api prefix
+	const isRoot = path.startsWith("/ping") || path.startsWith("/health");
+	const baseUrl = API_BASE.replace("/api", "");
+	const url = isRoot ? `${baseUrl}${path}` : `${API_BASE}${path}`;
 	const start = performance.now();
 
 	try {
@@ -121,6 +124,12 @@ async function main() {
 
 	const summary: any[] = [];
 
+	// 0. Liveness & Health (Critical for monitoring stability)
+	console.log(`${colors.bright}${colors.yellow}🏥  MONITORING HEALTH CHECK${colors.reset}`);
+	summary.push(await runBenchmark("API Ping (Liveness)", "/ping"));
+	summary.push(await runBenchmark("API Health (Deep Scan)", "/health"));
+	console.log("");
+
 	// 1. Market Overview (Commonly used on Dashboard)
 	summary.push(await runBenchmark("Market Overview", "/market/overview"));
 
@@ -130,11 +139,22 @@ async function main() {
 	// 3. Historical Data - Daily (Standard Load)
 	summary.push(await runBenchmark("History (AAPL 1d, 500 candles)", "/market/history/AAPL?interval=1d&limit=500"));
 
-	// 4. Historical Data - Intraday (High Precision)
+	// --- PROVIDER COMPARISON (YAHOO vs TRADINGVIEW) ---
+	console.log(`\n${colors.bright}${colors.yellow}⚖️  PROVIDER COMPARISON: YAHOO vs TRADINGVIEW${colors.reset}`);
+
+	// 4a. Yahoo (Crypto)
 	summary.push(
 		await runBenchmark(
-			"History (BINANCE:BTCUSDT 1m, 100 candles)",
-			"/market/history/BINANCE:BTCUSDT?interval=1m&limit=100&source=TRADINGVIEW",
+			"Yahoo: BTC (BTC-USD 1d, 100 candles)",
+			"/market/history/BTC-USD?interval=1d&limit=100&source=YAHOO",
+		),
+	);
+
+	// 4b. TradingView (Crypto)
+	summary.push(
+		await runBenchmark(
+			"TradingView: BTC (BINANCE:BTCUSDT 1d, 100 candles)",
+			"/market/history/BINANCE:BTCUSDT?interval=1d&limit=100&source=TRADINGVIEW",
 		),
 	);
 
@@ -151,7 +171,7 @@ async function main() {
 	// 7. Real-time Quotes (Bulk fetch)
 	summary.push(await runBenchmark("Batch Quotes (5 Tickers)", "/market/quotes?tickers=AAPL,MSFT,GOOGL,TSLA,AMD"));
 
-	// 7. Market Movers (Gainers/Losers)
+	// 8. Market Movers (Gainers/Losers)
 	summary.push(await runBenchmark("Top Movers", "/market/movers"));
 
 	console.log(`${colors.bright}====================================================`);

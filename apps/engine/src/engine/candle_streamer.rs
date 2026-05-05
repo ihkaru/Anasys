@@ -121,10 +121,16 @@ impl CandleStreamer {
 
         let mut handles = vec![];
         for (idx, bucket) in buckets.into_iter().enumerate() {
+            // ── Staggered Startup Delay (ADR-0021) ───────────────────────────
+            // Wait 500ms between each bucket spawn to avoid simultaneous handshakes
+            sleep(Duration::from_millis(500)).await;
+
             let batcher = Arc::clone(&self.batcher);
             let rs = Arc::clone(&self.redis_stream);
             let lot_sizes = Arc::clone(&self.lot_sizes);
+
             let handle = tokio::spawn(async move {
+                let mut fail_count = 0;
                 loop {
                     info!(
                         "[CandleStreamer] WS-{} connecting ({} sessions)...",
@@ -141,16 +147,40 @@ impl CandleStreamer {
                     )
                     .await
                     {
-                        Ok(_) => warn!(
-                            "[CandleStreamer] WS-{} disconnected cleanly — reconnecting",
-                            idx
-                        ),
-                        Err(e) => error!(
-                            "[CandleStreamer] WS-{} error: {} — reconnecting in 5s",
-                            idx, e
-                        ),
+                        Ok(_) => {
+                            warn!(
+                                "[CandleStreamer] WS-{} disconnected cleanly — reconnecting",
+                                idx
+                            );
+                            fail_count = 0; // Reset on clean disconnect
+                        }
+                        Err(e) => {
+                            fail_count += 1;
+                            error!(
+                                "[CandleStreamer] WS-{} error: {} — attempt #{}",
+                                idx, e, fail_count
+                            );
+                        }
                     }
-                    sleep(Duration::from_secs(5)).await;
+
+                    // ── Exponential Backoff with Jitter (ADR-0021) ───────────
+                    // 5s, 15s, 30s, max 60s. Plus +/- 2s jitter.
+                    let backoff_secs = match fail_count {
+                        0 => 5,
+                        1 => 15,
+                        2 => 30,
+                        _ => 60,
+                    };
+
+                    let jitter = (rand::random::<f64>() * 4.0) - 2.0; // -2.0 to +2.0
+                    let wait_dur = Duration::from_secs_f64(backoff_secs as f64 + jitter);
+
+                    warn!(
+                        "[CandleStreamer] WS-{} waiting {:.1}s before retry...",
+                        idx,
+                        wait_dur.as_secs_f64()
+                    );
+                    sleep(wait_dur).await;
                 }
             });
             handles.push(handle);

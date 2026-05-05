@@ -372,7 +372,7 @@ impl ObscuraFetcher {
             vec![json!(chart_session), json!("")],
         )
         .await?;
-        sleep(Duration::from_millis(50)).await;
+        // Removed unnecessary sleep delay
 
         let symbol_json = json!({ "symbol": canonical_symbol, "adjustment": "splits" }).to_string();
         self.send(
@@ -385,7 +385,7 @@ impl ObscuraFetcher {
             ],
         )
         .await?;
-        sleep(Duration::from_millis(50)).await;
+        // Removed unnecessary sleep delay
 
         let tv_interval = match interval {
             "1m" => "1",
@@ -406,7 +406,7 @@ impl ObscuraFetcher {
                 json!("s1"),
                 json!("sds_sym_1"),
                 json!(tv_interval),
-                json!(10000),
+                json!(500), // Reduced default from 10000 to 500 for faster on-demand response
             ],
         )
         .await?;
