@@ -71,7 +71,7 @@ export async function seed() {
 				name: ticker,
 				type: type as any,
 				isActive: true,
-				provider: "lite_seed",
+				provider: "YAHOO",
 			})
 			.onConflictDoNothing()
 			.execute();
