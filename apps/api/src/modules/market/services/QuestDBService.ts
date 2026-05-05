@@ -174,6 +174,46 @@ export class QuestDBService {
 			return null;
 		}
 	}
+
+	/**
+	 * Reset the QuestDB candles table.
+	 * USE WITH CAUTION: This wipes all OHLCV data from QuestDB.
+	 */
+	async dropAndRecreateTable(): Promise<boolean> {
+		try {
+			logger.warn("Dropping and recreating QuestDB candles table...");
+			
+			// Drop table if exists
+			try {
+				await this.query("DROP TABLE candles;");
+			} catch (e) {
+				logger.warn("Table candles might not exist or failed to drop", e);
+			}
+
+			// Create table with Deduplication Enabled
+			const createSql = `
+				CREATE TABLE candles (
+					symbol SYMBOL,
+					interval SYMBOL,
+					source SYMBOL,
+					open DOUBLE,
+					high DOUBLE,
+					low DOUBLE,
+					close DOUBLE,
+					volume DOUBLE,
+					timestamp TIMESTAMP
+				) timestamp (timestamp) PARTITION BY MONTH WAL
+				DEDUPLICATE UPSERT KEYS (symbol, interval, source, timestamp);
+			`;
+			await this.query(createSql);
+			
+			logger.info("Successfully recreated candles table with DEDUPLICATE enabled");
+			return true;
+		} catch (error) {
+			logger.error("Failed to drop and recreate candles table", error);
+			return false;
+		}
+	}
 }
 
 export const questDbService = new QuestDBService();

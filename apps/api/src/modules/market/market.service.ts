@@ -117,9 +117,9 @@ export class MarketService {
 		return candleService.getOHLCV(ticker, interval, limit, before, source);
 	}
 
-	async getDownsampledCandles(ticker: string, resolution: string, limit: number) {
-		return candleService.getDownsampledCandles(ticker, resolution, limit);
-	}
+	// async getDownsampledCandles(ticker: string, resolution: string, limit: number) {
+	// 	return candleService.getDownsampledCandles(ticker, resolution, limit);
+	// }
 
 	// Delegate to OverviewService (for backward compatibility)
 	async getMarketOverview(tickers: string[]) {

@@ -111,6 +111,19 @@ export const marketController = new Elysia({ prefix: "/market" })
 			}),
 		},
 	)
+	// Internal emergency tool to reset QuestDB duplicates
+	.post("/internal/questdb/reset", async ({ headers, set }) => {
+		// Require explicit internal secret
+		const secret = headers["x-dev-secret"] ?? headers["X-Dev-Secret"] ?? headers["x-internal-secret"];
+		if (!secret || secret !== "dev_secret_123") {
+			set.status = 403;
+			return { success: false, error: "Forbidden: Missing or invalid secret" };
+		}
+		
+		const { questDbService } = await import("./services/QuestDBService");
+		const success = await questDbService.dropAndRecreateTable();
+		return { success };
+	})
 	// Real-time quotes for single or multiple tickers
 	.get(
 		"/quotes",
