@@ -1,5 +1,4 @@
 #!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
 
 echo "============================================="
 echo "🚀 Running Pre-Push Checks (Type & Lint)"
@@ -14,7 +13,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "2/2 🦀 Running Rust Cargo Check..."
-cd apps/engine && cargo check
+cd apps/engine && CARGO_TARGET_DIR=../../target-local cargo check
 
 if [ $? -ne 0 ]; then
   echo "❌ Cargo check failed. Push aborted."
