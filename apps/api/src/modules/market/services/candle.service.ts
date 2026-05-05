@@ -33,7 +33,14 @@ export class CandleService {
 		// Safe fallback heuristic for brand new symbols only (existing symbols use DB type)
 		let guessedType: "STOCK" | "CRYPTO" = "STOCK";
 		const upperTicker = ticker.toUpperCase();
-		if (upperTicker.includes("USD") || upperTicker.startsWith("BINANCE:") || upperTicker.includes("/")) {
+		const commonCrypto = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOT", "DOGE"];
+		
+		if (
+			upperTicker.includes("USD") || 
+			upperTicker.startsWith("BINANCE:") || 
+			upperTicker.includes("/") ||
+			commonCrypto.some(c => upperTicker.startsWith(c))
+		) {
 			guessedType = "CRYPTO";
 		}
 
