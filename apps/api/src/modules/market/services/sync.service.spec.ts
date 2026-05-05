@@ -49,7 +49,7 @@ describe("SyncService", () => {
 	let service: SyncService;
 
 	beforeEach(() => {
-		service = new SyncService(mockSymbolService, mockMarketDataRepo, mockProviderFactory, mockRedis, mockLogger);
+		service = new SyncService(mockSymbolService, mockProviderFactory, mockRedis, mockLogger);
 		jest.clearAllMocks();
 		// Re-setup default mocks after clearing
 		(mockSymbolService.ensureSymbol as jest.Mock).mockResolvedValue({ id: 1, ticker: "TEST", type: "STOCK" });

@@ -39,7 +39,7 @@ export class SyncService {
 			const symbol = await this.symbolService.ensureSymbol(ticker, type);
 			const provider = this.providerFactory.getProvider(source);
 
-			const queryOptions = await this.determineQueryOptions(symbol.id, interval, endDate, source);
+			const queryOptions = await this.determineQueryOptions(ticker, interval, endDate, source);
 
 			if (queryOptions.status === "uptodate") {
 				return { count: 0, status: "uptodate" };
@@ -236,7 +236,7 @@ export class SyncService {
 	}
 
 	private async determineQueryOptions(
-		symbolId: number,
+		ticker: string,
 		interval: string,
 		endDate?: Date,
 		source: string = "YAHOO",
