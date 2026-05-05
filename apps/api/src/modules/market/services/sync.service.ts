@@ -49,7 +49,8 @@ export class SyncService {
 				period1: queryOptions.period1,
 				interval: interval as any,
 				exchange: symbol.exchange,
-				limit: 500, // Default safe limit for refreshes
+				limit: interval === "1d" ? 1500 : 500, // Greedy fetch for daily data
+				isCrypto: type === "CRYPTO",
 			};
 
 			if (queryOptions.period2) {
@@ -276,10 +277,14 @@ export class SyncService {
 			if (lastTimestamp) {
 				options.period1 = lastTimestamp;
 			} else {
+				// 🚀 GREEDY BACKFILL: On first sync, pull a deep history to avoid "broken data"
 				const start = new Date();
-				if (interval === "1d") start.setFullYear(start.getFullYear() - 1);
-				else if (interval === "1h") start.setMonth(start.getMonth() - 2);
-				else start.setDate(start.getDate() - 7);
+				if (interval === "1d")
+					start.setFullYear(start.getFullYear() - 10); // 10 years for 1d
+				else if (interval === "1wk") start.setFullYear(start.getFullYear() - 20);
+				else if (interval === "1h")
+					start.setMonth(start.getMonth() - 6); // 6 months for 1h
+				else start.setDate(start.getDate() - 30); // 30 days for intraday
 				options.period1 = start;
 			}
 

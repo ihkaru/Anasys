@@ -61,14 +61,18 @@ impl TaskWorker {
 
     async fn handle_task(self, task: TaskRequest) -> Result<()> {
         match task.command.as_str() {
-            "ohlcv" => {
+            "ohlcv" | "ohlcv_direct" => {
                 let ticker = task.payload["ticker"].as_str().unwrap_or_default();
                 let interval = task.payload["interval"].as_str().unwrap_or("1d");
                 let asset_type = task.payload["assetType"].as_str().unwrap_or("STOCK");
                 let start = task.payload["start"].as_i64().unwrap_or(0);
                 let end = task.payload["end"].as_i64().unwrap_or(0);
+                let is_direct = task.command == "ohlcv_direct";
 
-                info!("📈 Executing on-demand OHLCV for {} ({})", ticker, interval);
+                info!(
+                    "📈 Executing on-demand OHLCV for {} ({}) - Direct: {}",
+                    ticker, interval, is_direct
+                );
 
                 let (candles, _meta) = self
                     .obscura
@@ -76,14 +80,23 @@ impl TaskWorker {
                     .await?;
 
                 if !candles.is_empty() {
+                    let candles_clone = candles.clone();
+                    // Still add to batcher so it saves to DB
                     for candle in candles {
                         self.batcher.add_candle(candle).await?;
                     }
                     self.batcher.flush_candles().await?;
                     info!("✅ On-demand OHLCV completed for {}", ticker);
+
+                    if is_direct {
+                        return self.send_response(&task.id, candles_clone).await;
+                    }
+                } else if is_direct {
+                    return self
+                        .send_response(&task.id, Vec::<crate::types::CandleData>::new())
+                        .await;
                 }
 
-                // No response needed for ohlcv (it's a side-effect task)
                 Ok(())
             }
             "search" => {

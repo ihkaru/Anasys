@@ -58,54 +58,50 @@ export class CandleService {
 		const t2 = performance.now();
 		this.logger.debug(`[getOHLCV] QuestDB query for ${candles.length} items took ${(t2 - t1).toFixed(2)}ms`);
 
-		// ── Step 3: Background Sync Trigger (Non-blocking) ────────────────────
+		// ── Step 3: Sync Logic ─────────────────────────────────────────────
 		const syncKey = `${ticker}:${interval}:${source}:${beforeDate ? "history" : "latest"}`;
-
-		const triggerSync = () => {
-			if (this.activeSyncs.has(syncKey)) return;
-
-			this.activeSyncs.add(syncKey);
-			this.logger.info(`[getOHLCV] Triggering BACKGROUND sync for ${syncKey}`);
-
-			// Fire and forget, but handle errors to avoid unhandled rejections
-			this.syncService
-				.syncSymbolData(ticker, symbol.type, interval, beforeDate, source)
-				.then((result) => {
-					this.logger.info(`[getOHLCV] Background sync COMPLETED for ${syncKey}: ${result.count} items`);
-				})
-				.catch((err) => {
-					this.logger.error(`[getOHLCV] Background sync FAILED for ${syncKey}`, err);
-				})
-				.finally(() => {
-					this.activeSyncs.delete(syncKey);
-				});
-		};
 
 		// Case A: MISS (No data at all)
 		if (candles.length === 0) {
-			triggerSync();
+			const syncPromise = this.triggerSync(ticker, symbol.type, interval, beforeDate, source, syncKey);
+
+			// 🚀 SMART WAIT: Race against a timeout (e.g., 3s) and the sync promise
+			this.logger.info(`[getOHLCV] CACHE MISS for ${ticker}. Initiating SMART WAIT (3000ms)...`);
+			try {
+				await Promise.race([
+					syncPromise,
+					new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000)),
+				]);
+
+				// Tiny grace period for QuestDB commit visibility (must be > QDB_CAIRO_COMMIT_LAG)
+				await new Promise((resolve) => setTimeout(resolve, 200));
+
+				this.logger.info(`[getOHLCV] SMART WAIT resolved for ${symbol.ticker}. Querying fresh data...`);
+
+				// If we reached here, sync finished! Query QuestDB again.
+				const freshCandles = await questDbService.getCandles(symbol.ticker, interval, source, limit, beforeDate);
+				if (freshCandles.length > 0) {
+					this.logger.info(`[getOHLCV] SMART WAIT SUCCESS: Recovered ${freshCandles.length} items for ${ticker}`);
+					return this.formatResult(freshCandles);
+				}
+			} catch (_e) {
+				this.logger.warn(`[getOHLCV] SMART WAIT concluded (timeout or empty) for ${ticker}`);
+			}
 		}
 		// Case B: STALE (Data exists but is old, only for latest request)
 		else if (!beforeDate) {
 			const lastTs = new Date(candles[candles.length - 1].timestamp);
 			if (this.isStale(lastTs, interval)) {
 				this.logger.info(`[getOHLCV] Data stale for ${ticker}/${interval}. Triggering background refresh...`);
-				triggerSync();
+				this.triggerSync(ticker, symbol.type, interval, beforeDate, source, syncKey);
 			}
 		}
+
 		const t3 = performance.now();
 		this.logger.debug(`[getOHLCV] Logic checks took ${(t3 - t2).toFixed(2)}ms`);
 
 		// ── Step 4: Return available data immediately ────────────────────────
-		const result = candles.map((c) => ({
-			timestamp: c.timestamp,
-			open: Number(c.open),
-			high: Number(c.high),
-			low: Number(c.low),
-			close: Number(c.adj_close || c.close),
-			adj_close: Number(c.adj_close || c.close),
-			volume: Number(c.volume),
-		}));
+		const result = this.formatResult(candles);
 
 		// Populate LRU cache for subsequent rapid requests
 		if (result.length > 0) {
@@ -115,6 +111,46 @@ export class CandleService {
 		this.logger.info(`[getOHLCV] TOTAL for ${ticker}: ${(tEnd - startTime).toFixed(2)}ms`);
 
 		return result;
+	}
+
+	/**
+	 * Helper to trigger sync and return the promise
+	 */
+	private async triggerSync(
+		ticker: string,
+		type: "STOCK" | "CRYPTO",
+		interval: string,
+		beforeDate: Date | undefined,
+		source: string,
+		syncKey: string,
+	): Promise<boolean> {
+		if (this.activeSyncs.has(syncKey)) return false;
+
+		this.activeSyncs.add(syncKey);
+		this.logger.info(`[getOHLCV] Triggering sync for ${syncKey}`);
+
+		try {
+			const result = await this.syncService.syncSymbolData(ticker, type, interval, beforeDate, source);
+			this.logger.info(`[getOHLCV] Sync COMPLETED for ${syncKey}: ${result.count} items`);
+			return result.count > 0;
+		} catch (err) {
+			this.logger.error(`[getOHLCV] Sync FAILED for ${syncKey}`, err);
+			return false;
+		} finally {
+			this.activeSyncs.delete(syncKey);
+		}
+	}
+
+	private formatResult(candles: any[]) {
+		return candles.map((c) => ({
+			timestamp: c.timestamp,
+			open: Number(c.open),
+			high: Number(c.high),
+			low: Number(c.low),
+			close: Number(c.adj_close || c.close),
+			adj_close: Number(c.adj_close || c.close),
+			volume: Number(c.volume),
+		}));
 	}
 
 	private isStale(lastDate: Date | null, interval: string): boolean {

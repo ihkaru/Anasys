@@ -108,6 +108,8 @@ services:
       - "29010:9000"  # Web Console & REST
       - "29011:9009"  # ILP (Influx Line Protocol)
       - "28813:8812"  # Postgres Wire
+    environment:
+      - QDB_CAIRO_COMMIT_LAG=10
     volumes:
       - questdb_dev_data:/root/.questdb
     healthcheck:

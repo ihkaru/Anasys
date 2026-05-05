@@ -14,9 +14,7 @@ export class TradingViewRustProvider implements IDataProvider {
 	}
 
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
-		// Chart fetching is usually handled by the Engine's backfiller/streamer directly.
-		// If explicitly called via provider, we trigger an on-demand OHLCV task.
-		await this.executeTask("ohlcv", {
+		const raw = await this.executeTask("ohlcv_direct", {
 			ticker,
 			interval: options.interval || "1d",
 			assetType: options.assetType || "STOCK",
@@ -24,9 +22,18 @@ export class TradingViewRustProvider implements IDataProvider {
 			end: options.end ? Math.floor(new Date(options.end).getTime() / 1000) : 0,
 		});
 
-		// NOTE: ohlcv task doesn't return data directly to API (it fills DB).
-		// The caller should fetch from DB after this.
-		return [];
+		if (!Array.isArray(raw)) {
+			return [];
+		}
+
+		return raw.map((c: any) => ({
+			timestamp: new Date(c.timestamp * 1000),
+			open: c.open,
+			high: c.high,
+			low: c.low,
+			close: c.close,
+			volume: c.volume,
+		}));
 	}
 
 	async fetchQuoteSummary(_ticker: string, _modules: string[]): Promise<any> {

@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { Logger } from "../../../utils/logger";
 
 const logger = new Logger("QuestDBService");
@@ -28,15 +29,21 @@ export class QuestDBService {
 
 	async query(sql: string): Promise<QuestDBResponse> {
 		try {
+			const start = performance.now();
 			const url = `${this.baseUrl}/exec?query=${encodeURIComponent(sql)}`;
 			const response = await fetch(url);
+			const end = performance.now();
 
 			if (!response.ok) {
 				const errorText = await response.text();
 				throw new Error(`QuestDB error (${response.status}): ${errorText}`);
 			}
 
-			return (await response.json()) as QuestDBResponse;
+			const data = (await response.json()) as QuestDBResponse;
+			logger.debug(
+				`[QuestDB Query] ${sql.trim().split("\n")[0]}... took ${(end - start).toFixed(2)}ms (${data.count} rows)`,
+			);
+			return data;
 		} catch (error) {
 			logger.error(`Query failed: ${sql}`, error);
 			throw error;
