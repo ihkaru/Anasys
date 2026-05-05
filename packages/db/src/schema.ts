@@ -127,28 +127,7 @@ export const watchlistItems = pgTable(
 	},
 );
 
-export const marketData = pgTable(
-	"market_data",
-	{
-		symbolId: integer("symbol_id")
-			.references(() => symbols.id)
-			.notNull(),
-		timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
-		open: doublePrecision("open").notNull(),
-		high: doublePrecision("high").notNull(),
-		low: doublePrecision("low").notNull(),
-		close: doublePrecision("close").notNull(),
-		adjClose: doublePrecision("adj_close"), // Adjusted Close (Splits & Dividends)
-		volume: doublePrecision("volume").notNull(),
-		source: text("source").default("YAHOO").notNull(),
-		interval: text("interval").default("1d").notNull(),
-	},
-	(table) => {
-		return {
-			pk: primaryKey({ columns: [table.symbolId, table.timestamp, table.interval, table.source] }),
-		};
-	},
-);
+
 
 // Portfolio Holdings - User's investment positions
 export const holdings = pgTable("holdings", {

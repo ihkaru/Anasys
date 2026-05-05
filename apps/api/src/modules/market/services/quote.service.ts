@@ -2,7 +2,7 @@ import type { Logger } from "../../../utils/logger";
 import type { CacheService } from "../cache/cache.service";
 import type { QuoteResult, SearchResult } from "../providers/data-provider.interface";
 import type { YahooFinanceProvider } from "../providers/yahoo-finance.provider";
-import type { MarketDataRepository } from "../repositories/market-data.repository";
+
 import type { SymbolRepository } from "../repositories/symbol.repository";
 import { generateSparkline } from "../utils/sparkline.utils";
 
@@ -21,6 +21,7 @@ export interface QuoteWithSparkline extends QuoteResult {
 	postMarketChangePercent?: number;
 }
 
+import { questDbService } from "./QuestDBService";
 import type { DataProviderFactory } from "../providers/provider.factory";
 
 export class QuoteService {
@@ -30,7 +31,6 @@ export class QuoteService {
 
 	constructor(
 		private symbolRepo: SymbolRepository,
-		private marketDataRepo: MarketDataRepository,
 		private providerFactory: DataProviderFactory,
 		private cacheService: CacheService,
 		private logger: Logger,
@@ -157,9 +157,9 @@ export class QuoteService {
 			let periodChangePercent = quote.changePercent;
 
 			if (symbol) {
-				const recentCandles = await this.marketDataRepo.getRecentCandles(symbol.id, interval, limit);
-				// Since getRecentCandles returns DESC, we need to reverse to show correct graph (left to right) if it is time based
-				sparkline = recentCandles.map((c) => Number(c.close)).reverse();
+				const recentCandles = await questDbService.getCandles(symbol.ticker, interval, quote.source || "YAHOO", limit);
+				// Since getCandles returns ASC by default, we just map it.
+				sparkline = recentCandles.map((c) => Number(c.close));
 
 				// Filter outliers: If a single point is > 50% away from its neighbors
 				if (sparkline.length > 3) {

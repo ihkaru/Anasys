@@ -1,6 +1,5 @@
 import type { Logger } from "../../../utils/logger";
 import type Redis from "ioredis";
-import type { MarketDataRepository } from "../repositories/market-data.repository";
 import { questDbService } from "./QuestDBService";
 import { ohlcvLRUCache, OHLCVLRUCache } from "./OHLCVLRUCache";
 import type { SymbolService } from "./symbol.service";
@@ -10,7 +9,6 @@ export class CandleService {
 	constructor(
 		private symbolService: SymbolService,
 		private syncService: SyncService,
-		private marketDataRepo: MarketDataRepository,
 		private redis: Redis,
 		private logger: Logger,
 	) {}
@@ -58,7 +56,6 @@ export class CandleService {
 			this.logger.info(`[getOHLCV] No data in QuestDB for ${ticker}/${interval}/${source}. Syncing...`);
 			try {
 				await this.syncService.syncSymbolData(ticker, symbol.type, interval, undefined, source);
-				await this.promoteToQuestDB(symbol.id, ticker, interval, source, limit, undefined);
 				candles = await questDbService.getCandles(symbol.ticker, interval, source, limit, undefined);
 			} catch (e) {
 				this.logger.warn(`[getOHLCV] Sync failed, returning empty`, e);
@@ -74,7 +71,6 @@ export class CandleService {
 			try {
 				await this.syncService.syncSymbolData(ticker, symbol.type, interval, beforeDate, source);
 				this.logger.info(`[getOHLCV] Backfill sync took ${Date.now() - t0}ms`);
-				await this.promoteToQuestDB(symbol.id, ticker, interval, source, limit * 4, beforeDate);
 				candles = await questDbService.getCandles(symbol.ticker, interval, source, limit, beforeDate);
 				this.logger.info(`[getOHLCV] Post-backfill QuestDB query returned ${candles.length} candles`);
 			} catch (e) {
@@ -89,7 +85,6 @@ export class CandleService {
 				this.logger.info(`[getOHLCV] QuestDB data stale for ${ticker}/${interval}. Refreshing...`);
 				try {
 					await this.syncService.syncSymbolData(ticker, symbol.type, interval, undefined, source);
-					await this.promoteToQuestDB(symbol.id, ticker, interval, source, limit, undefined);
 					// Re-query to get fresh data
 					const fresh = await questDbService.getCandles(symbol.ticker, interval, source, limit, undefined);
 					if (fresh.length > 0) candles = fresh;
@@ -116,38 +111,6 @@ export class CandleService {
 		return result;
 	}
 
-	/**
-	 * Promote candles from Postgres (staging) to QuestDB (source of truth).
-	 * Uses a generous limit to ensure we capture all backfilled data.
-	 */
-	private async promoteToQuestDB(
-		symbolId: number,
-		ticker: string,
-		interval: string,
-		source: string,
-		limit: number,
-		before?: Date,
-	): Promise<void> {
-		try {
-			const pgCandles = await this.marketDataRepo.getRawCandles(symbolId, interval, limit, before, source);
-			if (pgCandles.length === 0) return;
-
-			const toWrite = pgCandles.map((c) => ({
-				timestamp: new Date(c.timestamp),
-				open: Number(c.open),
-				high: Number(c.high),
-				low: Number(c.low),
-				close: Number(c.close),
-				volume: Number(c.volume),
-			}));
-
-			await questDbService.writeCandles(toWrite, ticker, interval, source);
-			this.logger.info(`[promoteToQuestDB] Promoted ${toWrite.length} candles for ${ticker}/${interval}/${source}`);
-		} catch (err) {
-			this.logger.error(`[promoteToQuestDB] Failed for ${ticker}/${interval}/${source}`, err);
-			// Non-fatal: Postgres still has the data as fallback
-		}
-	}
 
 	private isStale(lastDate: Date | null, interval: string): boolean {
 		if (!lastDate) return true;
@@ -176,19 +139,5 @@ export class CandleService {
 		}
 	}
 
-	async getDownsampledCandles(ticker: string, resolution = "1 day", limit = 1000) {
-		const type = ticker.includes("-") ? "CRYPTO" : ("STOCK" as const);
-		const symbol = await this.symbolService.ensureSymbol(ticker, type);
 
-		const result = await this.marketDataRepo.getDownsampled(symbol.id, resolution, limit);
-
-		return result.reverse().map((row: any) => ({
-			timestamp: new Date(row.bucket),
-			open: row.open,
-			high: row.high,
-			low: row.low,
-			close: row.close,
-			volume: Number(row.volume),
-		}));
-	}
 }

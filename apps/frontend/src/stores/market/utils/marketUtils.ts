@@ -47,18 +47,18 @@ export function mergeOHLCVData(current: OHLCV[], newData: OHLCV[], before?: bool
 		return uniqueData.concat(current);
 	} else {
 		// Appending to future (newer data) or Full Replace if initial
-		if (current.length > 0 && newData.length > 0) {
-			const newStartTs = newData[0].timestamp;
+		if (newData.length === 0) return current;
+		if (current.length === 0) return newData;
 
-			const olderData: OHLCV[] = [];
-			for (let i = 0; i < current.length; i++) {
-				if (current[i].timestamp < newStartTs) {
-					olderData.push(current[i]);
-				}
+		const newStartTs = newData[0].timestamp;
+
+		const olderData: OHLCV[] = [];
+		for (let i = 0; i < current.length; i++) {
+			if (current[i].timestamp < newStartTs) {
+				olderData.push(current[i]);
 			}
-
-			return olderData.concat(newData);
 		}
-		return newData;
+
+		return olderData.concat(newData);
 	}
 }

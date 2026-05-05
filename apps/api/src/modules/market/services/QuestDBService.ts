@@ -142,6 +142,38 @@ export class QuestDBService {
 			return [];
 		}
 	}
+	
+	/**
+	 * Get the timestamp of the latest candle for a symbol/interval/source.
+	 * Used for forward fill in SyncService.
+	 */
+	async getLastTimestamp(symbol: string, interval: string, source: string): Promise<Date | null> {
+		const safeSymbol = symbol.replace(/'/g, "''");
+		const safeInterval = interval.replace(/'/g, "''");
+		const safeSource = source.replace(/'/g, "''");
+
+		let sql = `
+			SELECT timestamp
+			FROM candles
+			WHERE symbol = '${safeSymbol}'
+			AND interval = '${safeInterval}'
+			AND source = '${safeSource}'
+			ORDER BY timestamp DESC
+			LIMIT 1;
+		`;
+
+		try {
+			const response = await this.query(sql);
+			const rows = this.formatResult<{ timestamp: string }>(response);
+			if (rows.length > 0) {
+				return new Date(rows[0].timestamp);
+			}
+			return null;
+		} catch (err) {
+			logger.error(`[QuestDB] getLastTimestamp failed for ${symbol}/${interval}/${source}`, err);
+			return null;
+		}
+	}
 }
 
 export const questDbService = new QuestDBService();

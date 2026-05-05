@@ -84,8 +84,7 @@ export function getChartOptions(
 			vertLines: { color: theme.gridColor },
 			horzLines: { color: theme.gridColor },
 		},
-		width,
-		height: isFullscreen ? height : Math.min(height, 400),
+		autoSize: true,
 		crosshair: { mode: 1 },
 		rightPriceScale: { borderColor: theme.borderColor },
 		timeScale: {

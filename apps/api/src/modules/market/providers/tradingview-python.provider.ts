@@ -14,11 +14,20 @@ export class TradingViewPythonProvider implements IDataProvider {
 	private pythonPath = "python3"; // Assume in path
 	private scriptPath = "src/scripts/bridge_tradingview.py";
 
+	// Circuit Breaker to prevent hanging API requests when rate limited globally
+	private static globalBlockUntil: number = 0;
+
 	getName(): string {
 		return "tradingview-python";
 	}
 
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
+		if (Date.now() < TradingViewPythonProvider.globalBlockUntil) {
+			const waitSecs = Math.ceil((TradingViewPythonProvider.globalBlockUntil - Date.now()) / 1000);
+			this.logger.warn(`[Circuit Breaker] TradingView is blocked. Failing fast. Wait ${waitSecs}s.`);
+			throw new Error(`TradingView rate limit active. Please wait ${waitSecs} seconds.`);
+		}
+
 		this.logger.debug(`Fetching ${ticker} from TradingView...`);
 
 		// ── Greedy Single-Fetch Strategy ─────────────────────────────────────────
@@ -97,13 +106,11 @@ export class TradingViewPythonProvider implements IDataProvider {
 				lastErr = err;
 				const isRateLimit = err.message?.includes("429") || err.message?.includes("Too Many Requests");
 
-				if (isRateLimit && attempt < MAX_RETRIES) {
-					// Exponential backoff: 30s, 60s, 120s + random jitter (0-30s)
-					const backoffMs = 30_000 * 2 ** (attempt - 1) + Math.random() * 30_000;
-					this.logger.warn(
-						`[TradingViewProvider] Rate limited (429). Retry ${attempt}/${MAX_RETRIES} after ${Math.round(backoffMs / 1000)}s...`,
-					);
-					await new Promise((r) => setTimeout(r, backoffMs));
+				if (isRateLimit) {
+					// Open circuit breaker immediately for 60 seconds (FAIL FAST)
+					TradingViewPythonProvider.globalBlockUntil = Date.now() + 60_000;
+					this.logger.warn(`[TradingViewProvider] Rate limited (429). Circuit Breaker OPEN for 60 seconds.`);
+					break; // Do not retry, let it fail fast to prevent HTTP request hang
 				} else {
 					break;
 				}
@@ -230,6 +237,11 @@ export class TradingViewPythonProvider implements IDataProvider {
 	}
 
 	async fetchQuotes(tickers: string[]): Promise<QuoteResult[]> {
+		if (Date.now() < TradingViewPythonProvider.globalBlockUntil) {
+			this.logger.warn(`[Circuit Breaker] Fetch quotes aborted due to active rate limit.`);
+			return [];
+		}
+
 		if (!tickers.length) return [];
 		this.logger.debug(`Fetching quotes for ${tickers.join(",")} from TradingView...`);
 
@@ -290,6 +302,11 @@ export class TradingViewPythonProvider implements IDataProvider {
 	}
 
 	async search(query: string, limit: number = 20): Promise<SearchResult[]> {
+		if (Date.now() < TradingViewPythonProvider.globalBlockUntil) {
+			this.logger.warn(`[Circuit Breaker] Search aborted due to active rate limit.`);
+			return [];
+		}
+
 		this.logger.debug(`Searching for ${query} on TradingView...`);
 		try {
 			const results = await this.executePython("search", { query, limit, scanner: "global" });

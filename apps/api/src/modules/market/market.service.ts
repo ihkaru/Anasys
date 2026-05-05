@@ -7,7 +7,7 @@ import { CacheService } from "./cache/cache.service";
 import { DataProviderFactory } from "./providers/provider.factory";
 import { TradingViewPythonProvider } from "./providers/tradingview-python.provider";
 import { YahooFinanceProvider } from "./providers/yahoo-finance.provider";
-import { MarketDataRepository } from "./repositories/market-data.repository";
+
 import { SymbolRepository } from "./repositories/symbol.repository";
 import { CandleService } from "./services/candle.service";
 import { FinancialsService } from "./services/financials.service";
@@ -21,17 +21,17 @@ import { SyncService } from "./services/sync.service";
 // Initialize Dependencies
 const logger = new Logger("MarketService");
 const symbolRepo = new SymbolRepository(db);
-const marketDataRepo = new MarketDataRepository();
+
 const dataProvider = new YahooFinanceProvider();
 const providerFactory = new DataProviderFactory();
 const cacheService = new CacheService();
 const tvProvider = new TradingViewPythonProvider();
 
 const symbolService = new SymbolService(symbolRepo, dataProvider, redisConnection, logger, tvProvider);
-export const syncService = new SyncService(symbolService, marketDataRepo, providerFactory, redisConnection, logger);
-export const candleService = new CandleService(symbolService, syncService, marketDataRepo, redisConnection, logger);
-const overviewService = new OverviewService(symbolRepo, marketDataRepo, logger);
-const quoteService = new QuoteService(symbolRepo, marketDataRepo, providerFactory, cacheService, logger);
+export const syncService = new SyncService(symbolService, providerFactory, redisConnection, logger);
+export const candleService = new CandleService(symbolService, syncService, redisConnection, logger);
+const overviewService = new OverviewService(symbolRepo, logger);
+const quoteService = new QuoteService(symbolRepo, providerFactory, cacheService, logger);
 const moversService = new MoversService(quoteService, cacheService, logger);
 const financialsService = new FinancialsService(dataProvider);
 

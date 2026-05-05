@@ -1,27 +1,27 @@
 # 📊 Anasys Institutional Harvesting Benchmark
-Generated at: 2026-05-03T05:58:54.238Z
+Generated at: 2026-05-05T00:22:44.588Z
 
 ## 🚀 Real-time Throughput & Estimate
 
 | Metric | Value |
 | :--- | :--- |
-| **Total Symbols** | 13,283 |
-| **Total Expected Tasks** | 53,132 |
-| **Completed Tasks** | 0 (0.00%) |
-| **Activity TPS** | **0.97 tasks/sec** (Movement) |
+| **Total Symbols** | 15,775 |
+| **Total Expected Tasks** | 63,100 |
+| **Completed Tasks** | 60,595 (96.03%) |
+| **Activity TPS** | **0.00 tasks/sec** (Movement) |
 | **Completion TPS** | **0.00 tasks/sec** (Done) |
-| **QuestDB Candle Ingestion** | **1229.90 rows/sec** |
+| **QuestDB Candle Ingestion** | **0.00 rows/sec** |
 | **Yahoo Rate Limits (429)** | **0 errors** in 30s |
-| **Estimated Completion** | **304.31 hours** |
+| **Estimated Completion** | **∞ hours** |
 
 ## 📋 Harvesting Task Status Breakdown
 
 | Interval | Completed | In Progress | Never Started | Total | % Done |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `15m` | 0 | 5 | 13,278 | 13,283 | **0.00%** |
-| `1d` | 0 | 12 | 13,271 | 13,283 | **0.00%** |
-| `1h` | 0 | 12 | 13,271 | 13,283 | **0.00%** |
-| `1m` | 0 | 12 | 13,271 | 13,283 | **0.00%** |
+| `15m` | 15,773 | 0 | 15,238 | 15,773 | **100.00%** |
+| `1d` | 15,773 | 0 | 15,574 | 15,773 | **100.00%** |
+| `1h` | 15,770 | 3 | 15,579 | 15,773 | **99.98%** |
+| `1m` | 13,279 | 4 | 12,563 | 13,283 | **99.97%** |
 
 
 ## 🌍 Asset Diversity & Provider Coverage
@@ -30,10 +30,10 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 | Asset Type | Count | Percentage |
 | :--- | :--- | :--- |
-| **STOCK** | 12,902 | 97.1% |
-| **INDEX** | 227 | 1.7% |
-| **COMMODITY** | 77 | 0.6% |
-| **CRYPTO** | 66 | 0.5% |
+| **STOCK** | 15,394 | 97.6% |
+| **INDEX** | 227 | 1.4% |
+| **COMMODITY** | 77 | 0.5% |
+| **CRYPTO** | 66 | 0.4% |
 | **FOREX** | 11 | 0.1% |
 
 
@@ -41,8 +41,9 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 | Provider | Candles Ingested | Role |
 | :--- | :--- | :--- |
-| **TRADINGVIEW** | 34,635 | Primary (High Precision) |
-| **YAHOO** | 20,762 | Fallback (Institution) |
+| **YAHOO** | 32,620,443 | Fallback (Institution) |
+| **TRADINGVIEW** | 607,565 | Primary (High Precision) |
+| **TEST** | 1 | Fallback (Institution) |
 
 
 ## 📦 Database Overview (Row Counts)
@@ -51,25 +52,25 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 | Table | Row Count | Description |
 | :--- | :--- | :--- |
-| `candles` | 55,397 | OHLCV time-series market data (intraday & daily) |
+| `candles` | 33,228,009 | OHLCV time-series market data (intraday & daily) |
 
 ### 🐘 PostgreSQL Tables
 
 | Table | Row Count |
 | :--- | :--- |
-| `symbols` | 13,283 |
-| `symbol_financials` | 37 |
-| `symbol_earnings` | 16 |
-| `analyst_ratings` | 17 |
+| `symbols` | 15,775 |
+| `symbol_financials` | 209 |
+| `symbol_earnings` | 118 |
+| `analyst_ratings` | 127 |
 | `corporate_actions` | 0 |
-| `insider_transactions` | 467 |
+| `insider_transactions` | 4,100 |
 | `macro_data` | 0 |
-| `backfill_progress` | 53,132 |
-| `market_data` | 584,493 |
+| `backfill_progress` | 60,602 |
+| `market_data` | 12,667,838 |
 | `categories` | 6 |
 | `symbol_categories` | 23,531 |
-| `watchlists` | 2 |
-| `watchlist_items` | 5 |
+| `watchlists` | 1 |
+| `watchlist_items` | 1 |
 | `holdings` | 0 |
 | `users` | 2 |
 | `strategies` | 0 |
@@ -84,8 +85,8 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 | symbol | interval | source | open | high | low | close | volume | timestamp |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| CVX | 1h | YAHOO | 190.6300048828125 | 190.6300048828125 | 190.6300048828125 | 190.6300048828125 | 0 | 2026-05-01T20:00:00.000000Z |
-| UNH | 1h | YAHOO | 368.7799987792969 | 368.7799987792969 | 368.7799987792969 | 368.7799987792969 | 0 | 2026-05-01T20:00:00.000000Z |
+| BTCUSD | 1d | TRADINGVIEW | 79855 | 79855 | 79810 | 79829 | 1.34098333 | 2026-05-05T00:00:00.000000Z |
+| BTCUSD | 1d | TRADINGVIEW | 79855 | 79855 | 79810 | 79829 | 1.34098333 | 2026-05-05T00:00:00.000000Z |
 
 ---
 
@@ -93,17 +94,17 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 #### `symbols` — Symbols — Master list of all tracked instruments
 
-| id | ticker | name | type | provider | exchange | currency | isActive | iconUrl | lastSyncedAt | description | sector | industry | website | country | tradingviewSymbol | tradingviewExchange | isin | figi | metadataUpdatedAt |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 13283 | USDTSGD | USDT/Singapore Dollar | CRYPTO | tradingview | OKX | SGD | true |  |  | USDT/Singapore Dollar |  |  |  |  | USDTSGD | OKX |  |  |  |
-| 13282 | USDTAED | USDT/United Arab Emirates Dirham | CRYPTO | tradingview | OKX | AED | true |  |  | USDT/United Arab Emirates Dirham |  |  |  |  | USDTAED | OKX |  |  |  |
+| id | ticker | name | type | provider | exchange | currency | isActive | iconUrl | lastSyncedAt | description | sector | industry | website | country | tradingviewSymbol | tradingviewExchange | isin | figi | lotSize | metadataUpdatedAt |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 15776 | AACIW | Armada Acquisition Corp. III | STOCK | yahoo | NASDAQ |  | true |  |  |  |  |  |  |  |  |  |  |  | 1 |  |
+| 15775 | AACIU | Armada Acquisition Corp. III | STOCK | yahoo | NASDAQ |  | true |  |  |  |  |  |  |  |  |  |  |  | 1 |  |
 
 #### `backfill_progress` — Backfill Progress — Harvesting task tracker
 
-| id | symbolId | interval | targetStartDate | lastBackfilledAt | isCompleted | updatedAt |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 59 | 15 | 15m | 2018-01-01T00:00:00.000Z | 2018-01-01T00:00:00.000Z | false | 2026-05-03T05:59:03.646Z |
-| 7 | 2 | 15m | 2018-01-01T00:00:00.000Z | 2018-01-01T00:00:00.000Z | false | 2026-05-03T05:59:03.163Z |
+| id | symbolId | interval | targetStartDate | lastBackfilledAt | lastSyncedAt | isCompleted | backfillStatus | updatedAt |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 44081 | 11021 | 1d | 2018-01-01T00:00:00.000Z |  | 2026-05-05T00:18:38.345Z | true | INCREMENTAL | 2026-05-05T00:18:38.345Z |
+| 26074 | 6519 | 1h | 2018-01-01T00:00:00.000Z |  | 2026-05-05T00:18:38.344Z | true | INCREMENTAL | 2026-05-05T00:18:38.344Z |
 
 ---
 
@@ -113,22 +114,22 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 | id | symbolId | trailingPE | forwardPE | priceToBook | dividendYield | exDividendDate | beta | fiftyTwoWeekHigh | fiftyTwoWeekLow | fiftyDayAverage | twoHundredDayAverage | averageVolume | marketCap | totalRevenue | revenuePerShare | grossProfit | ebitda | netIncomeToCommon | grossMargins | operatingMargins | profitMargins | returnOnEquity | returnOnAssets | debtToEquity | currentRatio | quickRatio | freeCashflow | targetMeanPrice | targetHighPrice | targetLowPrice | recommendationMean | recommendationKey | numberOfAnalystOpinions | sharesOutstanding | floatShares | sharesShort | shortRatio | heldPercentInsiders | heldPercentInstitutions | bookValue | enterpriseValue | trailingEps | forwardEps | pegRatio | updatedAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 4 | 11781 |  |  |  |  |  |  | 5586.2 | 3125 | 4833.16 | 4265.066 | 2224 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 2026-05-03T04:45:33.264Z |
-| 17 | 1 | 33.915257 | 29.386591 |  | 0.0039 | 2026-05-11T00:00:00.000Z |  | 288.62 | 193.25 | 261.2186 | 255.1833 | 44885765 | 4109006274560 | 451442016256 | 30.534 | 216070995968 | 159975997440 |  | 0.47862 | 0.32275 | 0.27152002 | 1.4147099 | 0.26229 | 79.548 | 1.07 | 0.906 | 100480753664 | 301.35953 | 355 | 215 | 1.875 | buy | 42 | 14667688000 | 14642606254 | 134422787 | 3.24 | 0.01642 | 0.65318 | 5.998 | 4125210181632 | 8.26 | 9.53292 | 2.44 | 2026-05-03T04:45:16.046Z |
+| 211 | 5428 | 18.277197 |  |  |  |  |  | 24.01 | 13.64 | 21.65976 | 20.343704 | 134395 |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  | 2026-05-05T00:18:35.657Z |
+| 210 | 10786 |  |  |  |  |  |  | 11.6 | 10.5 | 10.89 | 10.85795 | 0 |  |  |  |  |  |  | 0 | 0 | 0 | 2.7315202 | -0.015369999 |  | 0.021 | 0.021 | -247227 |  |  |  |  | none |  | 6666750 | 2381306 | 21 |  | 0 | 0.00561 | -0.309 | 53569436 |  |  |  | 2026-05-05T00:18:28.716Z |
 
 #### `symbol_earnings` — Earnings — EPS history, revenue trend, next earnings date
 
 | id | symbolId | nextEarningsDate | nextExDividendDate | nextDividendDate | earningsHistory | revenueHistory | earningsTrend | updatedAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 16 | 1 | 2026-07-30T20:00:00.000Z | 2026-05-11T00:00:00.000Z | 2026-02-12T00:00:00.000Z | [{"date":"Mon Jun 30 2025 00:00:00 GMT+0000 (Coordinated Universal Time)","ep... | [{"date":"2Q2025","revenue":94036000000,"earnings":23434000000},{"date":"3Q20... | [{"period":"0q","endDate":"2026-06-30T00:00:00.000Z","growth":0.1993,"earning... | 2026-05-03T04:45:16.891Z |
-| 15 | 4007 |  | 2026-05-12T00:00:00.000Z | 2019-03-29T00:00:00.000Z | [] | [] | [{"period":"0q","endDate":null,"growth":null,"earningsEstimate":null,"revenue... | 2026-05-03T04:34:04.691Z |
+| 119 | 10786 |  |  |  | [] | [] | [{"period":"0q","endDate":null,"growth":null,"earningsEstimate":null,"revenue... | 2026-05-05T00:18:28.870Z |
+| 118 | 11140 |  |  |  | [] | [] | [{"period":"0q","endDate":"2024-03-31T00:00:00.000Z","growth":null,"earningsE... | 2026-05-05T00:18:20.864Z |
 
 #### `analyst_ratings` — Analyst Ratings — Buy/Hold/Sell breakdown & trend
 
 | id | symbolId | strongBuy | buy | hold | sell | strongSell | ratingsTrend | updatedAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 17 | 1 | 7 | 25 | 14 | 1 | 1 | [{"period":"0m","strongBuy":7,"buy":25,"hold":14,"sell":1,"strongSell":1},{"p... | 2026-05-03T04:45:16.029Z |
-| 16 | 4007 | 0 | 0 | 0 | 0 | 0 | [] | 2026-05-03T04:34:04.539Z |
+| 127 | 10786 | 0 | 0 | 0 | 0 | 0 | [] | 2026-05-05T00:18:28.714Z |
+| 126 | 11140 | 0 | 0 | 0 | 0 | 0 | [] | 2026-05-05T00:18:20.712Z |
 
 #### `corporate_actions` — Corporate Actions — Dividends & stock splits
 
@@ -138,8 +139,8 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 | id | symbolId | insiderName | position | transactionDate | transactionType | shares | price | value | source | createdAt |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 278 | 4108 | SALEM MATTHEW A | Chief Executive Officer | 2026-04-24T00:00:00.000Z | Purchase at price 6.04 per share. | 60000 | 6.0412 | 362472 | YAHOO | 2026-05-03T04:33:32.604Z |
-| 279 | 4108 | MATTSON W PATRICK | President | 2026-04-24T00:00:00.000Z | Purchase at price 6.03 per share. | 40000 | 6.0268 | 241072 | YAHOO | 2026-05-03T04:33:32.604Z |
+| 620 | 8755 | WARRINER KENNETH THOMAS | Director | 2026-04-30T00:00:00.000Z | Purchase at price 18.42 per share. | 1000 | 18.415 | 18415 | YAHOO | 2026-05-03T06:00:20.125Z |
+| 1267 | 10516 | DESKUS ARCHANA | Director | 2026-04-30T00:00:00.000Z | Sale at price 125.55 per share. | 1800 | 125.55 | 225990 | YAHOO | 2026-05-03T15:56:35.662Z |
 
 #### `macro_data` — Macro Data — Fed rates, CPI, GDP indicators
 
@@ -153,8 +154,8 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 | symbolId | timestamp | open | high | low | close | adjClose | volume | source | interval |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 36 | 2026-05-03T05:12:02.000Z | 0.1080000028014183 | 0.1080000028014183 | 0.1080000028014183 | 0.1080000028014183 |  | 0 | YAHOO | 1h |
-| 33 | 2026-05-03T05:11:49.000Z | 83.80999755859375 | 83.80999755859375 | 83.80999755859375 | 83.80999755859375 |  | 0 | YAHOO | 1h |
+| 13250 | 2026-05-05T00:00:00.000Z | 79855 | 79855 | 79810 | 79829 |  | 1.34098333 | TRADINGVIEW | 1d |
+| 33 | 2026-05-04T23:00:00.000Z | 84.0999984741211 | 84.0999984741211 | 84.0999984741211 | 84.0999984741211 |  | 0 | YAHOO | 1h |
 
 ---
 
@@ -182,8 +183,7 @@ Generated at: 2026-05-03T05:58:54.238Z
 
 | id | userId | name | isDefault | createdAt | updatedAt |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| 2 | 2 | Watchlist | true | 2026-04-26T11:02:55.184Z | 2026-04-26T11:02:55.184Z |
-| 1 | 1 | Watchlist | true | 2026-04-26T09:43:16.607Z | 2026-04-26T09:43:16.607Z |
+| 3 | 1 | My Assets | true | 2026-05-03T06:22:08.427Z | 2026-05-03T06:22:08.427Z |
 
 #### `holdings` — Holdings — Portfolio positions
 
@@ -196,5 +196,5 @@ Generated at: 2026-05-03T05:58:54.238Z
 | Table | Row Count | Description |
 | :--- | :--- | :--- |
 | `symbol_categories` | 23,531 | Many-to-many: symbols ↔ categories |
-| `watchlist_items` | 5 | Many-to-many: watchlists ↔ symbols |
+| `watchlist_items` | 1 | Many-to-many: watchlists ↔ symbols |
 

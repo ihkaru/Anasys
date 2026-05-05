@@ -4,10 +4,15 @@ import { useSettingsStore } from "../../../stores/settings";
 import { createLogger } from "../../../utils/logger";
 import { formatOHLCVForChart, formatSignalMarkers, type OHLCVData } from "../utils/chart-formatters";
 
+import { createSeriesMarkers } from "lightweight-charts";
+
 const logger = createLogger("useChartData");
 
 export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>, signals: Ref<Signal[]>) {
 	const settingsStore = useSettingsStore();
+	
+	// Keep a reference to the markers plugin
+	let markersPlugin: any = null;
 
 	function updateData() {
 		if (!candleSeries.value) return;
@@ -32,10 +37,25 @@ export function useChartData(candleSeries: Ref<any>, ohlcvData: Ref<OHLCVData[]>
 	}
 
 	function updateMarkers() {
-		if (!candleSeries.value || signals.value.length === 0) return;
+		if (!candleSeries.value) return;
+
+		// Initialize plugin if not already created
+		if (!markersPlugin) {
+			try {
+				markersPlugin = createSeriesMarkers(candleSeries.value);
+			} catch (e) {
+				console.error("[useChartData] Failed to create series markers plugin", e);
+				return;
+			}
+		}
+
+		if (signals.value.length === 0) {
+			markersPlugin.setMarkers([]);
+			return;
+		}
 
 		const markers = formatSignalMarkers(signals.value, settingsStore.timezoneMode);
-		candleSeries.value.setMarkers(markers);
+		markersPlugin.setMarkers(markers);
 	}
 
 	function updateAll() {

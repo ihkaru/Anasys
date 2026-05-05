@@ -105,10 +105,18 @@ export function useMarketHistory(logger: Logger) {
 							return newData;
 						}
 					} else {
-						throw new Error(response.data.error);
+						const errMsg = response.data.error || "Unknown error";
+						const err = new Error(errMsg);
+						if (errMsg.toLowerCase().includes("rate limit") || errMsg.includes("429")) {
+							err.name = "RateLimitError";
+						}
+						throw err;
 					}
-				} catch (e) {
+				} catch (e: any) {
 					logger.error("Fetch history failed", e);
+					if (e.response?.status === 429 || e.message?.includes("429")) {
+						e.name = "RateLimitError";
+					}
 					if (!cachedData.length && !before) {
 						error.value = (e as Error).message;
 						ohlcvData.value = [];
@@ -127,10 +135,11 @@ export function useMarketHistory(logger: Logger) {
 				const res = await networkPromise;
 				return res;
 			}
-		} catch (e) {
+		} catch (e: any) {
 			logger.error("Fetch history failed", e);
 			error.value = (e as Error).message;
 			if (!before && ohlcvData.value.length === 0) ohlcvData.value = [];
+			throw e;
 		} finally {
 			historyLoading.value = false;
 			logger.debug(`[FetchHistory] TOTAL ${Math.round(performance.now() - fetchStart)}ms`);

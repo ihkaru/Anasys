@@ -4,8 +4,9 @@ import type { Logger } from "../../../utils/logger";
 import { getYahooRateLimiter } from "../../../utils/rate-limiter";
 import type { UnifiedCandle } from "../providers/data-provider.interface";
 import type { DataProviderFactory } from "../providers/provider.factory";
-import type { MarketDataRepository } from "../repositories/market-data.repository";
+
 import type { SymbolService } from "./symbol.service";
+import { questDbService } from "./QuestDBService";
 
 export interface SyncResult {
 	count: number;
@@ -19,7 +20,6 @@ export class SyncService {
 
 	constructor(
 		private symbolService: SymbolService,
-		private marketDataRepo: MarketDataRepository,
 		private providerFactory: DataProviderFactory,
 		private redis: Redis,
 		private logger: Logger,
@@ -117,8 +117,8 @@ export class SyncService {
 			}
 
 			const startUpsert = Date.now();
-			await this.marketDataRepo.upsert(values, ticker);
-			this.logger.debug(`[SyncService] DB Upsert (${values.length} items) took ${Date.now() - startUpsert}ms`);
+			await questDbService.writeCandles(values, ticker, interval, source);
+			this.logger.debug(`[SyncService] QuestDB Write (${values.length} items) took ${Date.now() - startUpsert}ms`);
 
 			this.logger.info(
 				`Saved ${values.length} candles for ${ticker} (${interval})` +
@@ -154,7 +154,8 @@ export class SyncService {
 			error?.status === 429 ||
 			error?.response?.status === 429 ||
 			error?.message?.includes("429") ||
-			error?.message?.toLowerCase().includes("rate limit")
+			error?.message?.toLowerCase().includes("rate limit") ||
+			error?.message?.includes("Circuit Breaker")
 		);
 	}
 
@@ -257,7 +258,7 @@ export class SyncService {
 			// FORWARD FILL — must query timestamp for the correct source!
 			// Without this, a TRADINGVIEW symbol would always appear "never synced"
 			// because getLastTimestamp defaults to YAHOO and finds nothing.
-			const lastTimestamp = await this.marketDataRepo.getLastTimestamp(symbolId, interval, source);
+			const lastTimestamp = await questDbService.getLastTimestamp(ticker, interval, source);
 
 			if (lastTimestamp) {
 				options.period1 = lastTimestamp;

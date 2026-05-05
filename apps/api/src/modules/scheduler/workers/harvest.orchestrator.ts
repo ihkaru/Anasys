@@ -275,8 +275,12 @@ async function handleBackfill() {
 					.where(eq(backfillProgress.id, task.id));
 
 				try {
-					const isYahooCompatible = symbol.type === "STOCK" && (task.interval === "1d" || task.interval === "1h");
-					if (!isYahooCompatible) {
+					const source = await marketService.resolveSymbolSource(symbol.ticker);
+
+					// Validate YAHOO limitations
+					const isYahooAndUnsupported = source === "YAHOO" && (symbol.type !== "STOCK" || !["1d", "1h", "1wk", "1mo"].includes(task.interval));
+					
+					if (isYahooAndUnsupported) {
 						// Skip unsupported combos — mark as SKIPPED to avoid infinite retries
 						await db
 							.update(backfillProgress)
@@ -285,14 +289,14 @@ async function handleBackfill() {
 						return;
 					}
 
-					logger.info(`⏳ [Backfill] ${symbol.ticker} (${task.interval}) via YAHOO`);
+					logger.info(`⏳ [Backfill] ${symbol.ticker} (${task.interval}) via ${source}`);
 
 					await marketService.syncSymbolData(
 						symbol.ticker,
 						symbol.type as any,
 						task.interval as any,
 						task.targetStartDate,
-						"YAHOO",
+						source,
 					);
 
 					// Mark COMPLETED and promote to INCREMENTAL (ADR-0013)
@@ -307,9 +311,13 @@ async function handleBackfill() {
 						.where(eq(backfillProgress.id, task.id));
 				} catch (e: any) {
 					logger.error(`Backfill failed for ${symbol.ticker} ${task.interval}: ${e.message}`);
+					const isRateLimit = e.message?.includes("429") || e.message?.includes("Circuit Breaker") || e.message?.toLowerCase().includes("rate limit");
 					await db
 						.update(backfillProgress)
-						.set({ backfillStatus: "FAILED", updatedAt: new Date() })
+						.set({ 
+							backfillStatus: isRateLimit ? "PENDING" : "FAILED", 
+							updatedAt: new Date() 
+						})
 						.where(eq(backfillProgress.id, task.id));
 				}
 			}),

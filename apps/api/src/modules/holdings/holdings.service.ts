@@ -1,7 +1,9 @@
-import { holdings, marketData, symbols } from "@packages/db/src/schema";
+import { holdings, symbols } from "@packages/db/src/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { Logger } from "../../utils/logger";
+
+import { questDbService } from "../market/services/QuestDBService";
 
 const logger = new Logger("HoldingsService");
 
@@ -63,24 +65,19 @@ export class HoldingsService {
 		const enriched: HoldingWithDetails[] = [];
 
 		for (const holding of result) {
-			// Get latest price and history for sparkline
-			const history = await db
-				.select({
-					close: marketData.close,
-				})
-				.from(marketData)
-				.where(and(eq(marketData.symbolId, holding.symbolId), eq(marketData.source, holding.source)))
-				.orderBy(desc(marketData.timestamp))
-				.limit(14); // 14 days of history
-
-			const currentPrice = history[0]?.close || holding.avgCost;
+			// Get latest price and history for sparkline from QuestDB
+			// Note: getCandles returns ascending order, so we will get the latest at the end
+			const questHistory = await questDbService.getCandles(holding.ticker, "1d", holding.source, 14);
+			const history = questHistory.map(c => ({ close: c.close }));
+			// getCandles returns ASC, so the last item is the most recent
+			const currentPrice = history.length > 0 ? history[history.length - 1].close : holding.avgCost;
 			const currentValue = holding.shares * currentPrice;
 			const costBasis = holding.shares * holding.avgCost;
 			const pnl = currentValue - costBasis;
 			const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
 
-			// Sparkline data (reverse to be chronological)
-			const sparkline = history.map((h) => h.close).reverse();
+			// Sparkline data (already chronological from getCandles)
+			const sparkline = history.map((h) => h.close);
 
 			enriched.push({
 				id: holding.id,
