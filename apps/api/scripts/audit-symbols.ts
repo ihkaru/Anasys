@@ -1,6 +1,6 @@
 import { db } from "../src/db";
 import { symbols } from "@packages/db/src/schema";
-import { eq, isNull, or, and } from "drizzle-orm";
+import { eq, isNull, or } from "drizzle-orm";
 import { Logger } from "../src/utils/logger";
 
 const logger = new Logger("SymbolAudit");

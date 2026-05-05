@@ -1,6 +1,6 @@
 import type { IDataProvider } from "./data-provider.interface";
 import { TradingViewPlaywrightProvider } from "./tradingview-playwright.provider";
-import { TradingViewPythonProvider } from "./tradingview-python.provider";
+import { TradingViewRustProvider } from "./tradingview-rust.provider";
 import { CcxtProvider } from "./ccxt.provider";
 import { YahooFinanceProvider } from "./yahoo-finance.provider";
 
@@ -10,12 +10,12 @@ export class DataProviderFactory {
 	constructor() {
 		// Initialize providers
 		const yahoo = new YahooFinanceProvider();
-		const tvPython = new TradingViewPythonProvider();
+		const tvRust = new TradingViewRustProvider();
 		const tvPlaywright = new TradingViewPlaywrightProvider();
 		const ccxt = new CcxtProvider();
 
 		this.providers.set("YAHOO", yahoo);
-		this.providers.set("TRADINGVIEW", tvPython);
+		this.providers.set("TRADINGVIEW", tvRust);
 		this.providers.set("TRADINGVIEW_PW", tvPlaywright);
 		this.providers.set("CCXT", ccxt);
 	}

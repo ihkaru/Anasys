@@ -17,7 +17,7 @@ export class OverviewService {
 			const syms = await this.symbolRepo.findByTickers(tickers);
 			if (!syms.length) return [];
 
-			const symbolIds = syms.map((s) => s.id);
+			const _symbolIds = syms.map((s) => s.id);
 
 			// We will query QuestDB in parallel for these symbols
 			const candlesBySymbol = new Map<number, any[]>();

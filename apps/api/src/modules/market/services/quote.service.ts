@@ -1,7 +1,6 @@
 import type { Logger } from "../../../utils/logger";
 import type { CacheService } from "../cache/cache.service";
 import type { QuoteResult, SearchResult } from "../providers/data-provider.interface";
-import type { YahooFinanceProvider } from "../providers/yahoo-finance.provider";
 
 import type { SymbolRepository } from "../repositories/symbol.repository";
 import { generateSparkline } from "../utils/sparkline.utils";

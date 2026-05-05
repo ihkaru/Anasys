@@ -24,6 +24,12 @@ pub struct YahooResultItem {
 #[derive(Debug, Deserialize)]
 pub struct YahooIndicators {
     pub quote: Vec<YahooQuote>,
+    pub adjclose: Option<Vec<YahooAdjClose>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct YahooAdjClose {
+    pub adjclose: Vec<Option<f64>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -140,6 +146,13 @@ impl YahooFetcher {
             .first()
             .ok_or_else(|| anyhow!("No quote data from Yahoo for {}", ticker))?;
 
+        let adj_quotes = item
+            .indicators
+            .adjclose
+            .as_ref()
+            .and_then(|v| v.first())
+            .map(|v| &v.adjclose);
+
         let mut candles = Vec::with_capacity(timestamps.len());
 
         for (i, ts) in timestamps.iter().enumerate() {
@@ -149,9 +162,41 @@ impl YahooFetcher {
             let close = quotes.close.get(i).and_then(|v| *v).unwrap_or(0.0);
             let volume = quotes.volume.get(i).and_then(|v| *v).unwrap_or(0.0);
 
+            // Get adj_close if available, else fallback to close
+            let adj_close = adj_quotes
+                .and_then(|v| v.get(i))
+                .and_then(|v| *v)
+                .unwrap_or(close);
+
             // Lewati candle dengan data tidak valid
             if close <= 0.0 || open <= 0.0 {
                 continue;
+            }
+
+            // Normalize timestamp based on interval (ADR-0016 / Consistency with Bun API)
+            let mut normalized_ts = *ts;
+            match interval {
+                "1m" => normalized_ts = (normalized_ts / 60) * 60,
+                "2m" => normalized_ts = (normalized_ts / 120) * 120,
+                "5m" => normalized_ts = (normalized_ts / 300) * 300,
+                "15m" => normalized_ts = (normalized_ts / 900) * 900,
+                "30m" => normalized_ts = (normalized_ts / 1800) * 1800,
+                "60m" | "1h" => normalized_ts = (normalized_ts / 3600) * 3600,
+                "90m" => normalized_ts = (normalized_ts / 5400) * 5400,
+                "1d" | "5d" | "1wk" | "1mo" | "3mo" => {
+                    if let Some(dt) = chrono::DateTime::from_timestamp(normalized_ts, 0) {
+                        use chrono::Timelike;
+                        if let Some(ndt) = dt
+                            .with_hour(0)
+                            .and_then(|dt| dt.with_minute(0))
+                            .and_then(|dt| dt.with_second(0))
+                            .and_then(|dt| dt.with_nanosecond(0))
+                        {
+                            normalized_ts = ndt.timestamp();
+                        }
+                    }
+                }
+                _ => {} // Leave as is for unknown intervals
             }
 
             candles.push(CandleData {
@@ -161,9 +206,10 @@ impl YahooFetcher {
                 high,
                 low,
                 close,
+                adj_close,
                 volume,
                 source: "YAHOO".to_string(),
-                timestamp: *ts,
+                timestamp: normalized_ts,
             });
         }
 

@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { symbols } from "@packages/db/src/schema";
-import { like, and, ne, sql } from "drizzle-orm";
+import { like, and, ne } from "drizzle-orm";
 
 async function backfillLotSize() {
 	console.log("🛠️  Starting lotSize backfill for IDX symbols...");

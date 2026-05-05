@@ -1,6 +1,6 @@
 import { symbols } from "@packages/db/src/schema";
 import { logoService } from "../modules/market/services/logo.service";
-import { and, count, inArray, isNull } from "drizzle-orm";
+import { and, inArray, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { Logger } from "../utils/logger";
 

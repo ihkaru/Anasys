@@ -9,9 +9,11 @@ export class CandleService {
 	constructor(
 		private symbolService: SymbolService,
 		private syncService: SyncService,
-		private redis: Redis,
+		_redis: Redis,
 		private logger: Logger,
 	) {}
+
+	private activeSyncs = new Set<string>();
 
 	/**
 	 * Primary OHLCV serving path.
@@ -19,87 +21,89 @@ export class CandleService {
 	 * Flow:
 	 * 1. Check in-process LRU cache (30s TTL)
 	 * 2. Query QuestDB (single source of truth)
-	 * 3. On MISS: fetch from external provider → write to QuestDB → serve from QuestDB
+	 * 3. On MISS or STALE: trigger background sync → return available data immediately
 	 *
-	 * Postgres market_data is still written to as a safety net but not served from.
+	 * This ensures <200ms response times even for "cold" symbols,
+	 * shifting the data arrival to real-time updates or client-side polling.
 	 */
 	async getOHLCV(ticker: string, interval = "1d", limit = 100, before?: string, source = "YAHOO") {
+		const startTime = performance.now();
+		this.logger.debug(`[getOHLCV] Request started for ${ticker} (${interval})`);
+
 		// Safe fallback heuristic for brand new symbols only (existing symbols use DB type)
 		let guessedType: "STOCK" | "CRYPTO" = "STOCK";
 		const upperTicker = ticker.toUpperCase();
-		// Crypto usually has /USDT, -USD (Yahoo), or Binance prefix
 		if (upperTicker.includes("USD") || upperTicker.startsWith("BINANCE:") || upperTicker.includes("/")) {
 			guessedType = "CRYPTO";
 		}
 
 		const symbol = await this.symbolService.ensureSymbol(ticker, guessedType);
+		const t1 = performance.now();
+		this.logger.debug(`[getOHLCV] ensureSymbol took ${(t1 - startTime).toFixed(2)}ms`);
+
 		const beforeDate = before ? new Date(before) : undefined;
 
 		// ── Step 1: LRU in-process cache ─────────────────────────────────────
 		const cacheKey = OHLCVLRUCache.makeKey(ticker, interval, source, beforeDate);
 		const cached = ohlcvLRUCache.get(cacheKey);
 		if (cached) {
-			this.logger.debug(`[getOHLCV] LRU HIT for ${ticker}/${interval}/${source}`);
+			this.logger.debug(
+				`[getOHLCV] LRU HIT for ${ticker}/${interval}/${source} in ${(performance.now() - t1).toFixed(2)}ms`,
+			);
 			return cached;
 		}
 
 		// ── Step 2: QuestDB query ─────────────────────────────────────────────
-		let candles = await questDbService.getCandles(symbol.ticker, interval, source, limit, beforeDate);
+		const candles = await questDbService.getCandles(symbol.ticker, interval, source, limit, beforeDate);
+		const t2 = performance.now();
+		this.logger.debug(`[getOHLCV] QuestDB query for ${candles.length} items took ${(t2 - t1).toFixed(2)}ms`);
 
-		this.logger.info(
-			`[getOHLCV] QuestDB ${candles.length > 0 ? "HIT" : "MISS"} for ${ticker} (${interval}/${source})` +
-				(beforeDate ? ` before ${beforeDate.toISOString()}` : " [latest]"),
-		);
+		// ── Step 3: Background Sync Trigger (Non-blocking) ────────────────────
+		const syncKey = `${ticker}:${interval}:${source}:${beforeDate ? "history" : "latest"}`;
 
-		// ── Step 3a: MISS on latest data → stale check + sync ─────────────────
-		if (candles.length === 0 && !beforeDate) {
-			this.logger.info(`[getOHLCV] No data in QuestDB for ${ticker}/${interval}/${source}. Syncing...`);
-			try {
-				await this.syncService.syncSymbolData(ticker, symbol.type, interval, undefined, source);
-				candles = await questDbService.getCandles(symbol.ticker, interval, source, limit, undefined);
-			} catch (e) {
-				this.logger.warn(`[getOHLCV] Sync failed, returning empty`, e);
-			}
+		const triggerSync = () => {
+			if (this.activeSyncs.has(syncKey)) return;
+
+			this.activeSyncs.add(syncKey);
+			this.logger.info(`[getOHLCV] Triggering BACKGROUND sync for ${syncKey}`);
+
+			// Fire and forget, but handle errors to avoid unhandled rejections
+			this.syncService
+				.syncSymbolData(ticker, symbol.type, interval, beforeDate, source)
+				.then((result) => {
+					this.logger.info(`[getOHLCV] Background sync COMPLETED for ${syncKey}: ${result.count} items`);
+				})
+				.catch((err) => {
+					this.logger.error(`[getOHLCV] Background sync FAILED for ${syncKey}`, err);
+				})
+				.finally(() => {
+					this.activeSyncs.delete(syncKey);
+				});
+		};
+
+		// Case A: MISS (No data at all)
+		if (candles.length === 0) {
+			triggerSync();
 		}
-
-		// ── Step 3b: MISS on historical data (before) → backfill ──────────────
-		if (candles.length === 0 && beforeDate) {
-			this.logger.info(
-				`[getOHLCV] No history in QuestDB for ${ticker}/${interval}/${source} before ${beforeDate.toISOString()}. Backfilling...`,
-			);
-			const t0 = Date.now();
-			try {
-				await this.syncService.syncSymbolData(ticker, symbol.type, interval, beforeDate, source);
-				this.logger.info(`[getOHLCV] Backfill sync took ${Date.now() - t0}ms`);
-				candles = await questDbService.getCandles(symbol.ticker, interval, source, limit, beforeDate);
-				this.logger.info(`[getOHLCV] Post-backfill QuestDB query returned ${candles.length} candles`);
-			} catch (e) {
-				this.logger.error(`[getOHLCV] Backfill failed`, e);
-			}
-		}
-
-		// ── Step 4: Check if existing QuestDB data is stale (latest only) ────
-		if (candles.length > 0 && !beforeDate) {
+		// Case B: STALE (Data exists but is old, only for latest request)
+		else if (!beforeDate) {
 			const lastTs = new Date(candles[candles.length - 1].timestamp);
 			if (this.isStale(lastTs, interval)) {
-				this.logger.info(`[getOHLCV] QuestDB data stale for ${ticker}/${interval}. Refreshing...`);
-				try {
-					await this.syncService.syncSymbolData(ticker, symbol.type, interval, undefined, source);
-					// Re-query to get fresh data
-					const fresh = await questDbService.getCandles(symbol.ticker, interval, source, limit, undefined);
-					if (fresh.length > 0) candles = fresh;
-				} catch (e) {
-					this.logger.warn(`[getOHLCV] Refresh failed, returning existing data`, e);
-				}
+				this.logger.info(`[getOHLCV] Data stale for ${ticker}/${interval}. Triggering background refresh...`);
+				triggerSync();
 			}
 		}
+		const t3 = performance.now();
+		this.logger.debug(`[getOHLCV] Logic checks took ${(t3 - t2).toFixed(2)}ms`);
 
+		// ── Step 4: Return available data immediately ────────────────────────
 		const result = candles.map((c) => ({
 			timestamp: c.timestamp,
 			open: Number(c.open),
 			high: Number(c.high),
 			low: Number(c.low),
-			close: Number(c.close),
+			close: Number(c.adj_close || c.close),
+			adj_close: Number(c.adj_close || c.close),
 			volume: Number(c.volume),
 		}));
 
@@ -107,6 +111,8 @@ export class CandleService {
 		if (result.length > 0) {
 			ohlcvLRUCache.set(cacheKey, result);
 		}
+		const tEnd = performance.now();
+		this.logger.info(`[getOHLCV] TOTAL for ${ticker}: ${(tEnd - startTime).toFixed(2)}ms`);
 
 		return result;
 	}
@@ -118,21 +124,19 @@ export class CandleService {
 
 		switch (interval) {
 			case "1m":
-				return diffMinutes > 5;
+				return diffMinutes > 3; // Reduced for faster reactivity
 			case "5m":
-				return diffMinutes > 10;
+				return diffMinutes > 8;
 			case "15m":
-				return diffMinutes > 20;
+				return diffMinutes > 18;
 			case "30m":
-				return diffMinutes > 40;
+				return diffMinutes > 35;
 			case "1h":
-				return diffMinutes > 75;
+				return diffMinutes > 65;
 			case "4h":
-				return diffMinutes > 260;
+				return diffMinutes > 250;
 			case "1d":
-				return diffMinutes > 1600; // ~26 hours
-			case "1wk":
-				return diffMinutes > 10080 + 1440;
+				return diffMinutes > 1440; // 24 hours
 			default:
 				return diffMinutes > 60;
 		}

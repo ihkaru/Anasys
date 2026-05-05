@@ -29,8 +29,8 @@ export function createHarvestWorker() {
 					return await handleDiscovery();
 				case "enrichment":
 					return await handleEnrichment();
-				case "backfill":
-					return await handleBackfill();
+				// case "backfill":
+				// 	return await handleBackfill();
 				case "incremental-sync":
 					return await handleIncrementalSync();
 				case "alert-evaluator":
@@ -243,93 +243,16 @@ async function handleEnrichment() {
 	}
 }
 
-// ── HANDLER: Backfill (Phase 5) ──────────────────────────────────────────────
-
+/**
+ * DEPRECATED: Backfill is now handled exclusively by the Rust Engine (apps/engine).
+ * This Node.js implementation was found to cause data gaps by prematurely marking
+ * tasks as completed (Ultimate Root Cause identified on 2026-05-05).
+ */
+/*
 async function handleBackfill() {
-	// Ambil tasks yang belum selesai — gunakan enum status baru (ADR-0013)
-	// Fallback: juga include rows lama yang pakai isCompleted=false tapi belum punya status enum
-	const tasks = await db
-		.select()
-		.from(backfillProgress)
-		.where(
-			sql`(
-				${backfillProgress.backfillStatus} IN ('PENDING', 'IN_PROGRESS')
-				OR (${backfillProgress.backfillStatus} IS NULL AND ${backfillProgress.isCompleted} = false)
-			)`,
-		)
-		.orderBy(asc(backfillProgress.updatedAt))
-		.limit(1000);
-
-	const BATCH_SIZE = 15;
-	for (let i = 0; i < tasks.length; i += BATCH_SIZE) {
-		const chunk = tasks.slice(i, i + BATCH_SIZE);
-		await Promise.all(
-			chunk.map(async (task) => {
-				const symbol = await db.query.symbols.findFirst({ where: eq(symbols.id, task.symbolId) });
-				if (!symbol) return;
-
-				// Mark as IN_PROGRESS to prevent duplicate processing
-				await db
-					.update(backfillProgress)
-					.set({ backfillStatus: "IN_PROGRESS", updatedAt: new Date() })
-					.where(eq(backfillProgress.id, task.id));
-
-				try {
-					const source = await marketService.resolveSymbolSource(symbol.ticker);
-
-					// Validate YAHOO limitations
-					const isYahooAndUnsupported =
-						source === "YAHOO" && (symbol.type !== "STOCK" || !["1d", "1h", "1wk", "1mo"].includes(task.interval));
-
-					if (isYahooAndUnsupported) {
-						// Skip unsupported combos — mark as SKIPPED to avoid infinite retries
-						await db
-							.update(backfillProgress)
-							.set({ backfillStatus: "SKIPPED", isCompleted: true, updatedAt: new Date() })
-							.where(eq(backfillProgress.id, task.id));
-						return;
-					}
-
-					logger.info(`⏳ [Backfill] ${symbol.ticker} (${task.interval}) via ${source}`);
-
-					await marketService.syncSymbolData(
-						symbol.ticker,
-						symbol.type as any,
-						task.interval as any,
-						task.targetStartDate,
-						source,
-					);
-
-					// Mark COMPLETED and promote to INCREMENTAL (ADR-0013)
-					await db
-						.update(backfillProgress)
-						.set({
-							backfillStatus: "INCREMENTAL", // Langsung ke mode incremental untuk monitoring real-time
-							isCompleted: true,
-							lastSyncedAt: new Date(),
-							updatedAt: new Date(),
-						})
-						.where(eq(backfillProgress.id, task.id));
-				} catch (e: any) {
-					logger.error(`Backfill failed for ${symbol.ticker} ${task.interval}: ${e.message}`);
-					const isRateLimit =
-						e.message?.includes("429") ||
-						e.message?.includes("Circuit Breaker") ||
-						e.message?.toLowerCase().includes("rate limit");
-					await db
-						.update(backfillProgress)
-						.set({
-							backfillStatus: isRateLimit ? "PENDING" : "FAILED",
-							updatedAt: new Date(),
-						})
-						.where(eq(backfillProgress.id, task.id));
-				}
-			}),
-		);
-		// No artificial delay for backfill batches unless it's Playwright-heavy
-		await new Promise((r) => setTimeout(r, 50));
-	}
+	// ... (content commented out)
 }
+*/
 
 // ── HANDLER: Incremental Sync (Forward Fill — ADR-0013) ──────────────────────
 

@@ -77,6 +77,36 @@ impl BinanceFetcher {
                 continue;
             }
 
+            // Normalize timestamp based on interval (ADR-0016 / Consistency with Bun API)
+            let mut normalized_ts = open_time_ms / 1000;
+            match interval {
+                "1m" => normalized_ts = (normalized_ts / 60) * 60,
+                "3m" => normalized_ts = (normalized_ts / 180) * 180,
+                "5m" => normalized_ts = (normalized_ts / 300) * 300,
+                "15m" => normalized_ts = (normalized_ts / 900) * 900,
+                "30m" => normalized_ts = (normalized_ts / 1800) * 1800,
+                "1h" => normalized_ts = (normalized_ts / 3600) * 3600,
+                "2h" => normalized_ts = (normalized_ts / 7200) * 7200,
+                "4h" => normalized_ts = (normalized_ts / 14400) * 14400,
+                "6h" => normalized_ts = (normalized_ts / 21600) * 21600,
+                "8h" => normalized_ts = (normalized_ts / 28800) * 28800,
+                "12h" => normalized_ts = (normalized_ts / 43200) * 43200,
+                "1d" | "3d" | "1w" | "1mo" => {
+                    if let Some(dt) = chrono::DateTime::from_timestamp(normalized_ts, 0) {
+                        use chrono::Timelike;
+                        if let Some(ndt) = dt
+                            .with_hour(0)
+                            .and_then(|dt| dt.with_minute(0))
+                            .and_then(|dt| dt.with_second(0))
+                            .and_then(|dt| dt.with_nanosecond(0))
+                        {
+                            normalized_ts = ndt.timestamp();
+                        }
+                    }
+                }
+                _ => {}
+            }
+
             candles.push(CandleData {
                 symbol: format!("BINANCE_{}", symbol), // konsisten dengan format ILP (no colon)
                 interval: interval.to_string(),
@@ -84,9 +114,10 @@ impl BinanceFetcher {
                 high,
                 low,
                 close,
+                adj_close: close,
                 volume,
                 source: "BINANCE".to_string(),
-                timestamp: open_time_ms / 1000, // konversi ke detik
+                timestamp: normalized_ts,
             });
         }
 

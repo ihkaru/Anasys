@@ -5,7 +5,7 @@ import { redisConnection } from "../scheduler/queue";
 import { Logger } from "../../utils/logger";
 import { CacheService } from "./cache/cache.service";
 import { DataProviderFactory } from "./providers/provider.factory";
-import { TradingViewPythonProvider } from "./providers/tradingview-python.provider";
+import { TradingViewRustProvider } from "./providers/tradingview-rust.provider";
 import { YahooFinanceProvider } from "./providers/yahoo-finance.provider";
 
 import { SymbolRepository } from "./repositories/symbol.repository";
@@ -25,7 +25,7 @@ const symbolRepo = new SymbolRepository(db);
 const dataProvider = new YahooFinanceProvider();
 const providerFactory = new DataProviderFactory();
 const cacheService = new CacheService();
-const tvProvider = new TradingViewPythonProvider();
+const tvProvider = new TradingViewRustProvider();
 
 const symbolService = new SymbolService(symbolRepo, dataProvider, redisConnection, logger, tvProvider);
 export const syncService = new SyncService(symbolService, providerFactory, redisConnection, logger);
@@ -95,7 +95,7 @@ export class MarketService {
 		let source = explicitSource;
 
 		if (!source) {
-			const existing = await symbolRepo.findByTicker(ticker);
+			const existing = await symbolService.getSymbolByTicker(ticker);
 			if (existing?.provider) {
 				const providerMap: Record<string, string> = {
 					tradingview: "TRADINGVIEW",
@@ -209,25 +209,47 @@ export class MarketService {
 	 * Results from DB use their original provider as source (not forced to "LOCAL").
 	 */
 	async searchSymbolsMultiSource(query: string, limit: number = 15): Promise<any[]> {
+		const cacheKey = `search:${query.toLowerCase()}:${limit}`;
+		const cached = cacheService.get<any[]>(cacheKey);
+		if (cached) {
+			logger.debug(`Cache hit for search: ${query}`);
+			return cached;
+		}
+
 		logger.debug(`Multi-source search for: ${query}`);
 
-		// Query all sources in parallel — failures are handled gracefully
+		// Helper to add timeout to promises
+		const withTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T | null> =>
+			Promise.race([
+				promise,
+				new Promise<null>((resolve) =>
+					setTimeout(() => {
+						logger.warn(`${label} search timed out after ${ms}ms`);
+						resolve(null);
+					}, ms),
+				),
+			]);
+
+		// Query all sources in parallel with strict timeouts for external providers
 		const [yahooResults, tvResults, localResults] = await Promise.allSettled([
-			quoteService.search(query, limit),
-			tvProvider.search(query, limit),
-			symbolRepo.search(query, limit),
+			withTimeout(quoteService.search(query, limit), 2000, "Yahoo"),
+			withTimeout(tvProvider.search(query, limit), 2500, "TradingView"),
+			symbolRepo.search(query, limit), // No timeout for local DB
 		]);
 
 		const all: any[] = [];
+		const seen = new Set<string>();
 
-		// 1. Database results first — these are already followed (isFollowed = true)
-		//    Use the original provider stored in the DB, not a hardcoded "LOCAL".
+		// 1. Database results first (High Reliability & Pre-followed)
 		if (localResults.status === "fulfilled" && localResults.value) {
 			for (const r of localResults.value) {
 				const provider = r.provider?.toUpperCase();
-				let source = "YAHOO"; // safe default
+				let source = "YAHOO";
 				if (provider === "TRADINGVIEW") source = "TRADINGVIEW";
-				else if (provider === "ENGINE") source = "ENGINE"; // Anasys Engine scraped
+				else if (provider === "ENGINE") source = "ENGINE";
+
+				const key = `${r.ticker}:${r.exchange}`.toUpperCase();
+				seen.add(key);
 
 				all.push({
 					symbol: r.ticker,
@@ -238,38 +260,48 @@ export class MarketService {
 					isFollowed: true,
 				});
 			}
-		} else if (localResults.status === "rejected") {
-			logger.warn("Local DB search failed:", localResults.reason);
 		}
 
-		// 2. Yahoo Finance results
-		if (yahooResults.status === "fulfilled" && yahooResults.value) {
-			for (const r of yahooResults.value) {
-				all.push({
-					symbol: (r as any).ticker || (r as any).symbol,
-					name: (r as any).name || (r as any).longName || (r as any).shortName,
-					type: (r as any).type || (r as any).quoteType,
-					exchange: (r as any).exchange || (r as any).exchDisp,
-					currency: (r as any).currency,
-					source: "YAHOO",
-					isFollowed: false,
-				});
-			}
-		} else if (yahooResults.status === "rejected") {
-			logger.warn("Yahoo search failed:", yahooResults.reason);
-		}
-
-		// 3. TradingView results — already normalized by tvProvider.search()
+		// 2. TradingView results (High Precision)
 		if (tvResults.status === "fulfilled" && tvResults.value) {
 			for (const r of tvResults.value) {
-				all.push({ ...r, isFollowed: false });
+				const key = `${r.symbol}:${r.exchange}`.toUpperCase();
+				if (!seen.has(key)) {
+					seen.add(key);
+					all.push({ ...r, isFollowed: false });
+				}
 			}
-		} else if (tvResults.status === "rejected") {
-			logger.warn("TradingView search failed:", tvResults.reason);
 		}
 
-		logger.debug(`Multi-source search returned ${all.length} total results`);
-		return all;
+		// 3. Yahoo Finance results (Broad Coverage)
+		if (yahooResults.status === "fulfilled" && yahooResults.value) {
+			for (const r of yahooResults.value) {
+				const ticker = (r as any).ticker || (r as any).symbol;
+				const exchange = (r as any).exchange || (r as any).exchDisp;
+				const key = `${ticker}:${exchange}`.toUpperCase();
+
+				if (!seen.has(key)) {
+					seen.add(key);
+					all.push({
+						symbol: ticker,
+						name: (r as any).name || (r as any).longName || (r as any).shortName,
+						type: (r as any).type || (r as any).quoteType,
+						exchange: exchange,
+						currency: (r as any).currency,
+						source: "YAHOO",
+						isFollowed: false,
+					});
+				}
+			}
+		}
+
+		logger.debug(`Multi-source search returned ${all.length} unique results`);
+		const finalResults = all.slice(0, limit);
+
+		// Cache for 5 minutes
+		cacheService.set(cacheKey, finalResults, 5 * 60 * 1000);
+
+		return finalResults;
 	}
 
 	/**

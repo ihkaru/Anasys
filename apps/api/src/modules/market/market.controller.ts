@@ -472,10 +472,10 @@ export const internalMarketController = new Elysia({ prefix: "/market/internal" 
 			// DIAGNOSTICS: Check provider health
 			.get("/diagnostics", async () => {
 				const { YahooFinanceProvider } = await import("./providers/yahoo-finance.provider");
-				const { TradingViewPythonProvider } = await import("./providers/tradingview-python.provider");
+				const { TradingViewRustProvider } = await import("./providers/tradingview-rust.provider");
 
 				const yahoo = new YahooFinanceProvider();
-				const tv = new TradingViewPythonProvider();
+				const tv = new TradingViewRustProvider();
 
 				const [yahooStatus, tvStatus] = await Promise.allSettled([yahoo.search("AAPL", 1), tv.search("AAPL", 1)]);
 

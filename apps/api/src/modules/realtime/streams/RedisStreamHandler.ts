@@ -13,7 +13,6 @@ const logger = new Logger("RedisStreamHandler");
 export class RedisStreamHandler {
 	private subscriber: Redis;
 	private aggregator = new CandleAggregator();
-	private isConnected = false;
 
 	constructor(private broadcaster: Broadcaster) {
 		const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";

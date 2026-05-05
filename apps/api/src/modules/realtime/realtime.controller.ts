@@ -44,7 +44,7 @@ export const realtimeController = new Elysia({ prefix: "/ws" })
 
 			if (auth?.value) {
 				const profile = await jwt.verify(auth.value);
-				if (profile && profile.id) {
+				if (profile?.id) {
 					userId = Number(profile.id);
 				}
 			}

@@ -15,9 +15,9 @@ export class YahooFinanceProvider implements IDataProvider {
 	}
 
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
-		// Sanitize options: remove 'exchange' as it causes InvalidOptionsError in yahoo-finance2
+		// Sanitize options: remove fields not supported by yahoo-finance2 chart API
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		const { exchange, ...yahooOptions } = options;
+		const { exchange, limit, ...yahooOptions } = options;
 
 		try {
 			const result = await this.client.chart(ticker, yahooOptions);

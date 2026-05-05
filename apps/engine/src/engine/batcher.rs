@@ -91,11 +91,11 @@ impl Batcher {
         let mut ilp = String::new();
         for c in batch {
             ilp.push_str(&format!(
-                "candles,symbol={},interval={},source={} open={},high={},low={},close={},volume={} {}\n",
+                "candles,symbol={},interval={},source={} open={},high={},low={},close={},adj_close={},volume={} {}\n",
                 c.symbol,
                 c.interval,
                 c.source,
-                c.open, c.high, c.low, c.close, c.volume,
+                c.open, c.high, c.low, c.close, c.adj_close, c.volume,
                 c.timestamp * 1_000_000_000
             ));
         }

@@ -62,7 +62,7 @@ export class BackfillService {
 				.where(eq(backfillProgress.id, id));
 
 			// 2. Update symbol metadata if provided
-			if (metadata && metadata.name) {
+			if (metadata?.name) {
 				// Find symbolId for this backfill record first
 				const progress = await tx
 					.select({ symbolId: backfillProgress.symbolId })

@@ -3,3 +3,4 @@ pub mod broadcaster;
 pub mod candle_streamer;
 pub mod redis_stream;
 pub mod scraper;
+pub mod task_worker;

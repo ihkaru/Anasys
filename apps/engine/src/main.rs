@@ -135,7 +135,18 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // ── Main: Run scraper + candle streamer + backfiller concurrently ─────────
+    // ── Task Worker (On-demand requests from API) ───────────────────────────
+    let task_worker = Arc::new(engine::task_worker::TaskWorker::new(
+        redis_client.clone(),
+        batcher.clone(),
+    ));
+    let task_worker_handle = tokio::spawn(async move {
+        if let Err(e) = task_worker.run().await {
+            error!("🚨 TaskWorker fatal: {}", e);
+        }
+    });
+
+    // ── Main: Run scraper + candle streamer + backfiller + task worker concurrently ─────────
 
     tokio::select! {
         res = run_scraper_with_refresh(scraper, redis_client, refresh_trigger) => {
@@ -148,6 +159,9 @@ async fn main() -> anyhow::Result<()> {
         }
         _ = backfiller_handle => {
             error!("🚨 Backfiller stopped unexpectedly");
+        }
+        _ = task_worker_handle => {
+            error!("🚨 TaskWorker stopped unexpectedly");
         }
     }
 

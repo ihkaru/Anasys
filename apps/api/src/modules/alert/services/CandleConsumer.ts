@@ -197,9 +197,9 @@ function parseStreamEntry(id: string, fields: string[]): CandleEntry | null {
 		map[fields[i]] = fields[i + 1];
 	}
 
-	const symbol = map["symbol"];
-	const interval = map["interval"];
-	const timestamp = parseInt(map["timestamp"] ?? "0", 10);
+	const symbol = map.symbol;
+	const interval = map.interval;
+	const timestamp = parseInt(map.timestamp ?? "0", 10);
 
 	if (!symbol || !interval || !timestamp) return null;
 
@@ -207,11 +207,11 @@ function parseStreamEntry(id: string, fields: string[]): CandleEntry | null {
 		id,
 		symbol,
 		interval,
-		open: parseFloat(map["open"] ?? "0"),
-		high: parseFloat(map["high"] ?? "0"),
-		low: parseFloat(map["low"] ?? "0"),
-		close: parseFloat(map["close"] ?? "0"),
-		volume: parseFloat(map["volume"] ?? "0"),
+		open: parseFloat(map.open ?? "0"),
+		high: parseFloat(map.high ?? "0"),
+		low: parseFloat(map.low ?? "0"),
+		close: parseFloat(map.close ?? "0"),
+		volume: parseFloat(map.volume ?? "0"),
 		timestamp,
 	};
 }

@@ -40,9 +40,9 @@ export function getSystemChartTheme(): ChartTheme {
 
 export function getChartOptions(
 	theme: ChartTheme,
-	width: number,
-	height: number,
-	isFullscreen: boolean,
+	_width: number,
+	_height: number,
+	_isFullscreen: boolean,
 	timezone: string = "local",
 ) {
 	const timeOption = timezone === "local" ? undefined : timezone;

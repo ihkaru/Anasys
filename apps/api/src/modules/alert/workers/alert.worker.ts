@@ -1,5 +1,5 @@
 import { type Job, Worker } from "bullmq";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../../db";
 import { alertHistory, alerts, symbols } from "@packages/db/src/schema";
 import { Logger } from "../../../utils/logger";

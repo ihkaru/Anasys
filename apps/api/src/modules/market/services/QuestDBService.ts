@@ -15,6 +15,7 @@ export interface QuestDBCandle {
 	high: number;
 	low: number;
 	close: number;
+	adj_close: number;
 	volume: number;
 }
 
@@ -62,7 +63,15 @@ export class QuestDBService {
 	 * Timestamp must be in nanoseconds for ILP.
 	 */
 	async writeCandles(
-		candles: { timestamp: Date; open: number; high: number; low: number; close: number; volume: number }[],
+		candles: {
+			timestamp: Date;
+			open: number;
+			high: number;
+			low: number;
+			close: number;
+			adj_close: number;
+			volume: number;
+		}[],
 		symbol: string,
 		interval: string,
 		source: string,
@@ -78,7 +87,7 @@ export class QuestDBService {
 			const tsNs = BigInt(c.timestamp.getTime()) * 1_000_000n; // ms → ns
 			return (
 				`candles,symbol=${safeSymbol},interval=${safeInterval},source=${safeSource} ` +
-				`open=${c.open},high=${c.high},low=${c.low},close=${c.close},volume=${c.volume} ${tsNs}`
+				`open=${c.open},high=${c.high},low=${c.low},close=${c.close},adj_close=${c.adj_close},volume=${c.volume} ${tsNs}`
 			);
 		});
 
@@ -119,7 +128,7 @@ export class QuestDBService {
 		const safeSource = source.replace(/'/g, "''");
 
 		let sql = `
-			SELECT timestamp, open, high, low, close, volume
+			SELECT timestamp, open, high, low, close, adj_close, volume
 			FROM candles
 			WHERE symbol = '${safeSymbol}'
 			AND interval = '${safeInterval}'
@@ -200,6 +209,7 @@ export class QuestDBService {
 					high DOUBLE,
 					low DOUBLE,
 					close DOUBLE,
+					adj_close DOUBLE,
 					volume DOUBLE,
 					timestamp TIMESTAMP
 				) timestamp (timestamp) PARTITION BY MONTH WAL

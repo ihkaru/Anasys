@@ -12,7 +12,6 @@ import { realtimeController } from "./modules/realtime/realtime.controller";
 import { watchlistController } from "./modules/watchlist/watchlist.controller";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
-import { redisConnection } from "./modules/scheduler/queue";
 import Redis from "ioredis";
 
 // Validate configuration at startup
@@ -68,12 +67,7 @@ const app = new Elysia()
 	// Checks all dependencies with a hard 3-second timeout per check.
 	.get("/health", async ({ set }) => {
 		const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
-			Promise.race([
-				promise,
-				new Promise<T>((_, reject) =>
-					setTimeout(() => reject(new Error("timeout")), ms),
-				),
-			]);
+			Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))]);
 
 		const checks: Record<string, any> = {
 			api: "ok",
@@ -107,10 +101,7 @@ const app = new Elysia()
 		// that uses chunked transfer and never closes the connection in Bun.
 		// Use /exec?query=SELECT+1 which returns a small, finite JSON response.
 		try {
-			const res = await withTimeout(
-				fetch(`${config.questdbUrl}/exec?query=SELECT+1`),
-				3000,
-			);
+			const res = await withTimeout(fetch(`${config.questdbUrl}/exec?query=SELECT+1`), 3000);
 			checks.questdb = res.ok ? "connected" : "error";
 		} catch (_e) {
 			checks.questdb = "disconnected";
@@ -118,9 +109,7 @@ const app = new Elysia()
 
 		// Only evaluate service-specific fields, not metadata (timestamp, api)
 		const serviceChecks = { postgres: checks.postgres, redis: checks.redis, questdb: checks.questdb };
-		const isHealthy = Object.values(serviceChecks).every(
-			(v) => v === "connected",
-		);
+		const isHealthy = Object.values(serviceChecks).every((v) => v === "connected");
 
 		if (!isHealthy) {
 			set.status = 503;

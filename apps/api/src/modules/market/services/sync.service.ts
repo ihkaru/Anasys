@@ -49,7 +49,20 @@ export class SyncService {
 				period1: queryOptions.period1,
 				interval: interval as any,
 				exchange: symbol.exchange,
+				limit: 500, // Default safe limit for refreshes
 			};
+
+			if (queryOptions.period2) {
+				chartOptions.period2 = queryOptions.period2;
+				// If we have both periods, estimate the necessary limit to avoid over-fetching (ADR-0020)
+				const diffMs = queryOptions.period2.getTime() - queryOptions.period1.getTime();
+				const intervalMs = this.getIntervalMs(interval);
+				if (intervalMs > 0) {
+					// Add 10% buffer for gaps
+					chartOptions.limit = Math.min(5000, Math.ceil((diffMs / intervalMs) * 1.1));
+				}
+			}
+
 			if (queryOptions.period2) {
 				chartOptions.period2 = queryOptions.period2;
 			}
@@ -211,7 +224,7 @@ export class SyncService {
 				high: candle.high,
 				low: candle.low,
 				close: candle.close,
-				adjClose: candle.adjClose,
+				adj_close: candle.adjClose || candle.close,
 				volume: candle.volume * lotSize,
 				interval: interval,
 				source: source,
@@ -275,5 +288,33 @@ export class SyncService {
 			}
 		}
 		return options;
+	}
+
+	private getIntervalMs(interval: string): number {
+		const num = parseInt(interval, 10);
+		const unit = interval.replace(/[0-9]/g, "");
+
+		let multiplier = 0;
+		switch (unit) {
+			case "m":
+				multiplier = 60 * 1000;
+				break;
+			case "h":
+				multiplier = 60 * 60 * 1000;
+				break;
+			case "d":
+				multiplier = 24 * 60 * 60 * 1000;
+				break;
+			case "wk":
+			case "w":
+				multiplier = 7 * 24 * 60 * 60 * 1000;
+				break;
+			case "mo":
+				multiplier = 30 * 24 * 60 * 60 * 1000;
+				break;
+			default:
+				return 0;
+		}
+		return (num || 1) * multiplier;
 	}
 }

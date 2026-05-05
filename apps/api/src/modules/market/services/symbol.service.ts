@@ -79,19 +79,28 @@ export class SymbolService {
 		private discoveryProvider?: IDataProvider,
 	) {}
 
+	private symbolCache = new Map<string, any>();
+
 	async ensureSymbol(
 		ticker: string,
 		type: "STOCK" | "CRYPTO",
 		metadata?: { provider?: string; exchange?: string; currency?: string; name?: string },
 	) {
+		const cacheKey = ticker.toUpperCase();
+		if (this.symbolCache.has(cacheKey)) {
+			return this.symbolCache.get(cacheKey);
+		}
+
 		this.logger.debug(`Ensuring symbol exists: ${ticker} (${type})`);
 
 		const existing = await this.symbolRepo.findByTicker(ticker);
 		if (existing) {
 			// Sync lotSize to Redis (ADR-0012)
 			if (existing.lotSize) {
-				await this.redis.hset("harvest:lot-sizes", ticker.toUpperCase(), existing.lotSize.toString());
+				// Don't await redis sync, fire and forget to keep latency low
+				this.redis.hset("harvest:lot-sizes", ticker.toUpperCase(), existing.lotSize.toString()).catch(() => {});
 			}
+			this.symbolCache.set(cacheKey, existing);
 			return existing;
 		}
 
@@ -115,18 +124,27 @@ export class SymbolService {
 		});
 
 		// Sync lotSize to Redis (ADR-0012)
-		await this.redis.hset("harvest:lot-sizes", ticker.toUpperCase(), lotSize.toString());
+		this.redis.hset("harvest:lot-sizes", ticker.toUpperCase(), lotSize.toString()).catch(() => {});
 
+		this.symbolCache.set(cacheKey, newSym);
 		this.logger.info(`New symbol created: ${ticker} (Provider: ${provider}, LotSize: ${lotSize})`);
 		return newSym;
 	}
 
-	async getSymbols() {
-		return await this.symbolRepo.findAll();
+	async getSymbolByTicker(ticker: string) {
+		const cacheKey = ticker.toUpperCase();
+		if (this.symbolCache.has(cacheKey)) {
+			return this.symbolCache.get(cacheKey);
+		}
+		const sym = await this.symbolRepo.findByTicker(ticker);
+		if (sym) {
+			this.symbolCache.set(cacheKey, sym);
+		}
+		return sym;
 	}
 
-	async getSymbolByTicker(ticker: string) {
-		return await this.symbolRepo.findByTicker(ticker);
+	async getSymbols() {
+		return await this.symbolRepo.findAll();
 	}
 
 	/**

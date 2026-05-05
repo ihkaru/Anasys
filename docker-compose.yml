@@ -20,6 +20,10 @@ services:
       - QUESTDB_URL=http://questdb:9000
       - DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-finance_db}
       - ANASYS_SCRAPE_SYMBOLS=${ANASYS_SCRAPE_SYMBOLS:-BINANCE:BTCUSDT,BINANCE:ETHUSDT,FX:EURUSD}
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     depends_on:
       - redis
       - questdb

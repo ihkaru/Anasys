@@ -70,3 +70,6 @@ sample.json
 test*.ts
 dump_docker_config.sh
 docker_config_dump.txt
+anasys.db
+.api_pid_*
+.tv_bridge_pid

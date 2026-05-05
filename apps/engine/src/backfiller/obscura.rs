@@ -2,6 +2,7 @@ use crate::types::CandleData;
 use anyhow::{Result, anyhow};
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, info, warn};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -13,6 +14,18 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
 pub struct ObscuraFetcher {
     symbol_cache: RwLock<HashMap<String, String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TvSearchResult {
+    pub symbol: String,
+    pub name: String,
+    pub description: String,
+    pub tv_type: String,
+    pub exchange: String,
+    pub currency: String,
+    pub price: Option<f64>,
+    pub change: Option<f64>,
 }
 
 impl ObscuraFetcher {
@@ -88,6 +101,220 @@ impl ObscuraFetcher {
         cache.insert(cache_key, final_symbol.clone());
 
         Ok(final_symbol)
+    }
+
+    pub async fn search_multi(&self, query: &str, limit: usize) -> Result<Vec<TvSearchResult>> {
+        debug!("🔍 Institutional Multi-Search: {}", query);
+
+        let url = "https://scanner.tradingview.com/global/scan";
+        let client = reqwest::Client::new();
+
+        // Prioritas cari di 'america' (NYSE/NASDAQ) dan 'crypto'
+        let payload = json!({
+            "filter": [
+                {
+                    "left": "name",
+                    "operation": "match",
+                    "right": query.to_uppercase()
+                }
+            ],
+            "options": { "lang": "en" },
+            "markets": ["america", "crypto", "global"],
+            "columns": ["name", "close", "change", "exchange", "type", "description", "currency"],
+            "sort": { "sortBy": "name", "sortOrder": "asc" },
+            "range": [0, limit]
+        });
+
+        let resp = client.post(url)
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .json(&payload)
+            .send().await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("Scanner API failed: {}", resp.status()));
+        }
+
+        let body: Value = resp.json().await?;
+        let mut results = Vec::new();
+
+        if let Some(data) = body["data"].as_array() {
+            for item in data {
+                if let Some(d) = item["d"].as_array() {
+                    results.push(TvSearchResult {
+                        symbol: d[0].as_str().unwrap_or("").to_string(),
+                        price: d[1].as_f64(),
+                        change: d[2].as_f64(),
+                        exchange: d[3].as_str().unwrap_or("").to_string(),
+                        tv_type: d[4].as_str().unwrap_or("").to_string(),
+                        name: d[0].as_str().unwrap_or("").to_string(), // name is symbol here
+                        description: d[5].as_str().unwrap_or("").to_string(),
+                        currency: d[6].as_str().unwrap_or("").to_string(),
+                    });
+                }
+            }
+        }
+
+        // If no results, try matching description
+        if results.is_empty() && query.len() >= 3 {
+            let payload_desc = json!({
+                "filter": [
+                    {
+                        "left": "description",
+                        "operation": "match",
+                        "right": query
+                    }
+                ],
+                "options": { "lang": "en" },
+                "markets": ["america", "crypto", "global"],
+                "columns": ["name", "close", "change", "exchange", "type", "description", "currency"],
+                "range": [0, limit]
+            });
+
+            let resp = client.post(url).json(&payload_desc).send().await?;
+            if resp.status().is_success() {
+                let body: Value = resp.json().await?;
+                if let Some(data) = body["data"].as_array() {
+                    for item in data {
+                        if let Some(d) = item["d"].as_array() {
+                            results.push(TvSearchResult {
+                                symbol: d[0].as_str().unwrap_or("").to_string(),
+                                price: d[1].as_f64(),
+                                change: d[2].as_f64(),
+                                exchange: d[3].as_str().unwrap_or("").to_string(),
+                                tv_type: d[4].as_str().unwrap_or("").to_string(),
+                                name: d[0].as_str().unwrap_or("").to_string(),
+                                description: d[5].as_str().unwrap_or("").to_string(),
+                                currency: d[6].as_str().unwrap_or("").to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    pub async fn fetch_batch_quotes(&self, tickers: Vec<String>) -> Result<Vec<TvSearchResult>> {
+        debug!("📊 Institutional Batch Quotes: {:?}", tickers);
+
+        let url = "https://scanner.tradingview.com/global/scan";
+        let client = reqwest::Client::new();
+
+        let payload = json!({
+            "symbols": { "tickers": tickers },
+            "columns": ["name", "close", "change", "exchange", "type", "description", "currency"],
+            "options": { "lang": "en" }
+        });
+
+        let resp = client.post(url)
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .json(&payload)
+            .send().await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("Scanner Batch API failed: {}", resp.status()));
+        }
+
+        let body: Value = resp.json().await?;
+        let mut results = Vec::new();
+
+        if let Some(data) = body["data"].as_array() {
+            for item in data {
+                if let Some(d) = item["d"].as_array() {
+                    results.push(TvSearchResult {
+                        symbol: d[0].as_str().unwrap_or("").to_string(),
+                        price: d[1].as_f64(),
+                        change: d[2].as_f64(),
+                        exchange: d[3].as_str().unwrap_or("").to_string(),
+                        tv_type: d[4].as_str().unwrap_or("").to_string(),
+                        name: d[0].as_str().unwrap_or("").to_string(),
+                        description: d[5].as_str().unwrap_or("").to_string(),
+                        currency: d[6].as_str().unwrap_or("").to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(results)
+    }
+
+    pub async fn fetch_movers(
+        &self,
+        market: &str,
+        category: &str,
+        limit: usize,
+    ) -> Result<Vec<TvSearchResult>> {
+        debug!("🔥 Institutional Movers: {} - {}", market, category);
+
+        let url = "https://scanner.tradingview.com/global/scan";
+        let client = reqwest::Client::new();
+
+        // Map market to TV market
+        let tv_market = match market {
+            "stocks-usa" => "america",
+            "crypto" => "crypto",
+            _ => "global",
+        };
+
+        let mut filter = Vec::new();
+        let mut sort = json!({ "sortBy": "change", "sortOrder": "desc" });
+
+        // Set sort based on category
+        match category {
+            "gainers" => {
+                sort = json!({ "sortBy": "change", "sortOrder": "desc" });
+                filter.push(json!({ "left": "change", "operation": "greater", "right": 0 }));
+            }
+            "losers" => {
+                sort = json!({ "sortBy": "change", "sortOrder": "asc" });
+                filter.push(json!({ "left": "change", "operation": "less", "right": 0 }));
+            }
+            "active" => {
+                sort = json!({ "sortBy": "volume", "sortOrder": "desc" });
+            }
+            _ => {}
+        }
+
+        let payload = json!({
+            "filter": filter,
+            "options": { "lang": "en" },
+            "markets": [tv_market],
+            "columns": ["name", "close", "change", "exchange", "type", "description", "currency"],
+            "sort": sort,
+            "range": [0, limit]
+        });
+
+        let resp = client.post(url)
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .json(&payload)
+            .send().await?;
+
+        if !resp.status().is_success() {
+            return Err(anyhow!("Scanner Movers API failed: {}", resp.status()));
+        }
+
+        let body: Value = resp.json().await?;
+        let mut results = Vec::new();
+
+        if let Some(data) = body["data"].as_array() {
+            for item in data {
+                if let Some(d) = item["d"].as_array() {
+                    results.push(TvSearchResult {
+                        symbol: d[0].as_str().unwrap_or("").to_string(),
+                        price: d[1].as_f64(),
+                        change: d[2].as_f64(),
+                        exchange: d[3].as_str().unwrap_or("").to_string(),
+                        tv_type: d[4].as_str().unwrap_or("").to_string(),
+                        name: d[0].as_str().unwrap_or("").to_string(),
+                        description: d[5].as_str().unwrap_or("").to_string(),
+                        currency: d[6].as_str().unwrap_or("").to_string(),
+                    });
+                }
+            }
+        }
+
+        Ok(results)
     }
 
     pub async fn fetch_candles(
@@ -243,6 +470,10 @@ impl ObscuraFetcher {
                                                 .unwrap_or(0.0),
                                             low: row.get(3).and_then(|v| v.as_f64()).unwrap_or(0.0),
                                             close: row
+                                                .get(4)
+                                                .and_then(|v| v.as_f64())
+                                                .unwrap_or(0.0),
+                                            adj_close: row
                                                 .get(4)
                                                 .and_then(|v| v.as_f64())
                                                 .unwrap_or(0.0),

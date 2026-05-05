@@ -1,6 +1,6 @@
 import { useElementSize } from "@vueuse/core";
 import { createChart, CandlestickSeries, type IChartApi } from "lightweight-charts";
-import { markRaw, onUnmounted, type Ref, shallowRef, watch } from "vue";
+import { onUnmounted, type Ref, shallowRef, watch } from "vue";
 import { useSettingsStore } from "../../../stores/settings";
 import { useThemeStore } from "../../../stores/theme";
 import {

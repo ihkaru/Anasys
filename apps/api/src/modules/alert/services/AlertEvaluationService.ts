@@ -52,7 +52,7 @@ export class AlertEvaluationService {
 			// 4. Determine if alert is triggered
 			// Convention: We look for a plot named "Trigger" or the last plot in the script.
 			// If the value > 0, it's a trigger.
-			let triggerPlot = plots["Trigger"];
+			let triggerPlot = plots.Trigger;
 
 			// Fallback: If no "Trigger" plot, look for any plot that has 0/1 values (boolean-like)
 			if (!triggerPlot) {

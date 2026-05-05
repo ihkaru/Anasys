@@ -411,6 +411,7 @@ async fn process_du(
                 high: v.get(2)?.as_f64()?,
                 low: v.get(3)?.as_f64()?,
                 close: v.get(4)?.as_f64()?,
+                adj_close: v.get(4)?.as_f64()?,
                 volume: v.get(5)?.as_f64().unwrap_or(0.0),
                 source: "TRADINGVIEW".to_string(),
             })
