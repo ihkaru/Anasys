@@ -51,6 +51,7 @@ __pycache__/
 
 # Rust
 target/
+target-local/
 **/*.rs.bk
 
 # Development Scratch & Artifacts
