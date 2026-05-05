@@ -182,7 +182,7 @@ export class QuestDBService {
 	async dropAndRecreateTable(): Promise<boolean> {
 		try {
 			logger.warn("Dropping and recreating QuestDB candles table...");
-			
+
 			// Drop table if exists
 			try {
 				await this.query("DROP TABLE candles;");
@@ -206,7 +206,7 @@ export class QuestDBService {
 				DEDUPLICATE UPSERT KEYS (symbol, interval, source, timestamp);
 			`;
 			await this.query(createSql);
-			
+
 			logger.info("Successfully recreated candles table with DEDUPLICATE enabled");
 			return true;
 		} catch (error) {

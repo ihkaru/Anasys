@@ -119,7 +119,7 @@ export const marketController = new Elysia({ prefix: "/market" })
 			set.status = 403;
 			return { success: false, error: "Forbidden: Missing or invalid secret" };
 		}
-		
+
 		const { questDbService } = await import("./services/QuestDBService");
 		const success = await questDbService.dropAndRecreateTable();
 		return { success };

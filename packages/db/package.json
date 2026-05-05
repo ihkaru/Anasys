@@ -4,7 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"generate": "drizzle-kit generate",
-		"push": "drizzle-kit push --accept-data-loss",
+		"push": "drizzle-kit push --force",
 		"seed": "bun run seeds/main.ts",
 		"studio": "drizzle-kit studio"
 	},
