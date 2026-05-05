@@ -1,8 +1,9 @@
 #!/bin/bash
 
 # =============================================================================
-# Anasys Docker Stability Monitor v2.0
-# Checks: State, Health, Restarts (delta), OOM Kill, & Silent Errors in Logs
+# Anasys Docker Stability Monitor v2.1
+# Checks: State, Health (Traefik-sensitive), Restarts (delta), OOM Kill, Logs
+# Health rules mirror Traefik: ONLY "healthy" gets traffic. starting/unhealthy = BLOCKED.
 # Usage: ./monitor_docker.sh [duration_seconds] [prod|dev]
 # =============================================================================
 
@@ -24,8 +25,9 @@ BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 echo -e "${BOLD}=============================================${NC}"
-echo -e "${BOLD}🕵️  Anasys Docker Stability Monitor v2.0${NC}"
+echo -e "${BOLD}Anasys Docker Stability Monitor v2.1${NC}"
 echo -e "Environment: ${YELLOW}$ENV${NC} | Observing for ${BOLD}${DURATION}s${NC}"
+echo -e "${BOLD}Traefik rule: only \"healthy\" receives traffic. starting/unhealthy = BLOCKED.${NC}"
 echo -e "${BOLD}=============================================${NC}"
 
 # --- Detect running containers ---
@@ -82,15 +84,15 @@ while [ $SECONDS -lt $END_TIME ]; do
             STATE_STR="${RED}$STATE${NC}"
         fi
 
-        # Colorize HEALTH
+        # Colorize HEALTH — mirror Traefik routing rules exactly
         if [ "$HEALTH" == "healthy" ]; then
             HEALTH_STR="${GREEN}$HEALTH${NC}"
         elif [ "$HEALTH" == "unhealthy" ]; then
-            HEALTH_STR="${RED}$HEALTH${NC}"
+            HEALTH_STR="${RED}✗ $HEALTH (BLOCKED)${NC}"
         elif [ "$HEALTH" == "starting" ]; then
-            HEALTH_STR="${YELLOW}$HEALTH${NC}"
+            HEALTH_STR="${YELLOW}⏳ $HEALTH (BLOCKED)${NC}"
         elif [ "$HEALTH" == "NO_CHECK" ]; then
-            HEALTH_STR="${YELLOW}⚠ NO_CHECK${NC}"
+            HEALTH_STR="${YELLOW}⚠ NO_CHECK (BLOCKED)${NC}"
         else
             HEALTH_STR="${GRAY}$HEALTH${NC}"
         fi
@@ -154,15 +156,19 @@ for ID in $CONTAINERS; do
         echo -e "  ${GREEN}✔  OOM Kill: None${NC}"
     fi
 
-    # Health check
+    # Health check — mirror Traefik: ONLY "healthy" gets traffic
     if [ "$HEALTH" == "healthy" ]; then
-        echo -e "  ${GREEN}✔  Health: healthy — Traefik will route traffic here.${NC}"
+        echo -e "  ${GREEN}✔  Health: healthy — Traefik is routing traffic here.${NC}"
     elif [ "$HEALTH" == "unhealthy" ]; then
-        echo -e "  ${RED}❌ Health: unhealthy — Traefik will BLOCK traffic to this container!${NC}"
+        echo -e "  ${RED}❌ Health: unhealthy — Traefik is BLOCKING this container!${NC}"
+        STABLE=false
+    elif [ "$HEALTH" == "starting" ]; then
+        echo -e "  ${YELLOW}⏳ Health: starting — Traefik is BLOCKING until healthy. Waiting for first probe to pass.${NC}"
+        WARNINGS+=("$NAME is still in start_period — Traefik not routing yet.")
         STABLE=false
     elif [ "$HEALTH" == "NO_CHECK" ]; then
-        echo -e "  ${YELLOW}⚠  Health: No healthcheck defined. Traefik cannot validate readiness.${NC}"
-        WARNINGS+=("$NAME has no healthcheck — add one to docker-compose.")
+        echo -e "  ${YELLOW}⚠  Health: No healthcheck defined — Traefik routes blindly (no readiness gate).${NC}"
+        WARNINGS+=("$NAME has no healthcheck — Traefik cannot validate readiness.")
     fi
 
     # Silent error scan from logs (last 30 lines)
@@ -189,16 +195,21 @@ echo ""
 echo -e "${BOLD}=========================================================================${NC}"
 echo -e "${BOLD}=========================================================================${NC}"
 if [ "$STABLE" = true ] && [ ${#WARNINGS[@]} -eq 0 ]; then
-    echo -e "${GREEN}${BOLD}🎉 RESULT: 100% STABLE. All systems green. Traefik is safe to route.${NC}"
+    echo -e "${GREEN}${BOLD}🎉 RESULT: 100% STABLE. All containers healthy. Traefik is routing normally.${NC}"
     exit 0
 elif [ "$STABLE" = true ] && [ ${#WARNINGS[@]} -gt 0 ]; then
-    echo -e "${YELLOW}${BOLD}⚠  RESULT: MOSTLY STABLE with warnings:${NC}"
+    echo -e "${YELLOW}${BOLD}⚠  RESULT: MOSTLY STABLE — minor warnings (no traffic impact):${NC}"
     for W in "${WARNINGS[@]}"; do
         echo -e "  ${YELLOW}→ $W${NC}"
     done
     exit 0
 else
-    echo -e "${RED}${BOLD}❌ RESULT: UNSTABLE. Do NOT deploy to production yet.${NC}"
+    echo -e "${RED}${BOLD}❌ RESULT: UNSTABLE — Traefik is currently blocking one or more containers:${NC}"
+    for W in "${WARNINGS[@]}"; do
+        echo -e "  ${RED}→ $W${NC}"
+    done
+    echo -e "${YELLOW}  Tip: If status is 'starting', wait for start_period to expire then re-run monitor.${NC}"
+    echo -e "${YELLOW}  Tip: If status is 'unhealthy', run: docker logs <container> | tail -20${NC}"
     exit 1
 fi
 echo -e "${BOLD}=========================================================================${NC}"
