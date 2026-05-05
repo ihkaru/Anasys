@@ -265,7 +265,7 @@ export class MarketService {
 		// 2. TradingView results (High Precision)
 		if (tvResults.status === "fulfilled" && tvResults.value) {
 			for (const r of tvResults.value) {
-				const key = `${r.symbol}:${r.exchange}`.toUpperCase();
+				const key = `${r.ticker}:${r.exchange}`.toUpperCase();
 				if (!seen.has(key)) {
 					seen.add(key);
 					all.push({ ...r, isFollowed: false });
