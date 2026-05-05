@@ -49,11 +49,11 @@ services:
     ports:
       - "${ANASYS_BACKEND_PORT:-28081}:3000" # Mapped to original backend port for compatibility
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 30s
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/finance_db

@@ -99,6 +99,15 @@ stop_dev() {
     print_success "Stack stopped."
 }
 
+run_monitor() {
+    local DURATION=${1:-30}
+    if [ ! -f "./monitor_docker.sh" ]; then
+        print_error "monitor_docker.sh not found in project root."
+        exit 1
+    fi
+    ./monitor_docker.sh "$DURATION" dev
+}
+
 show_logs() {
     print_header "📜 FOLLOWING LOGS (Docker + Frontend)"
     print_info "Press Ctrl+C to stop following"
@@ -141,9 +150,29 @@ case "$1" in
     restart)
         stop_dev
         start_dev
+        echo ""
+        print_header "🔍 POST-RESTART STABILITY CHECK"
+        print_info "Waiting 15s for containers to stabilize before monitoring..."
+        sleep 15
+        run_monitor 30
+        if [ $? -ne 0 ]; then
+            print_error "Stack is UNSTABLE after restart. Check logs with: ./dev.sh logs"
+            exit 1
+        fi
+        ;;
+    monitor)
+        DURATION=${2:-30}
+        run_monitor "$DURATION"
         ;;
     *)
-        echo "Usage: ./dev.sh {start|stop|restart|logs|status}"
+        echo "Usage: ./dev.sh {start|stop|restart|logs|status|monitor [seconds]}"
+        echo ""
+        echo "  start           Start the full dev stack"
+        echo "  stop            Stop all services"
+        echo "  restart         Restart + auto stability check"
+        echo "  logs            Follow engine & api logs"
+        echo "  status          Quick container status"
+        echo "  monitor [N]     Run stability monitor for N seconds (default: 30)"
         exit 1
         ;;
 esac
