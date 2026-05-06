@@ -124,6 +124,31 @@ export const marketController = new Elysia({ prefix: "/market" })
 		const success = await questDbService.dropAndRecreateTable();
 		return { success };
 	})
+	// Surgical DELETE: evict candles for a specific symbol/interval/source (for testing & maintenance)
+	.delete(
+		"/internal/questdb/symbol",
+		async ({ headers, query, set }) => {
+			const secret = headers["x-dev-secret"] ?? headers["X-Dev-Secret"] ?? headers["x-internal-secret"];
+			if (!secret || secret !== "dev_secret_123") {
+				set.status = 403;
+				return { success: false, error: "Forbidden: Missing or invalid secret" };
+			}
+			const { questDbService } = await import("./services/QuestDBService");
+			const deleted = await questDbService.deleteSymbolCandles(
+				query.symbol,
+				query.interval,
+				query.source,
+			);
+			return { success: true, deleted };
+		},
+		{
+			query: t.Object({
+				symbol: t.String(),
+				interval: t.String(),
+				source: t.String(),
+			}),
+		},
+	)
 	// Real-time quotes for single or multiple tickers
 	.get(
 		"/quotes",

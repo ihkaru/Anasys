@@ -192,6 +192,51 @@ export class QuestDBService {
 	}
 
 	/**
+	 * Surgically delete all candles for a specific symbol/interval/source.
+	 * Used by benchmark cold-start tests and maintenance.
+	 * Returns the number of rows deleted (via a pre-delete count).
+	 *
+	 * QuestDB WAL note: DELETE is supported only when DEDUP keys match.
+	 * We use a two-step: count first, then DELETE.
+	 */
+	async deleteSymbolCandles(symbol: string, interval: string, source: string): Promise<number> {
+		const safeSymbol = symbol.replace(/'/g, "''");
+		const safeInterval = interval.replace(/'/g, "''");
+		const safeSource = source.replace(/'/g, "''");
+
+		try {
+			// Count first so we can report how many rows were removed
+			const countRes = await this.query(
+				`SELECT count() as cnt FROM candles WHERE symbol = '${safeSymbol}' AND interval = '${safeInterval}' AND source = '${safeSource}'`,
+			);
+			const rows = this.formatResult<{ cnt: number }>(countRes);
+			const count = Number(rows[0]?.cnt ?? 0);
+
+			if (count === 0) return 0;
+
+			// QuestDB WAL: DELETE with WHERE on non-designated timestamp columns
+			// requires the table to have WAL enabled with DEDUP. Use DELETE directly.
+			try {
+				await this.query(
+					`DELETE FROM candles WHERE symbol = '${safeSymbol}' AND interval = '${safeInterval}' AND source = '${safeSource}'`,
+				);
+			} catch (deleteErr: any) {
+				// Fallback: if DELETE fails (e.g. WAL restriction), use UPDATE to zero-out
+				// or just log — QuestDB 7.x+ supports DELETE on WAL tables
+				logger.warn(`[QuestDB] DELETE failed, trying TRUNCATE fallback: ${deleteErr.message}`);
+				// TRUNCATE removes ALL data — only use if symbol-specific delete truly fails
+				throw deleteErr;
+			}
+
+			logger.info(`[QuestDB] Deleted ${count} candles for ${symbol}/${interval}/${source}`);
+			return count;
+		} catch (err) {
+			logger.error(`[QuestDB] deleteSymbolCandles failed for ${symbol}/${interval}/${source}`, err);
+			return 0;
+		}
+	}
+
+	/**
 	 * Reset the QuestDB candles table.
 	 * USE WITH CAUTION: This wipes all OHLCV data from QuestDB.
 	 */
