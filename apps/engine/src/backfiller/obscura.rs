@@ -355,7 +355,7 @@ impl ObscuraFetcher {
         let mut ws = None;
         let mut retry_count = 0;
         let max_retries = 3;
-        
+
         while retry_count < max_retries {
             match connect_async(request.clone()).await {
                 Ok((stream, _)) => {
@@ -365,14 +365,23 @@ impl ObscuraFetcher {
                 Err(e) => {
                     retry_count += 1;
                     if retry_count >= max_retries {
-                        return Err(anyhow::anyhow!("WS connect failed after {} retries: {}", max_retries, e));
+                        return Err(anyhow::anyhow!(
+                            "WS connect failed after {} retries: {}",
+                            max_retries,
+                            e
+                        ));
                     }
-                    warn!("  → WS connect failed ({}): {}. Retrying in {}s...", ticker, e, retry_count * 2);
+                    warn!(
+                        "  → WS connect failed ({}): {}. Retrying in {}s...",
+                        ticker,
+                        e,
+                        retry_count * 2
+                    );
                     sleep(Duration::from_secs(retry_count * 2)).await;
                 }
             }
         }
-        
+
         let mut ws = ws.unwrap();
         debug!("  → WS Connected for {}", canonical_symbol);
 
@@ -437,7 +446,11 @@ impl ObscuraFetcher {
             canonical_symbol
         );
 
-        let start_sec = if start > 9999999999 { start / 1000 } else { start };
+        let start_sec = if start > 9999999999 {
+            start / 1000
+        } else {
+            start
+        };
 
         let mut candles = Vec::new();
         let mut symbol_metadata: Option<Value> = None;

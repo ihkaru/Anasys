@@ -269,9 +269,7 @@ function printSummary(results: ScenarioSummary[]) {
 
 		console.log(`  Pagination :`);
 		for (const p of r.paginationResults) {
-			const tag = p.isEmpty
-				? `${c.red}EMPTY — BUG DETECTED${c.reset}`
-				: `${c.green}${p.candles} candles${c.reset}`;
+			const tag = p.isEmpty ? `${c.red}EMPTY — BUG DETECTED${c.reset}` : `${c.green}${p.candles} candles${c.reset}`;
 			const durColor = p.duration < 2000 ? c.green : p.duration < 5000 ? c.yellow : c.red;
 			console.log(
 				`    ◀ T-${String(p.offset).padStart(4)}d : ${durColor}${p.duration.toFixed(0).padStart(6)}ms${c.reset}  ${tag}`,

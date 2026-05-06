@@ -27,8 +27,8 @@ if [ $FRESH_MODE -eq 1 ]; then
     echo "=================================================="
 fi
 
-# Run the benchmark script
-bun run apps/api/src/scripts/institutional_benchmark.ts
+# Run the comprehensive stress & audit benchmark
+bun run apps/api/scripts/stress_audit_benchmark.ts
 
 echo ""
 echo "📊 Quick Summary (First 15 lines):"

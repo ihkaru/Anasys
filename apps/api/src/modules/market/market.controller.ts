@@ -134,11 +134,7 @@ export const marketController = new Elysia({ prefix: "/market" })
 				return { success: false, error: "Forbidden: Missing or invalid secret" };
 			}
 			const { questDbService } = await import("./services/QuestDBService");
-			const deleted = await questDbService.deleteSymbolCandles(
-				query.symbol,
-				query.interval,
-				query.source,
-			);
+			const deleted = await questDbService.deleteSymbolCandles(query.symbol, query.interval, query.source);
 			return { success: true, deleted };
 		},
 		{

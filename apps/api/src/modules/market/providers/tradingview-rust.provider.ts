@@ -133,7 +133,7 @@ export class TradingViewRustProvider implements IDataProvider {
 
 			const [_key, jsonStr] = result;
 			if (!jsonStr) return [];
-			
+
 			const data = JSON.parse(jsonStr);
 
 			if (data && typeof data === "object" && data.error) {

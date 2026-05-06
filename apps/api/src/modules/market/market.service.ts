@@ -406,6 +406,13 @@ export class MarketService {
 	 */
 	async getMonitoringStats() {
 		const MONITORING_CACHE_KEY = "anasys:monitoring:snapshot";
+		const MONITORING_RESULT_CACHE_KEY = "anasys:monitoring:result";
+
+		// 🚀 FAST PATH: Return cached full result if available (10s TTL)
+		const cachedResult = await redisConnection.get(MONITORING_RESULT_CACHE_KEY);
+		if (cachedResult) {
+			return JSON.parse(cachedResult);
+		}
 
 		// 1. Current State (Postgres)
 		const completedTasksRes = await db
@@ -516,7 +523,7 @@ export class MarketService {
 			GROUP BY interval
 		`);
 
-		return {
+		const stats = {
 			tasks: {
 				completed: completedTasks,
 				total: totalTasks,
@@ -533,6 +540,11 @@ export class MarketService {
 			breakdown: statusBreakdown,
 			timestamp: new Date().toISOString(),
 		};
+
+		// Cache result for 10 seconds to protect DB from dashboard spam
+		await redisConnection.set(MONITORING_RESULT_CACHE_KEY, JSON.stringify(stats), "EX", 10);
+
+		return stats;
 	}
 }
 

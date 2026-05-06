@@ -77,20 +77,23 @@ export class CandleService {
 		if (candles.length === 0) {
 			const syncPromise = this.triggerSync(ticker, symbol.type, interval, beforeDate, source, syncKey);
 
-			// 🚀 SMART WAIT: Race against a timeout (e.g., 30s) and the sync promise
-			this.logger.info(`[getOHLCV] CACHE MISS for ${ticker}. Initiating SMART WAIT (30000ms)...`);
+			// 🚀 ADAPTIVE SMART WAIT:
+			// History requests ('before' present) get a short 2s timeout to keep UI snappy.
+			// Latest requests get 30s to ensure real-time data arrival.
+			const waitTimeout = beforeDate ? 2000 : 30000;
+			this.logger.info(`[getOHLCV] CACHE MISS for ${ticker}. Initiating SMART WAIT (${waitTimeout}ms)...`);
+
 			try {
 				await Promise.race([
 					syncPromise,
-					new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 30000)),
+					new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), waitTimeout)),
 				]);
 
-				// Tiny grace period for QuestDB commit visibility (must be > QDB_CAIRO_COMMIT_LAG)
+				// Tiny grace period for QuestDB commit visibility
 				await new Promise((resolve) => setTimeout(resolve, 200));
 
 				this.logger.info(`[getOHLCV] SMART WAIT resolved for ${symbol.ticker}. Querying fresh data...`);
 
-				// If we reached here, sync finished! Query QuestDB again.
 				const freshCandles = await questDbService.getCandles(symbol.ticker, interval, source, limit, beforeDate);
 				if (freshCandles.length > 0) {
 					this.logger.info(`[getOHLCV] SMART WAIT SUCCESS: Recovered ${freshCandles.length} items for ${ticker}`);
@@ -159,7 +162,7 @@ export class CandleService {
 			open: Number(c.open),
 			high: Number(c.high),
 			low: Number(c.low),
-			close: Number(c.adj_close || c.close),
+			close: Number(c.close),
 			adj_close: Number(c.adj_close || c.close),
 			volume: Number(c.volume),
 		}));
