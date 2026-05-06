@@ -25,9 +25,12 @@ services:
         soft: 65536
         hard: 65536
     depends_on:
-      - redis
-      - questdb
-      - postgres
+      redis:
+        condition: service_healthy
+      questdb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - anasys-net
 
@@ -57,9 +60,12 @@ services:
       - QUESTDB_URL=http://questdb:9000
       - JWT_SECRET=${JWT_SECRET} # Required in prod
     depends_on:
-      - postgres
-      - questdb
-      - redis
+      postgres:
+        condition: service_healthy
+      questdb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - anasys-net
 
@@ -73,11 +79,19 @@ services:
     restart: always
     expose:
       - "80"
+    healthcheck:
+      # wget tersedia di nginx:alpine via busybox (curl tidak ada di image ini)
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     labels:
       - "coolify.managed=true"
       - "coolify.proxy.port=80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - anasys-net
 
