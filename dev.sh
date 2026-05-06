@@ -152,9 +152,9 @@ case "$1" in
         start_dev
         echo ""
         print_header "🔍 POST-RESTART STABILITY CHECK"
-        print_info "Waiting 15s for containers to stabilize before monitoring..."
-        sleep 15
-        run_monitor 30
+        print_info "Waiting 25s for containers to stabilize before monitoring..."
+        sleep 25
+        run_monitor 60
         if [ $? -ne 0 ]; then
             print_error "Stack is UNSTABLE after restart. Check logs with: ./dev.sh logs"
             exit 1

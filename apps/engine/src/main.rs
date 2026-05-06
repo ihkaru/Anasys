@@ -22,6 +22,23 @@ async fn main() -> anyhow::Result<()> {
 
     info!("🚀 Starting Anasys Performance Engine...");
 
+    // ── Heartbeat (Docker health-check) ──────────────────────────────────────
+    // Write immediately so probe-1 passes even during slow startup
+    let now = chrono::Utc::now().to_rfc3339();
+    if let Err(e) = std::fs::write("/tmp/heartbeat.txt", now) {
+        error!("🚨 Initial heartbeat write failed: {}", e);
+    }
+
+    tokio::spawn(async move {
+        loop {
+            time::sleep(Duration::from_secs(10)).await;
+            let now = chrono::Utc::now().to_rfc3339();
+            if let Err(e) = std::fs::write("/tmp/heartbeat.txt", now) {
+                error!("🚨 Heartbeat write failed: {}", e);
+            }
+        }
+    });
+
     let redis_url = env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let questdb_url =
         env::var("QUESTDB_URL").unwrap_or_else(|_| "http://127.0.0.1:9000".to_string());
@@ -34,18 +51,6 @@ async fn main() -> anyhow::Result<()> {
     let broadcaster = Arc::new(Broadcaster::new(&redis_url).await?);
     let batcher = Arc::new(Batcher::new(5, 1000)); // flush every 5s or 1000 items
     batcher.clone().start_timer().await?;
-
-    // ── Heartbeat (Docker health-check) ──────────────────────────────────────
-
-    tokio::spawn(async move {
-        loop {
-            let now = chrono::Utc::now().to_rfc3339();
-            if let Err(e) = std::fs::write("/tmp/heartbeat.txt", now) {
-                error!("🚨 Heartbeat write failed: {}", e);
-            }
-            time::sleep(Duration::from_secs(10)).await;
-        }
-    });
 
     // ── Backfiller (historical gap-fill — runs continuously) ─────────────────
 

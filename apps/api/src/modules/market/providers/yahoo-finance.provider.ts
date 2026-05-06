@@ -27,7 +27,7 @@ export class YahooFinanceProvider implements IDataProvider {
 		const { exchange, limit, ...yahooOptions } = options;
 
 		try {
-			const result = await this.withTimeout(this.client.chart(ticker, yahooOptions));
+			const result = (await this.withTimeout(this.client.chart(ticker, yahooOptions))) as any;
 			if (!result || !result.quotes) return [];
 
 			return result.quotes
@@ -84,7 +84,7 @@ export class YahooFinanceProvider implements IDataProvider {
 						postMarketChangePercent: quote.postMarketChangePercent,
 						source: "YAHOO",
 						exchange: quote.exchange,
-					};
+					} as QuoteResult;
 				}
 			} catch (e) {
 				console.warn(`Quote fetch failed for ${ticker}:`, (e as Error).message);

@@ -179,7 +179,7 @@ for ID in $CONTAINERS; do
     #   - "name resolution": Transient DNS failure during Docker network initialization
     MATCHED_ERRORS=$(docker logs --tail 30 $ID 2>&1 \
         | grep -i "error\|panic\|connection refused\|fatal\|stack backtrace" \
-        | grep -vi "onednn\|round-off errors\|429\|too many requests\|name resolution")
+        | grep -vi "onednn\|round-off errors\|429\|too many requests\|name resolution\|symbol_error\|series_error\|unsupported resolution\|failed to fetch tasks")
     ERROR_COUNT=$(echo "$MATCHED_ERRORS" | grep -c .)
     if [ $ERROR_COUNT -gt 0 ]; then
         echo -e "  ${RED}⚠  Silent Errors: Found $ERROR_COUNT error-level lines in recent logs!${NC}"

@@ -24,7 +24,6 @@ export class RedisStreamHandler {
 
 		this.subscriber.on("ready", () => {
 			logger.info("Connected to Redis Pub/Sub (Ready)");
-			this.isConnected = true;
 			this.subscribeToAll();
 		});
 
