@@ -258,10 +258,14 @@ export class SyncService {
 		const options: any = {};
 
 		if (endDate) {
-			// BACKFILL MODE
+			// BACKFILL MODE: window must be large enough to fill one full page (limit=500).
+			// 1h: 500 candles ÷ ~16 trading hours/day ≈ 31 days → use 60d for safety.
+			// 1d: 500 candles ÷ 252 trading days/year ≈ 2 years → use 2y.
 			const start = new Date(endDate);
-			if (interval === "1h") start.setDate(start.getDate() - 30);
-			else if (interval === "1d") start.setFullYear(start.getFullYear() - 1);
+			if (interval === "1h")
+				start.setDate(start.getDate() - 60); // was 30 — too small for deep scroll
+			else if (interval === "1d")
+				start.setFullYear(start.getFullYear() - 2); // was 1y
 			else if (interval === "1wk") start.setFullYear(start.getFullYear() - 5);
 			else if (interval === "1mo") start.setFullYear(start.getFullYear() - 10);
 			else start.setDate(start.getDate() - 60);

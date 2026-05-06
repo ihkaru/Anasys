@@ -66,7 +66,12 @@ export class CandleService {
 		this.logger.debug(`[getOHLCV] QuestDB query for ${candles.length} items took ${(t2 - t1).toFixed(2)}ms`);
 
 		// ── Step 3: Sync Logic ─────────────────────────────────────────────
-		const syncKey = `${ticker}:${interval}:${source}:${beforeDate ? "history" : "latest"}`;
+		// Bucket historical syncs by 30-day window so each page range gets its own lock.
+		// Without this, any historical request blocks all other historical pagination.
+		const syncBucket = beforeDate
+			? `history:${Math.floor(beforeDate.getTime() / (30 * 24 * 60 * 60 * 1000))}`
+			: "latest";
+		const syncKey = `${ticker}:${interval}:${source}:${syncBucket}`;
 
 		// Case A: MISS (No data at all)
 		if (candles.length === 0) {
