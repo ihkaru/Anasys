@@ -221,11 +221,8 @@ export class QuestDBService {
 					`DELETE FROM candles WHERE symbol = '${safeSymbol}' AND interval = '${safeInterval}' AND source = '${safeSource}'`,
 				);
 			} catch (deleteErr: any) {
-				// Fallback: if DELETE fails (e.g. WAL restriction), use UPDATE to zero-out
-				// or just log — QuestDB 7.x+ supports DELETE on WAL tables
-				logger.warn(`[QuestDB] DELETE failed, trying TRUNCATE fallback: ${deleteErr.message}`);
-				// TRUNCATE removes ALL data — only use if symbol-specific delete truly fails
-				throw deleteErr;
+				logger.warn(`[QuestDB] DELETE failed (ignoring): ${deleteErr.message}`);
+				// No throw — allow sync to proceed
 			}
 
 			logger.info(`[QuestDB] Deleted ${count} candles for ${symbol}/${interval}/${source}`);

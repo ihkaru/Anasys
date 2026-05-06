@@ -19,7 +19,7 @@ use tokio_tungstenite::{
 const MAX_SESSIONS_PER_CONN: usize = 50;
 
 /// Intervals we stream in real-time. Add more as needed.
-const STREAMING_INTERVALS: &[&str] = &["1m", "5m", "15m", "1h"];
+const STREAMING_INTERVALS: &[&str] = &["1m"];
 
 /// State for one chart session (one symbol × interval pair).
 #[derive(Debug, Clone)]
@@ -119,17 +119,25 @@ impl CandleStreamer {
             MAX_SESSIONS_PER_CONN
         );
 
-        let mut handles = vec![];
+        let mut set = tokio::task::JoinSet::new();
         for (idx, bucket) in buckets.into_iter().enumerate() {
+            // ── Priority Pause Check (ADR-0021) ─────────────────────────────
+            // If API signals a priority request, pause streamer expansion to free up TV capacity
+            if self.redis_stream.is_backfill_paused().await {
+                info!("⏸ CandleStreamer expansion paused due to priority request. Waiting 10s...");
+                sleep(Duration::from_secs(10)).await;
+                // We don't skip the bucket, just delay it
+            }
+
             // ── Staggered Startup Delay (ADR-0021) ───────────────────────────
-            // Wait 500ms between each bucket spawn to avoid simultaneous handshakes
-            sleep(Duration::from_millis(500)).await;
+            // Wait 5000ms between each bucket spawn to avoid simultaneous handshakes
+            sleep(Duration::from_millis(5000)).await;
 
             let batcher = Arc::clone(&self.batcher);
             let rs = Arc::clone(&self.redis_stream);
             let lot_sizes = Arc::clone(&self.lot_sizes);
 
-            let handle = tokio::spawn(async move {
+            set.spawn(async move {
                 let mut fail_count = 0;
                 loop {
                     info!(
@@ -183,12 +191,11 @@ impl CandleStreamer {
                     sleep(wait_dur).await;
                 }
             });
-            handles.push(handle);
         }
 
         // Wait for any connection to exit (they self-restart, so this only fires on panic)
-        for h in handles {
-            let _ = h.await;
+        while let Some(res) = set.join_next().await {
+            let _ = res;
         }
         Ok(())
     }

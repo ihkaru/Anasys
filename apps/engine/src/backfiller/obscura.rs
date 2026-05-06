@@ -352,7 +352,28 @@ impl ObscuraFetcher {
         );
         request.headers_mut().insert("User-Agent", HeaderValue::from_static("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"));
 
-        let (mut ws, _) = connect_async(request).await?;
+        let mut ws = None;
+        let mut retry_count = 0;
+        let max_retries = 3;
+        
+        while retry_count < max_retries {
+            match connect_async(request.clone()).await {
+                Ok((stream, _)) => {
+                    ws = Some(stream);
+                    break;
+                }
+                Err(e) => {
+                    retry_count += 1;
+                    if retry_count >= max_retries {
+                        return Err(anyhow::anyhow!("WS connect failed after {} retries: {}", max_retries, e));
+                    }
+                    warn!("  → WS connect failed ({}): {}. Retrying in {}s...", ticker, e, retry_count * 2);
+                    sleep(Duration::from_secs(retry_count * 2)).await;
+                }
+            }
+        }
+        
+        let mut ws = ws.unwrap();
         debug!("  → WS Connected for {}", canonical_symbol);
 
         let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
@@ -415,6 +436,8 @@ impl ObscuraFetcher {
             "  → Subscriptions sent for {}. Awaiting data...",
             canonical_symbol
         );
+
+        let start_sec = if start > 9999999999 { start / 1000 } else { start };
 
         let mut candles = Vec::new();
         let mut symbol_metadata: Option<Value> = None;
@@ -491,10 +514,10 @@ impl ObscuraFetcher {
                                     .map(|c| c.timestamp)
                                     .min()
                                     .unwrap_or(i64::MAX);
-                                if oldest_ts > start && !loaded_all && candles.len() < 500_000 {
+                                if oldest_ts > start_sec && !loaded_all && candles.len() < 500_000 {
                                     debug!(
                                         "  → {} needs more data (oldest: {} > target: {}). Requesting 10k more...",
-                                        ticker, oldest_ts, start
+                                        ticker, oldest_ts, start_sec
                                     );
                                     self.send(
                                         &mut ws,
@@ -539,7 +562,7 @@ impl ObscuraFetcher {
         }
 
         let raw_count = candles.len();
-        candles.retain(|c| c.timestamp >= start);
+        candles.retain(|c| c.timestamp >= start_sec);
         candles.sort_by_key(|c| c.timestamp);
 
         if !candles.is_empty() {

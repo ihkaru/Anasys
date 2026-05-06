@@ -74,36 +74,47 @@ impl TaskWorker {
                     ticker, interval, is_direct
                 );
 
-                let (candles, _meta) = self
+                let fetch_result = self
                     .obscura
                     .fetch_candles(ticker, interval, asset_type, None, start, end)
-                    .await?;
+                    .await;
 
-                if !candles.is_empty() {
-                    let candles_clone = candles.clone();
+                match fetch_result {
+                    Ok((candles, _meta)) => {
+                        if !candles.is_empty() {
+                            let candles_clone = candles.clone();
 
-                    // 🚀 OPTIMIZATION: Send response immediately to Redis
-                    // This unblocks the API/Benchmark while we persist data in background
-                    if is_direct {
-                        self.send_response(&task.id, &candles_clone).await?;
-                    }
+                            // 🚀 OPTIMIZATION: Send response immediately to Redis
+                            // This unblocks the API/Benchmark while we persist data in background
+                            if is_direct {
+                                self.send_response(&task.id, &candles_clone).await?;
+                            }
 
-                    // Background persistence
-                    let batcher = Arc::clone(&self.batcher);
-                    tokio::spawn(async move {
-                        for candle in candles {
-                            let _ = batcher.add_candle(candle).await;
+                            // Background persistence
+                            let batcher = Arc::clone(&self.batcher);
+                            tokio::spawn(async move {
+                                for candle in candles {
+                                    let _ = batcher.add_candle(candle).await;
+                                }
+                                let _ = batcher.flush_candles().await;
+                            });
+
+                            if is_direct {
+                                return Ok(());
+                            }
+                        } else if is_direct {
+                            return self
+                                .send_response(&task.id, Vec::<crate::types::CandleData>::new())
+                                .await;
                         }
-                        let _ = batcher.flush_candles().await;
-                    });
-
-                    if is_direct {
-                        return Ok(());
                     }
-                } else if is_direct {
-                    return self
-                        .send_response(&task.id, Vec::<crate::types::CandleData>::new())
-                        .await;
+                    Err(e) => {
+                        error!("🚨 fetch_candles failed for {}: {}", ticker, e);
+                        if is_direct {
+                            let err_payload = serde_json::json!({ "error": e.to_string() });
+                            return self.send_response(&task.id, err_payload).await;
+                        }
+                    }
                 }
 
                 Ok(())

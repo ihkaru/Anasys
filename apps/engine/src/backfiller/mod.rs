@@ -18,18 +18,20 @@ pub struct Backfiller {
     binance_fetcher: BinanceFetcher,
     obscura_fetcher: ObscuraFetcher,
     api_url: String,
+    redis_client: redis::Client,
     yahoo_semaphore: Semaphore,
     obscura_semaphore: Semaphore,
 }
 
 impl Backfiller {
-    pub fn new(_batcher: Arc<Batcher>) -> Self {
+    pub fn new(_batcher: Arc<Batcher>, redis_client: redis::Client) -> Self {
         let api_url = env::var("API_URL").unwrap_or_else(|_| "http://api:3000/api".to_string());
         Self {
             yahoo_fetcher: YahooFetcher::new(),
             binance_fetcher: BinanceFetcher::new(),
             obscura_fetcher: ObscuraFetcher::new(),
             api_url,
+            redis_client,
             yahoo_semaphore: Semaphore::new(5),
             obscura_semaphore: Semaphore::new(20),
         }
@@ -39,6 +41,21 @@ impl Backfiller {
         info!("🕒 Backfiller service started (Yahoo + Binance + Obscura routing)");
 
         loop {
+            // Check if backfill is paused by API (ADR-0021)
+            if let Ok(mut conn) = self.redis_client.get_multiplexed_tokio_connection().await {
+                let is_paused: Option<String> = redis::cmd("GET")
+                    .arg("harvest:backfill:paused")
+                    .query_async(&mut conn)
+                    .await
+                    .unwrap_or_default();
+
+                if is_paused.is_some() {
+                    info!("⏸ Backfill paused due to priority request from API. Sleeping 5s...");
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+            }
+
             let tasks = match self.fetch_tasks().await {
                 Ok(t) => t,
                 Err(e) => {

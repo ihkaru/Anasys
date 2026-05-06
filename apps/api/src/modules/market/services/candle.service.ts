@@ -77,12 +77,12 @@ export class CandleService {
 		if (candles.length === 0) {
 			const syncPromise = this.triggerSync(ticker, symbol.type, interval, beforeDate, source, syncKey);
 
-			// 🚀 SMART WAIT: Race against a timeout (e.g., 1.5s) and the sync promise
-			this.logger.info(`[getOHLCV] CACHE MISS for ${ticker}. Initiating SMART WAIT (1500ms)...`);
+			// 🚀 SMART WAIT: Race against a timeout (e.g., 30s) and the sync promise
+			this.logger.info(`[getOHLCV] CACHE MISS for ${ticker}. Initiating SMART WAIT (30000ms)...`);
 			try {
 				await Promise.race([
 					syncPromise,
-					new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500)),
+					new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 30000)),
 				]);
 
 				// Tiny grace period for QuestDB commit visibility (must be > QDB_CAIRO_COMMIT_LAG)

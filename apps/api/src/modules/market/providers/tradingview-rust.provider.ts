@@ -14,12 +14,15 @@ export class TradingViewRustProvider implements IDataProvider {
 	}
 
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
+		const startOpt = options.start || options.period1;
+		const endOpt = options.end || options.period2;
+
 		const raw = await this.executeTask("ohlcv_direct", {
 			ticker,
 			interval: options.interval || "1d",
 			assetType: options.assetType || "STOCK",
-			start: options.start ? Math.floor(new Date(options.start).getTime() / 1000) : 0,
-			end: options.end ? Math.floor(new Date(options.end).getTime() / 1000) : 0,
+			start: startOpt ? Math.floor(new Date(startOpt).getTime() / 1000) : 0,
+			end: endOpt ? Math.floor(new Date(endOpt).getTime() / 1000) : 0,
 		});
 
 		if (!Array.isArray(raw)) {
@@ -120,16 +123,27 @@ export class TradingViewRustProvider implements IDataProvider {
 			// 1. Push to task queue
 			await redisConnection.rpush("harvest:tasks:queue", taskRequest);
 
-			// 2. Wait for response (BRPOP with 5s timeout)
+			// 2. Wait for response (BRPOP with 30s timeout)
 			const responseKey = `harvest:tasks:response:${id}`;
-			const result = await redisConnection.brpop(responseKey, 5);
+			const result = await redisConnection.brpop(responseKey, 30);
 
 			if (!result) {
-				throw new Error(`Task ${command} timed out after 5s`);
+				throw new Error(`Task ${command} timed out after 30s`);
 			}
 
 			const [_key, jsonStr] = result;
+			if (!jsonStr) return [];
+			
 			const data = JSON.parse(jsonStr);
+
+			if (data && typeof data === "object" && data.error) {
+				const errMsg = data.error.toLowerCase();
+				if (errMsg.includes("rate limit") || errMsg.includes("429")) {
+					this.logger.warn(`[Task] TradingView Rate Limit detected for ${command}. Returning empty.`);
+					return [];
+				}
+				throw new Error(`Engine Error: ${data.error}`);
+			}
 
 			this.logger.info(`[Task] Received response for ${command} in ${Date.now() - start}ms`);
 			return data;

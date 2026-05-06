@@ -23,8 +23,14 @@ export class YahooFinanceProvider implements IDataProvider {
 
 	async fetchChart(ticker: string, options: any): Promise<UnifiedCandle[]> {
 		// Sanitize options: remove fields not supported by yahoo-finance2 chart API
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
-		const { exchange, limit, ...yahooOptions } = options;
+		// Explicitly whitelist valid Yahoo options (ADR-0023)
+		const yahooOptions: any = {};
+		const validKeys = ["period1", "period2", "interval", "includePrePost", "events"];
+		for (const key of validKeys) {
+			if (options[key] !== undefined) {
+				yahooOptions[key] = options[key];
+			}
+		}
 
 		try {
 			const result = (await this.withTimeout(this.client.chart(ticker, yahooOptions))) as any;

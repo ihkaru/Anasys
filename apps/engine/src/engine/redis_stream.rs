@@ -122,4 +122,16 @@ impl RedisStream {
             Err(e) => Err(e.into()),
         }
     }
+
+    /// Check if backfill is paused by API (ADR-0021)
+    pub async fn is_backfill_paused(&self) -> bool {
+        let mut conn = self.connection.lock().await;
+        let result: Option<String> = redis::cmd("GET")
+            .arg("harvest:backfill:paused")
+            .query_async(&mut *conn)
+            .await
+            .unwrap_or_default();
+
+        result.is_some()
+    }
 }

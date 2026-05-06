@@ -53,8 +53,9 @@ async fn main() -> anyhow::Result<()> {
     batcher.clone().start_timer().await?;
 
     // ── Backfiller (historical gap-fill — runs continuously) ─────────────────
+    let redis_client = redis::Client::open(redis_url.as_str())?;
 
-    let backfiller = Arc::new(backfiller::Backfiller::new(batcher.clone()));
+    let backfiller = Arc::new(backfiller::Backfiller::new(batcher.clone(), redis_client.clone()));
     let backfiller_batcher = batcher.clone();
     let backfiller_handle = tokio::spawn(async move {
         if let Err(e) = backfiller.run(backfiller_batcher).await {
@@ -64,7 +65,6 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Symbol List (from Redis, fallback to env) ─────────────────────────────
 
-    let redis_client = redis::Client::open(redis_url.as_str())?;
     let mut redis_conn = redis_client.get_multiplexed_tokio_connection().await?;
     let initial_symbols = fetch_active_symbols(&mut redis_conn)
         .await
