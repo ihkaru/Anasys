@@ -36,7 +36,7 @@ export class SyncService {
 			// ── Priority Throttling (ADR-0021) ──────────────────────────────────
 			// Signal background workers to pause for 30s to prioritize this request
 			await this.redis.set("harvest:backfill:paused", "1", "EX", 30);
-			
+
 			this.logger.info(
 				`Sync started for ${ticker} (${interval}) via ${source}${endDate ? ` until ${endDate.toISOString()}` : ""}`,
 			);
@@ -67,7 +67,6 @@ export class SyncService {
 					chartOptions.limit = Math.min(5000, Math.ceil((diffMs / intervalMs) * 1.1));
 				}
 			}
-
 
 			// Enable Pre/Post market data for US stocks to match TradingView and fix alignment gaps
 			// Disable for IDX (.JK) stocks — IDX doesn't have meaningful pre/post market,
@@ -103,12 +102,7 @@ export class SyncService {
 
 			// Use rate limiter with Adaptive Bisection (ADR-0022)
 			const startFetch = Date.now();
-			const result = await this.fetchWithAdaptiveBisection(
-				provider,
-				effectiveTicker,
-				chartOptions,
-				ticker
-			);
+			const result = await this.fetchWithAdaptiveBisection(provider, effectiveTicker, chartOptions, ticker);
 			this.logger.debug(`[SyncService] API Fetch (${source}) took ${Date.now() - startFetch}ms`);
 
 			if (!result || result.length === 0) {
@@ -175,15 +169,15 @@ export class SyncService {
 		ticker: string,
 		options: any,
 		originalTicker: string,
-		depth = 0
+		depth = 0,
 	): Promise<UnifiedCandle[]> {
 		const MAX_DEPTH = 2; // Split up to 4 parts (2^2)
-		
+
 		try {
-			const result = await this.rateLimiter.execute(
+			const result = (await this.rateLimiter.execute(
 				() => provider.fetchChart(ticker, options),
 				`chart:${originalTicker}`,
-			);
+			)) as UnifiedCandle[];
 
 			// If we got data, or we are not in a mode that needs bisection (no range specified)
 			if (result.length > 0 || !options.period1 || !options.period2 || depth >= MAX_DEPTH) {
@@ -193,16 +187,16 @@ export class SyncService {
 			// If empty but we have a large window, try bisection
 			const diffMs = options.period2.getTime() - options.period1.getTime();
 			const intervalMs = this.getIntervalMs(options.interval);
-			
+
 			// Only bisect if the window is significantly larger than the interval (at least 10x)
 			if (diffMs > intervalMs * 10) {
 				this.logger.warn(`[SyncService] Empty result for ${originalTicker} at depth ${depth}. Trying Bisection...`);
-				
+
 				const mid = new Date(options.period1.getTime() + diffMs / 2);
-				
+
 				const [part1, part2] = await Promise.all([
 					this.fetchWithAdaptiveBisection(provider, ticker, { ...options, period2: mid }, originalTicker, depth + 1),
-					this.fetchWithAdaptiveBisection(provider, ticker, { ...options, period1: mid }, originalTicker, depth + 1)
+					this.fetchWithAdaptiveBisection(provider, ticker, { ...options, period1: mid }, originalTicker, depth + 1),
 				]);
 
 				return [...part1, ...part2];
@@ -212,7 +206,7 @@ export class SyncService {
 		} catch (error: any) {
 			// If it's a timeout or rate limit, and we haven't reached max depth, try bisecting immediately
 			const isRetryable = error.message?.includes("Timeout") || this.isRateLimitError(error);
-			
+
 			if (isRetryable && options.period1 && options.period2 && depth < MAX_DEPTH) {
 				this.logger.warn(`[SyncService] Fetch failed (${error.message}) for ${originalTicker}. Bisecting window...`);
 				const diffMs = options.period2.getTime() - options.period1.getTime();
@@ -220,7 +214,7 @@ export class SyncService {
 
 				const [part1, part2] = await Promise.all([
 					this.fetchWithAdaptiveBisection(provider, ticker, { ...options, period2: mid }, originalTicker, depth + 1),
-					this.fetchWithAdaptiveBisection(provider, ticker, { ...options, period1: mid }, originalTicker, depth + 1)
+					this.fetchWithAdaptiveBisection(provider, ticker, { ...options, period1: mid }, originalTicker, depth + 1),
 				]);
 
 				return [...part1, ...part2];
