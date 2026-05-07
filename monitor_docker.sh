@@ -171,6 +171,20 @@ for ID in $CONTAINERS; do
         WARNINGS+=("$NAME has no healthcheck — Traefik cannot validate readiness.")
     fi
 
+    # --- Smart Connectivity Check (Internal Network) ---
+    # Belajar dari RCA: Kadang container healthy tapi tidak bisa bicara antar-container.
+    if [[ "$NAME" == *"frontend"* ]]; then
+        # Cek apakah frontend bisa kontak API via network Docker
+        if docker exec $ID wget --spider -q http://api:3000/ping > /dev/null 2>&1; then
+            echo -e "  ${GREEN}✔  Connectivity: Frontend → API (Internal OK)${NC}"
+        else
+            echo -e "  ${RED}❌ Connectivity: Frontend → API (Internal FAILED!)${NC}"
+            STABLE=false
+            WARNINGS+=("Frontend cannot reach API at http://api:3000/ping inside Docker network.")
+        fi
+    fi
+
+    # --- Silent Error Scan ---
     # Silent error scan from logs (last 30 lines)
     # Keywords: real errors + Rust panics ("stack backtrace") + connection failures
     # Exclusions (known transient/false positives):

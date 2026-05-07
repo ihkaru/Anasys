@@ -82,8 +82,8 @@ services:
     expose:
       - "80"
     healthcheck:
-      # wget tersedia di nginx:alpine via busybox (curl tidak ada di image ini)
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      # Menggunakan 127.0.0.1 (bukan localhost) untuk menghindari masalah resolusi IPv6 pada image Alpine/Nginx
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/"]
       interval: 30s
       timeout: 5s
       retries: 5
